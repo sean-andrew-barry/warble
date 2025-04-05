@@ -1,0 +1,36 @@
+export module node.instruction.memory.destruct;
+
+import node.instruction.memory;
+import <string_view>;
+import <string>;
+import <memory>;
+
+export class Visitor;
+export class Updater;
+
+namespace node {
+  export class Declaration;
+};
+
+namespace node::instruction::memory {
+  export class Destruct : public Memory {
+  private:
+    std::shared_ptr<node::Declaration> target;
+  public:
+    using Memory::Memory;
+
+    Destruct(const lexical::source::Span& span, std::shared_ptr<node::Declaration> target) noexcept;
+
+    void Target(std::shared_ptr<node::Declaration> v) { target = v; }
+    std::shared_ptr<node::Declaration> Target() { return target; }
+
+    void Accept(Visitor& visitor) final;
+    void Update(Updater& updater) final;
+    int32_t Size() const final;
+    std::string Name() const final;
+    std::string ToString() const final;
+    virtual void Declare(code::Encoder& encoder) final;
+    virtual void Compile(code::Encoder& encoder) final;
+    void Compile(code::x64::Encoder& encoder) final;
+  };
+};
