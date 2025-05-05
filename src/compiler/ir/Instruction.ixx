@@ -4,6 +4,7 @@ import ir.codes;
 import ir.index;
 import ir._register;
 import <array>;
+import <cstdint>;
 
 // ──────────────────────────────────────────────────────────────
 //  Warble Compiler – TAC Instruction

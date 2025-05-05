@@ -1,5 +1,7 @@
 export module ir._register;
 
+import <cstdint>;
+
 namespace ir {
   export struct Register {
     uint8_t value;
