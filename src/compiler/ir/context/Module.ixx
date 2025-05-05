@@ -18,6 +18,7 @@ namespace ir::context {
 
   export class Module : public ir::Context {
   private:
+    ir::Package& pkg;
     std::vector<char32_t> characters; // The UTF-32 characters that will be embedded in the global character table
     std::vector<uint32_t> lines; // The line table from the source
     std::vector<lexical::Token> tokens;
