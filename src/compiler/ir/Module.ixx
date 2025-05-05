@@ -12,9 +12,6 @@ import ir.symbols;
 import ir.symbol;
 import ir.block;
 
-// ────────────────────────────────────────────────────────────────
-//  Symbol view: non-owning, trivially-cheap accessor
-// ────────────────────────────────────────────────────────────────
 namespace ir {
   export class Module {
   public:
