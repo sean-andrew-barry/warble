@@ -44,6 +44,7 @@ namespace ir {
     void Lock();
     void REP();
     void REPNE();
+    void Prefix(uint8_t opcode);
     void Escape();
     void Escape(uint8_t opcode);
     void Esc();

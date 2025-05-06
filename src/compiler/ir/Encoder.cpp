@@ -26,6 +26,7 @@ namespace code::x64 {
   void Encoder::Lock() { Code().Emit8(0xF0); }
   void Encoder::REP() { Code().Emit8(0xF3); } // Repeat while equal
   void Encoder::REPNE() { Code().Emit8(0xF2); } // Repeat while not equal
+  void Encoder::Prefix(uint8_t opcode) { if (opcode) Code().Emit8(opcode); }
   void Encoder::Escape() { Code().Emit8(0x0F); }
   void Encoder::Escape(uint8_t opcode) { Code().Emit8(0x0F); Code().Emit8(opcode); }
   void Encoder::Esc() { Code().Emit8(0x0F); }
@@ -1038,158 +1039,156 @@ namespace code::x64 {
   bool Encoder::CMOVNLE(const ir::Symbol& d, const ir::Symbol& s) { return CMOVcc(0x4F, d, s); }
   bool Encoder::CMOVG(const ir::Symbol& d, const ir::Symbol& s) { return CMOVNLE(d, s); }
 
-  bool Encoder::X32_RM32(uint8_t op, const ir::Symbol& x, const ir::Symbol& rm, bool esc = false) {
+  bool Encoder::X32_RM32(uint8_t p, uint8_t op, const ir::Symbol& x, const ir::Symbol& rm, bool esc = false) {
     if (!x.IsAllocated() || !x.Is32Bit() || !x.IsSIMD() || !rm.Is32Bit()) return false;
 
-    Single();
+    if (p) Prefix(p);
     REX(x, rm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (esc) Escape();
+    OP(op);
     ModRM(x, rm);
 
     return true;
   }
 
-  bool Encoder::X32_RM64(uint8_t op, const ir::Symbol& x, const ir::Symbol& rm, bool esc = false) {
+  bool Encoder::X32_RM64(uint8_t p, uint8_t op, const ir::Symbol& x, const ir::Symbol& rm, bool esc = false) {
     if (!x.IsAllocated() || !x.Is32Bit() || !x.IsSIMD() || !rm.Is64Bit()) return false;
 
-    Single();
-    REX64(x, rm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (p) Prefix(p);
+    REXW(x, rm);
+    if (esc) Escape();
+    OP(op);
     ModRM(x, rm);
 
     return true;
   }
 
-  bool Encoder::X64_RM32(uint8_t op, const ir::Symbol& x, const ir::Symbol& rm, bool esc = false) {
+  bool Encoder::X64_RM32(uint8_t p, uint8_t op, const ir::Symbol& x, const ir::Symbol& rm, bool esc = false) {
     if (!x.IsAllocated() || !x.Is32Bit() || !x.IsSIMD() || !rm.Is32Bit()) return false;
 
-    Single();
+    if (p) Prefix(p);
     REX(x, rm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (esc) Escape();
+    OP(op);
     ModRM(x, rm);
 
     return true;
   }
 
-  bool Encoder::X64_RM64(uint8_t op, const ir::Symbol& x, const ir::Symbol& rm, bool esc = false) {
+  bool Encoder::X64_RM64(uint8_t p, uint8_t op, const ir::Symbol& x, const ir::Symbol& rm, bool esc = false) {
     if (!x.IsAllocated() || !x.Is64Bit() || !x.IsSIMD() || !rm.Is64Bit()) return false;
 
-    Double();
-    REX64(x, rm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (p) Prefix(p);
+    REXW(x, rm);
+    if (esc) Escape();
+    OP(op);
     ModRM(x, rm);
 
     return true;
   }
 
-  bool Encoder::R32_XM32(uint8_t op, const ir::Symbol& r, const ir::Symbol& xm, bool esc = false) {
+  bool Encoder::R32_XM32(uint8_t p, uint8_t op, const ir::Symbol& r, const ir::Symbol& xm, bool esc = false) {
     if (!r.IsAllocated() || !r.Is32Bit() || !xm.IsSIMD() || !xm.Is32Bit()) return false;
 
-    Single();
+    if (p) Prefix(p);
     REX(r, xm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (esc) Escape();
+    OP(op);
     ModRM(r, xm);
 
     return true;
   }
 
-  bool Encoder::R64_XM32(uint8_t op, const ir::Symbol& r, const ir::Symbol& xm, bool esc = false) {
+  bool Encoder::R64_XM32(uint8_t p, uint8_t op, const ir::Symbol& r, const ir::Symbol& xm, bool esc = false) {
     if (!r.IsAllocated() || !r.Is64Bit() || !xm.IsSIMD() || !xm.Is32Bit()) return false;
 
-    Single();
-    REX64(r, xm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (p) Prefix(p);
+    REXW(r, xm);
+    if (esc) Escape();
+    OP(op);
     ModRM(r, xm);
 
     return true;
   }
 
-  bool Encoder::R32_XM64(uint8_t op, const ir::Symbol& r, const ir::Symbol& xm, bool esc = false) {
+  bool Encoder::R32_XM64(uint8_t p, uint8_t op, const ir::Symbol& r, const ir::Symbol& xm, bool esc = false) {
     if (!r.IsAllocated() || !r.Is32Bit() || !xm.IsSIMD() || !xm.Is64Bit()) return false;
 
-    Double();
+    if (p) Prefix(p);
     REX(r, xm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (esc) Escape();
+    OP(op);
     ModRM(r, xm);
 
     return true;
   }
 
-  bool Encoder::R64_XM64(uint8_t op, const ir::Symbol& r, const ir::Symbol& xm, bool esc = false) {
+  bool Encoder::R64_XM64(uint8_t p, uint8_t op, const ir::Symbol& r, const ir::Symbol& xm, bool esc = false) {
     if (!r.IsAllocated() || !r.Is64Bit() || !xm.IsSIMD() || !xm.Is64Bit()) return false;
 
-    Double();
-    REX64(r, xm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (p) Prefix(p);
+    REXW(r, xm);
+    if (esc) Escape();
+    OP(op);
     ModRM(r, xm);
 
     return true;
   }
 
-  bool Encoder::X32_XM64(uint8_t op, const ir::Symbol& x, const ir::Symbol& xm, bool esc = false) {
+  bool Encoder::X32_XM64(uint8_t p, uint8_t op, const ir::Symbol& x, const ir::Symbol& xm, bool esc = false) {
     if (!x.IsAllocated() || !x.Is32Bit() || !x.IsSIMD() || !xm.Is64Bit() || !xm.IsSIMD()) return false;
 
-    Double();
-    REX64(x, xm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (p) Prefix(p);
+    REX(x, xm);
+    if (esc) Escape();
+    OP(op);
     ModRM(x, xm);
 
     return true;
   }
 
-  bool Encoder::X64_XM32(uint8_t op, const ir::Symbol& x, const ir::Symbol& xm, bool esc = false) {
+  bool Encoder::X64_XM32(uint8_t p, uint8_t op, const ir::Symbol& x, const ir::Symbol& xm, bool esc = false) {
     if (!x.IsAllocated() || !x.Is64Bit() || !x.IsSIMD() || !xm.Is32Bit() || !xm.IsSIMD()) return false;
 
-    Single();
+    if (p) Prefix(p);
     REX(x, xm);
-    if (esc) Escape(op);
-    else OP(op);
+    if (esc) Escape();
+    OP(op);
     ModRM(x, xm);
 
     return true;
   }
 
-  bool Encoder::X64_XM64(uint8_t op, const ir::Symbol& x, const ir::Symbol& xm, bool esc = false, bool size = false) {
+  bool Encoder::X64_XM64(uint8_t p, uint8_t op, const ir::Symbol& x, const ir::Symbol& xm, bool esc = false) {
     if (!x.IsAllocated() || !x.Is64Bit() || !x.IsSIMD() || !xm.Is64Bit() || !xm.IsSIMD()) return false;
 
-    if (size) OpSize();
+    if (p) Prefix(p);
     REX(x, xm);
-    if (esc) Escape(op);
-    else OP(op);
-
+    if (esc) Escape();
+    OP(op);
     ModRM(x, xm);
 
     return true;
   }
 
-  bool Encoder::XM64_X64(uint8_t op, const ir::Symbol& xm, const ir::Symbol& x, bool esc = false, bool size = false) {
-    return X64_XM64(op, x, xm, esc, size);
+  bool Encoder::XM64_X64(uint8_t p, uint8_t op, const ir::Symbol& xm, const ir::Symbol& x, bool esc = false) {
+    return X64_XM64(p, op, x, xm, esc);
   }
 
-  bool Encoder::X128_XM128(uint8_t op, const ir::Symbol& x, const ir::Symbol& xm, bool esc = false, bool size = false) {
+  bool Encoder::X128_XM128(uint8_t p, uint8_t op, const ir::Symbol& x, const ir::Symbol& xm, bool esc = false) {
     if (!x.IsAllocated() || !x.Is128Bit() || !x.IsSIMD() || !xm.Is128Bit() || !xm.IsSIMD()) return false;
 
-    if (size) OpSize();
+    if (p) Prefix(p);
     REX(x, xm);
-    if (esc) Escape(op);
-    else OP(op);
-
+    if (esc) Escape();
+    OP(op);
     ModRM(x, xm);
 
     return true;
   }
 
-  bool Encoder::XM128_X128(uint8_t op, const ir::Symbol& xm, const ir::Symbol& x, bool esc = false, bool size = false) {
-    return X128_XM128(op, x, xm, esc, size);
+  bool Encoder::XM128_X128(uint8_t p, uint8_t op, const ir::Symbol& xm, const ir::Symbol& x, bool esc = false) {
+    return X128_XM128(p, op, x, xm, esc);
   }
 
   // Convert Scalar Doubleword Integer to Scalar Single-Precision FP
