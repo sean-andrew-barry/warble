@@ -104,6 +104,88 @@ namespace code::x64 {
     Code().Emit8(rex);
   }
 
+  // // 3-byte VEX: dst = 'r', src1 = 'v', [rm] = base/index per ModRM/SIB
+  // void Encoder::VEX3(const ir::Symbol& r, const ir::Symbol& v, const ir::Symbol& base, const ir::Symbol& index, uint8_t mmmmm, bool W, bool is256, uint8_t pp) {
+  //   uint8_t b1 = 0xC4;
+  //   uint8_t b2 = 0x00;
+  //   uint8_t b3 = 0x00;
+
+  //   // R̅ / X̅ / B̅ (inverted)
+  //   if (!(r.IsAllocated()     && r.Register()     >= 8)) b2 |= 0x80; // R̅
+  //   if (!(index.IsAllocated() && index.Register() >= 8)) b2 |= 0x40; // X̅
+  //   if (!(base.IsAllocated()  && base.Register()  >= 8)) b2 |= 0x20; // B̅
+
+  //   b2 |= (mmmmm & 0x1F);
+
+  //   // W, v̅, is256, pp
+  //   if (W) b3 |= 0x80;
+  //   uint8_t vReg = v.IsAllocated() ? v.Register() : 0;
+  //   b3 |= ((~vReg & 0x0F) << 3); // v̅̅̅̅
+  //   if (is256) b3 |= 0x04;
+  //   b3 |= (pp & 0x03); // Prefix replacement 00 = None, 01 = 0x66, 10 = 0xF3, 11 = 0xF2.
+
+  //   Code().Emit8(b1);
+  //   Code().Emit8(b2);
+  //   Code().Emit8(b3);
+  // }
+
+  // // ‘dst’   – ModRM.reg   (also chooses R̅)
+  // // ‘src1’  – vvvv field  (non-destructive source)
+  // // ‘base’  – ModRM/SIB rm/base (chooses B̅)
+  // // ‘index’ – SIB.index   (chooses X̅)
+  // // ‘op’    – metadata row for this exact instruction form
+  // // ‘setW’  – override when the form is polymorphic in operand size
+  // void Encoder::VEX(const ir::Symbol& dst,
+  //   const ir::Symbol& src1,
+  //   const ir::Symbol& base,
+  //   const ir::Symbol& index,
+  //   const OpInfo&     op,
+  //   bool              setW /* = op.defaultW */) {
+  //   // ---- decide 2- vs 3-byte form -----------------------------------------
+  //   bool needs3B = setW ||
+  //     (index.IsAllocated() && index.Register() >= 8) ||
+  //     (base.IsAllocated()  && base.Register()  >= 8) ||
+  //     op.mmmmm != 0b00001;
+
+  //   uint8_t b1 = needs3B ? 0xC4 : 0xC5;
+  //   uint8_t b2 = 0, b3 = 0;
+
+  //   // ---- byte 2 (or the ONLY byte in C5 form) ------------------------------
+  //   // Inverted extension bits
+  //   if (!(dst.IsAllocated()   && dst.Register()   >= 8)) b2 |= 0x80;     // ~R
+  //   if (needs3B) {
+  //     if (!(index.IsAllocated()&& index.Register()>=8)) b2 |= 0x40;    // ~X
+  //     if (!(base.IsAllocated() && base.Register() >=8)) b2 |= 0x20;    // ~B
+  //     b2 |= op.mmmmm & 0x1F;
+  //   }
+
+  //   // ---- byte 3 (only present in C4 form) ----------------------------------
+  //   if (needs3B) {
+  //     if (setW) b3 |= 0x80;                     // W
+  //     uint8_t v = src1.IsAllocated() ? src1.Register() : 0;
+  //     b3 |= (~v & 0x0F) << 3;                  // ~vvvv
+  //     bool is256 = dst.Is256Bit() || src1.Is256Bit() ||
+  //         base.Is256Bit() || index.Is256Bit();
+  //     if (is256) b3 |= 0x04;                   // L
+  //     b3 |= op.pp & 0x03;                      // pp
+  //   } else {
+  //     // In C5 form the L/pp/vvvv share byte 2
+  //     bool is256 = dst.Is256Bit() || src1.Is256Bit();
+  //     if (is256) b2 |= 0x04;                   // L
+  //     b2 |= op.pp & 0x03;                      // pp
+  //     uint8_t v = src1.IsAllocated() ? src1.Register() : 0;
+  //     b2 |= (~v & 0x0F) << 3;                  // ~vvvv
+  //   }
+
+  //   Code().Emit8(b1);
+  //   Code().Emit8(b2);
+  //   if (needs3B) Code().Emit8(b3);
+  // }
+
+  // void Encoder::VEXW128(const ir::Symbol& r, const ir::Symbol& v, const ir::Symbol& base, const ir::Symbol& index) {
+  //   VEX3(r, v, base, index, ?, true, false, ?);
+  // }
+
   void Encoder::OP(uint8_t primary_opcode) { Code().Emit8(primary_opcode); }
   void Encoder::OP(uint8_t op, const ir::Symbol& reg) { OP(op + (reg.Register() & 0x07)); }
 
