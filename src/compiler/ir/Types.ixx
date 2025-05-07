@@ -20,5 +20,6 @@ namespace ir {
     ENUM, // Array of 32 bit symbol indexes
     TUPLE,
     OBJECT,
+    RANGE,
   };
 };
