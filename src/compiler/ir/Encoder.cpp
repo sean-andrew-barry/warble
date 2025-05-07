@@ -50,17 +50,62 @@ namespace code::x64 {
   void Encoder::REXWRX() { Code().Emit8(0x4E); }
   void Encoder::REXWRXB() { Code().Emit8(0x4F); }
 
+  void Encoder::REX(const ir::Symbol& r) {
+    uint8_t rex = 0x40;
+
+    if (r.IsAllocated() && r.Register() >= 8) rex |= 0x01;
+
+    if (rex != 0x40) Code().Emit8(rex);
+  }
+
+  void Encoder::REX(const ir::Symbol& r, const ir::Symbol& rm) {
+    uint8_t rex = 0x40;
+
+    if (r.IsAllocated() && r.Register() >= 8) rex |= 0x04;
+    if (rm.IsAllocated() && rm.Register() >= 8) rex |= 0x01;
+
+    if (rex != 0x40) Code().Emit8(rex);
+  }
+
+  void Encoder::REX(const ir::Symbol& r, const ir::Symbol& base, const ir::Symbol& index) {
+    uint8_t rex = 0x40;
+
+    if (r.IsAllocated() && r.Register() >= 8) rex |= 0x04;
+    if (base.IsAllocated() && base.Register() >= 8) rex |= 0x01;
+    if (index.IsAllocated() && index.Register() >= 8) rex |= 0x02;
+
+    if (rex != 0x40) Code().Emit8(rex);
+  }
+
+  void Encoder::REXW(const ir::Symbol& r) {
+    uint8_t rex = 0x48;
+
+    if (r.IsAllocated() && r.Register() >= 8) rex |= 0x01;
+
+    Code().Emit8(rex);
+  }
+
+  void Encoder::REXW(const ir::Symbol& r, const ir::Symbol& rm) {
+    uint8_t rex = 0x48;
+
+    if (r.IsAllocated() && r.Register() >= 8) rex |= 0x04;
+    if (rm.IsAllocated() && rm.Register() >= 8) rex |= 0x01;
+
+    Code().Emit8(rex);
+  }
+
+  void Encoder::REXW(const ir::Symbol& r, const ir::Symbol& base, const ir::Symbol& index) {
+    uint8_t rex = 0x48;
+
+    if (r.IsAllocated() && r.Register() >= 8) rex |= 0x04;
+    if (base.IsAllocated() && base.Register() >= 8) rex |= 0x01;
+    if (index.IsAllocated() && index.Register() >= 8) rex |= 0x02;
+
+    Code().Emit8(rex);
+  }
+
   void Encoder::OP(uint8_t primary_opcode) { Code().Emit8(primary_opcode); }
-  void Encoder::SO(uint8_t secondary_opcode) { Code().Emit8(secondary_opcode); }
-
-  void Encoder::OP(uint8_t op, const ir::Symbol& reg) {
-    OP(op + (reg.Register() & 0x07));
-  }
-
-  void Encoder::WOP(uint8_t opcode) {
-    REXW();
-    OP(opcode);
-  }
+  void Encoder::OP(uint8_t op, const ir::Symbol& reg) { OP(op + (reg.Register() & 0x07)); }
 
   void Encoder::Displacement(int32_t displacement, uint8_t mod, bool is_bp) {
     // Emit displacement based on mod bits and base register
@@ -73,8 +118,8 @@ namespace code::x64 {
     }
   }
 
-  bool Encoder::IsStandard(const ir::Symbol& reg) { return (reg.Register() & 0b11101000) == 0b00000000; }
-  bool Encoder::IsExtended(const ir::Symbol& reg) { return (reg.Register() & 0b11101000) != 0b00001000; }
+  bool Encoder::IsStandard(const ir::Symbol& r) { return (r.Register() & 0b11101000) == 0b00000000; }
+  bool Encoder::IsExtended(const ir::Symbol& r) { return (r.Register() & 0b11101000) != 0b00001000; }
 
   void Encoder::REL8(const ir::Symbol& imm) {
     // TODO: Address calculation needs to be made recursive
@@ -86,67 +131,69 @@ namespace code::x64 {
     Code().Emit32(imm.Displacement());
   }
 
-  bool Encoder::AL_IMM8(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm) {
-    if (reg.Register() != 0 || !reg.Is8Bit() || !imm.Is8Bit() || !imm.IsImmediate()) return false;
+  bool Encoder::AL_IMM8(uint8_t op, const ir::Symbol& r, const ir::Symbol& i) {
+    if (r.Register() != 0 || !r.Is8Bit() || !i.Is8Bit() || !i.IsImmediate()) return false;
 
     OP(op);
-    IMM8(imm);
+    IMM8(i);
 
     return true;
   }
 
-  bool Encoder::AX_IMM16(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm) {
-    if (reg.Register() != 0 || !reg.Is16Bit() || !imm.Is16Bit() || !imm.IsImmediate()) return false;
+  bool Encoder::AX_IMM16(uint8_t op, const ir::Symbol& r, const ir::Symbol& i) {
+    if (r.Register() != 0 || !r.Is16Bit() || !i.Is16Bit() || !i.IsImmediate()) return false;
 
     OP(op);
-    IMM16(imm);
+    IMM16(i);
 
     return true;
   }
 
-  bool Encoder::EAX_IMM32(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm) {
-    if (reg.Register() != 0 || !reg.Is32Bit() || !imm.Is32Bit() || !imm.IsImmediate()) return false;
+  bool Encoder::EAX_IMM32(uint8_t op, const ir::Symbol& r, const ir::Symbol& i) {
+    if (r.Register() != 0 || !r.Is32Bit() || !i.Is32Bit() || !i.IsImmediate()) return false;
 
     OP(op);
-    IMM32(imm);
+    IMM32(i);
 
     return true;
   }
 
-  bool Encoder::RAX_IMM32(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm) {
-    if (reg.Register() != 0 || !reg.Is32Bit() || !imm.Is32Bit() || !imm.IsImmediate()) return false;
+  bool Encoder::RAX_IMM32(uint8_t op, const ir::Symbol& r, const ir::Symbol& i) {
+    if (r.Register() != 0 || !r.Is32Bit() || !i.Is32Bit() || !i.IsImmediate()) return false;
 
     REXW();
     OP(op);
-    IMM32(imm);
+    IMM32(i);
 
     return true;
   }
 
-  bool Encoder::R8_IMM8(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm) {
-    if (reg.Register() != 0 || !reg.Is8Bit() || !imm.Is8Bit() || !imm.IsImmediate()) return false;
+  bool Encoder::R8_IMM8(uint8_t op, const ir::Symbol& r, const ir::Symbol& i) {
+    if (r.Register() != 0 || !r.Is8Bit() || !i.Is8Bit() || !i.IsImmediate()) return false;
 
+    REX(r);
     OP(op);
-    IMM8(imm);
+    IMM8(i);
 
     return true;
   }
 
-  bool Encoder::R32_IMM32(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm) {
-    if (reg.Register() != 0 || !reg.Is32Bit() || !imm.Is32Bit() || !imm.IsImmediate()) return false;
+  bool Encoder::R32_IMM32(uint8_t op, const ir::Symbol& r, const ir::Symbol& i) {
+    if (r.Register() != 0 || !r.Is32Bit() || !i.Is32Bit() || !i.IsImmediate()) return false;
 
+    REX(r);
     OP(op);
-    IMM32(imm);
+    IMM32(i);
 
     return true;
   }
 
-  bool Encoder::R64_IMM32(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm) {
-    if (reg.Register() != 0 || !reg.Is64Bit() || !imm.Is32Bit() || !imm.IsImmediate()) return false;
+  bool Encoder::R64_IMM32(uint8_t op, const ir::Symbol& r, const ir::Symbol& i) {
+    if (r.Register() != 0 || !r.Is64Bit() || !i.Is32Bit() || !i.IsImmediate()) return false;
 
-    REXW();
+    REXW(r);
     OP(op);
-    IMM32(imm);
+    IMM32(i);
 
     return true;
   }
@@ -204,7 +251,7 @@ namespace code::x64 {
   bool Encoder::RM64_IMM8(uint8_t op, uint8_t ext, const ir::Symbol& rm, const ir::Symbol& imm) {
     if (!rm.Is64Bit() || !imm.Is8Bit() || !imm.IsImmediate()) return false;
 
-    REX64(rm);
+    REXW(rm);
     OP(op);
     ModRM(ext, rm);
     IMM8(imm);
@@ -238,7 +285,7 @@ namespace code::x64 {
   bool Encoder::RM64_IMM32(uint8_t op, uint8_t ext, const ir::Symbol& rm, const ir::Symbol& imm) {
     if (!rm.Is64Bit() || !imm.Is32Bit() || !imm.IsImmediate()) return false;
 
-    REX64(rm);
+    REXW(rm);
     OP(op);
     ModRM(ext, rm);
     IMM32(imm);
@@ -809,7 +856,8 @@ namespace code::x64 {
 
   bool Encoder::CDQE() {
     // AX -> RAX   (64-bit operand size, REX.W)
-    WOP(0x98);
+    REXW();
+    OP(0x98);
     return true;
   }
 
@@ -821,7 +869,8 @@ namespace code::x64 {
 
   bool Encoder::CQO() {
     // RAX -> RDX:RAX
-    WOP(0x99);
+    REXW();
+    OP(0x99);
     return true;
   }
 

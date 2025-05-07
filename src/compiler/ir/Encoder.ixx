@@ -4,6 +4,7 @@ import <cstdint>;
 import <bitset>;
 import <vector>;
 import <string>;
+import <stdexcept>;
 
 import ir._module;
 import ir.symbols;
@@ -69,12 +70,7 @@ namespace ir {
     void REXWRXB();
 
     void OP(uint8_t opcode);
-    void SO(uint8_t opcode);
-
-    // Special version of OP that embeds the register in the opcode
-    void OP(uint8_t op, const ir::Symbol& reg);
-
-    void WOP(uint8_t opcode);
+    void OP(uint8_t op, const ir::Symbol& reg); // Embeds the register in the opcode
 
     void Displacement(int32_t displacement, uint8_t mod, bool is_bp);
 
@@ -88,34 +84,17 @@ namespace ir {
     void IMM32(const ir::Symbol& symbol) { Codes().Emit32(symbol.Value()); }
     void IMM64(const ir::Symbol& symbol) { Codes().Emit64(symbol.Value()); }
 
-    inline bool IsExtended(const ir::Symbol& s) {
-      return s.IsAllocated() && s.Register() >= 8;
+    inline uint8_t Ext(const ir::Symbol& reg) {
+      // return (reg.Register() >> 3) & 1u;
+      return !!(reg.Register() & 0x08);
     }
 
-    // Return 1 when the register number is r8–r15, else 0.
-    // Works for   reg ∈ {0 … 15, 255}.  Any other value is UB.
-    static inline unsigned RexHi(uint8_t reg) {
-      // bit 3 tells us whether the register is in the upper bank.
-      // The ~reg>>5 term zeroes the result when reg == 255. 
-      return ((~reg >> 5) & (reg >> 3)) & 1;
-    }
-
-    inline void REX(bool w, uint8_t r, uint8_t x, uint8_t b) {
-      uint8_t rex = 0x40 | (w << 3) | (r << 2) | (x << 1) | b;
-      if (rex != 0x40) Code().Emit8(rex);
-    }
-
-    inline void REX_W(const ir::Symbol& rm) {
-      REX(true, 0, 0, RexHi(rm));
-    }
-
-    inline void REX_WRB(const ir::Symbol& reg, const ir::Symbol& rm, bool w) {
-      REX(w, RexHi(reg), 0, RexHi(rm));
-    }
-
-    inline void REX_WRXB(const ir::Symbol& reg, const ir::Symbol& base, const ir::Symbol& index, bool w) {
-      REX(w, RexHi(reg), RexHi(index), RexHi(base));
-    }
+    void REX(const ir::Symbol& r);
+    void REX(const ir::Symbol& r, const ir::Symbol& rm);
+    void REX(const ir::Symbol& r, const ir::Symbol& base, const ir::Symbol& index);
+    void REXW(const ir::Symbol& r);
+    void REXW(const ir::Symbol& r, const ir::Symbol& rm);
+    void REXW(const ir::Symbol& r, const ir::Symbol& base, const ir::Symbol& index);
 
     template<typename T>
     requires (std::same_as<T, uint8_t> || std::same_as<T, ir::Symbol>)
