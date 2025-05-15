@@ -1,4 +1,4 @@
-# Warble Language Specification (Outline)
+# Warble Language Specification
 
 ## 0. Preface
 
@@ -1144,15 +1144,234 @@ These two notations (`..` and `...`) provide clear and intuitive syntax for iter
 
 ---
 
+Here's your clearly structured and informative **Core Concepts** section:
+
+---
+
 ## 4 Core Concepts
+
+Warble's core concepts lay the foundational understanding needed to write clear, robust, and efficient code. This section covers the principles behind declarations, scoping rules, shadowing behaviors, symbol representation, and immutability defaults—critical elements for mastering Warble's expressive and predictable design.
 
 ### 4.1 Declarations (`const`, `let`) & Shadowing
 
+Declarations introduce named bindings (variables or constants) into Warble code. Warble provides two primary declaration keywords:
+
+* **`const`**: Declares an immutable (read-only) binding. Once initialized, the bound value cannot change.
+* **`let`**: Declares a mutable binding. The bound value can be reassigned after initialization.
+
+Example:
+
+```warble
+const pi = 3.14159; // Immutable binding
+let count = 0;      // Mutable binding
+count = 10;         // Allowed reassignment
+```
+
+#### Shadowing
+
+Shadowing occurs whenever a new declaration uses the same name as a previous declaration. This is permitted not only across nested scopes but also within the same scope:
+
+```warble
+// Shadowing within the same scope:
+const value = 42;
+const value = "hello";
+const value = true;
+```
+
+Each subsequent declaration of the same name "shadows" the previous ones. A lookup like `print(value)` refers exclusively to the most recent declaration, effectively making earlier declarations of the same name invisible from that point onward.
+
+Shadowing allows you to create a sequence of updated immutable values clearly and safely, enabling code that behaves similarly to mutation but preserves immutability. This works because, in Warble, the right-hand side of a declaration executes before the name on the left-hand side is introduced, allowing the declaration to refer to the previous binding of the same name:
+
+```warble
+const value = 10;
+const value = value * 10;
+print(value); // Prints "100"
+```
+
+In this example, the second declaration's right-hand side sees the first declaration’s binding (`10`) and uses it to calculate the new binding (`100`). The compiler optimizes memory usage efficiently by reusing the same storage, as it easily identifies that the lifetimes of these shadowed bindings do not overlap.
+
+**Note on Lifetimes:**
+In Warble, the lifetime of a declaration begins at its first usage and ends immediately after its last usage. Thus, shadowed bindings with non-overlapping lifetimes can efficiently reuse memory. This behavior contributes significantly to Warble's performance and clarity.
+
 ### 4.2 Scopes and the `do` Block
 
-### 4.3 Names, Symbols, and Reflection
+Scopes in Warble define contexts within which declarations exist. Each scope maintains its own distinct set of declarations, controlling visibility and lifetime. Warble scopes are created by blocks such as functions, loops, conditional statements, and explicitly by the `do` keyword.
+
+Unlike many languages, Warble does **not** allow standalone curly-brace scopes:
+
+```warble
+// Invalid in Warble:
+{
+  const x = 10;
+}
+```
+
+Warble explicitly disallows this pattern to avoid ambiguity with object literal expressions, which also use curly braces (`{}`). Instead, Warble provides the `do` keyword to clearly and unambiguously create explicit local scopes:
+
+```warble
+do {
+  const message = "Scoped!";
+  print(message); // Accessible here
+}
+
+print(message);   // Error: `message` is out of scope
+```
+
+Declarations introduced within a scope are accessible only within that scope and any nested scopes, reinforcing clarity and encapsulation:
+
+```warble
+const globalValue = 100;
+
+do {
+  const localValue = 10;
+  print(globalValue);  // prints 100, accessible from outer scope
+
+  do {
+    print(localValue); // prints 10, accessible from enclosing scope
+  }
+}
+```
+
+By requiring the explicit `do` keyword, Warble clearly distinguishes scope blocks from object literals, improving readability and preventing syntactic ambiguity.
+
+### 4.3 Symbols and Reflection
+
+In Warble, **symbols** are fundamental, compiler-generated entities representing every expression within the language. Users do not create or modify symbols directly; instead, symbols are the language's internal representation of expressions and their results.
+
+Every expression produces exactly one new symbol. Consider a simple declaration:
+
+```warble
+const value = 42;
+```
+
+Here, the compiler generates a symbol for the integer literal `42`. Initially, this symbol is anonymous—its internal `name` field is empty, making it inaccessible by name in later code.
+
+The left-hand side (`const value`) then binds a name to the symbol produced by the right-hand side expression (`42`). This binding sets the symbol's `name` field to reference the symbol representing the string literal `"value"`. Because the declaration uses `const`, the symbol’s `MUTABLE` flag is explicitly turned off. If it were a `let` declaration, the `MUTABLE` flag would instead be toggled on.
+
+Symbols contain detailed metadata, including:
+
+* **`name`**: Symbol representing the identifier's name (or empty if anonymous).
+* **`type`**: Type information (e.g., `integer`, `boolean`, `object`).
+* **`flags`**: A 64-bit bitfield indicating properties such as mutability, visibility, and special roles.
+* **`parent`**: Reference to the containing scope (e.g., a CFG block or module symbol).
+* **`children`**: For structured literals (like object literals), this contains symbols for each declared property in declaration order.
+
+Symbols generated from complex expressions follow a similar pattern, producing anonymous temporary symbols along the way:
+
+```warble
+const value = 42 * 7 + 10;
+
+// Compiler sees:
+s0 = 42          // anonymous symbol
+s1 = 7           // anonymous symbol
+s2 = s0 * s1     // anonymous symbol (result of multiplication)
+s3 = 10          // anonymous symbol
+value = s2 + s3  // named symbol ("value")
+```
+
+Only the final result symbol receives a named binding, making it accessible later via its identifier.
+
+#### Shadowing and Symbols
+
+As mentioned earlier, shadowing creates a new symbol that shares the same identifier name as an existing one. Each shadowing declaration produces a new symbol without altering the original symbol's name or metadata:
+
+```warble
+const value = 10;
+const value = value * 10; // New symbol named "value", RHS sees previous "value"
+```
+
+Each new declaration's right-hand side is evaluated before the new name is bound, allowing clear and safe "immutable mutation" patterns.
+
+#### Reflection via Symbols
+
+Symbols are not merely compile-time constructs; they are also included in the compiled binary and available at runtime for reflection. Reflection in Warble is the structured mechanism for inspecting program metadata and structure through symbols.
+
+Reflection is accessed via the `$` unary prefix operator, which returns the symbol associated with an identifier:
+
+```warble
+const value = 42;
+print($value); // Prints symbol metadata, including name, type, flags, etc.
+```
+
+The special `$.` operator simplifies accessing properties directly from symbols. For example, inspecting properties of an object literal can be done succinctly:
+
+```warble
+const propertiesOf(obj) { 
+  for (prop in obj$.children) { 
+    print(`Property: {prop.name}, Type: {prop.type}`);
+  }
+}
+```
+
+This expression accesses the symbol of `obj` first, then queries its `children` directly. It’s shorthand for the equivalent two-step process:
+
+```warble
+const sym = $obj;
+for (prop in sym.children) {
+  print(`Property: {prop.name}, Type: {prop.type}`);
+}
+```
+
+*(Note: Without the special `$.` operator, `$obj.children` would first try to access the `"children"` property on the runtime object `obj`, then take the symbol of that value, rather than directly accessing the symbol’s own `children` property.)*
+
+#### Symbols as a Foundation
+
+Reflection via symbols is a fundamental, fully-defined aspect of Warble. Every expression generates a symbol, and these symbols collectively define the structure and metadata of Warble programs. The language is designed explicitly to provide clear, predictable reflection capabilities built upon these pervasive symbols.
+
+Advanced reflection techniques, detailed symbol attributes, and comprehensive metaprogramming features leveraging these symbols are discussed in greater depth in the dedicated metaprogramming and compile-time programming section later in this specification.
 
 ### 4.4 Immutability vs. Mutability Defaults
+
+Warble emphasizes immutability as the default for declarations. However, the way this default is applied depends on the context:
+
+* In **scope-level declarations**, explicitly specifying either `const` (immutable) or `let` (mutable) is mandatory. This keyword is required to inform the compiler that the statement is a declaration rather than an expression:
+
+```warble
+const immutableValue = 5; // Immutable declaration
+let mutableValue = 10;    // Mutable declaration
+
+mutableValue = 15;        // Valid reassignment
+// immutableValue = 7;    // Error: Immutable value cannot be reassigned
+```
+
+Here, Warble does not default to immutability; you must explicitly state it.
+
+* However, there are several contexts in Warble where only declarations are permitted, eliminating ambiguity. In these contexts, specifying `const` or `let` is **optional**, and if omitted, the declaration implicitly defaults to immutability (`const`). These contexts include:
+
+  * **Function capture groups**
+  * **Function parameter lists**
+  * **Object literals**
+  * **For-loop iteration variables**
+
+Examples:
+
+```warble
+const a = 1;
+
+// Function captures and parameters default to immutability if keyword omitted
+// Capture `[a]` is equivalent to `[const a = a]`
+// Parameter `(b)` is equivalent to `(const b)`
+const myFunc = [a](b) {
+  print(a, b);
+};
+
+// Object literal properties default to immutability (`const`) if omitted
+const obj = {
+  c = 42, // Equivalent to `const c = 42`
+};
+
+// For-loop variables default to immutability (`const`) if omitted
+for (i in 0..5) { // Equivalent to `for (const i in 0..5)`
+  print(i);
+}
+```
+
+These defaults streamline common usage, reducing verbosity without losing clarity.
+
+By making immutability the implicit default in contexts without ambiguity, Warble encourages safer, clearer, and more predictable code:
+
+* **Immutable values** simplify reasoning about code, making it easier to debug, optimize, and refactor safely.
+* **Explicit mutability** (`let`) clearly highlights code sections that intentionally require careful consideration due to potential state changes.
 
 ---
 
@@ -1318,7 +1537,7 @@ These two notations (`..` and `...`) provide clear and intuitive syntax for iter
 
 ### 15.2 Atomic Operations
 
-### 15.3 Async / Await (if applicable)
+### 15.3 Async / Await
 
 ---
 
