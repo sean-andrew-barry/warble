@@ -194,19 +194,124 @@ By adhering to these principles, Warble strives to be a language that is both po
 
 ## 2 Lexical Structure
 
+Warble’s lexical structure defines how source code is broken down into meaningful sequences of characters, known as tokens. These tokens form the basic building blocks of Warble programs.
+
 ### 2.1 Character Set & Encoding
+
+Warble source files are Unicode text files encoded in UTF-8. This enables comprehensive support for internationalization, allowing identifiers and string literals to utilize a wide range of Unicode characters. Character literals are specifically stored as 32-bit UTF-32 code points to facilitate direct and efficient manipulation.
 
 ### 2.2 Tokens
 
+Tokens are the smallest meaningful units in Warble source code. The Warble compiler breaks input text into a sequence of tokens that it processes according to the language grammar.
+
+Warble tokens include:
+
+* Identifiers (names for variables, functions, and other entities)
+* Keywords (reserved words with special meaning)
+* Literals (explicit values written directly in the source code)
+* Operators and punctuation symbols
+
 #### 2.2.1 Identifiers
+
+Identifiers are used to name variables, functions, properties, and other entities in Warble. An identifier must start with an alphabetic character (`A-Z`, `a-z`), an underscore (`_`), or any Unicode letter, and may subsequently include digits (`0-9`) as well.
+
+Examples of valid identifiers:
+
+```warble
+count
+_myVariable
+Player1
+日本語
+```
+
+Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct identifiers.
 
 #### 2.2.2 Keywords
 
+Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
+
+```
+const, let, do, null, undefined, true, false, return, match, is, from, has, default, local
+```
+
+A full list of reserved keywords is available in Appendix 18.2.
+
 #### 2.2.3 Literals (overview—full details in §4)
+
+Literals represent fixed values directly embedded in Warble source code. They form the simplest expressions in the language, clearly communicating explicit values. Warble defines two categories of literals: **primitive literals** and **structured literals**.
+
+* **Primitive Literals**: Represent simple data values directly.
+
+  * Boolean literals: `true`, `false`
+  * Character literals: `'a'`, `'\n'`
+  * Numeric literals:
+    * Integer: `42`, `0x2A`, `0b101010`
+    * Decimal: `3.14`, `1.0e3`
+  * Void literal: `null`
+  * Undefined literal: `undefined`
+
+* **Structured Literals**: Represent complex data structures.
+
+  * Arrays: `[1, 2, 3]`
+  * Strings: `"Hello, Warble!"`
+  * Enums: `<Red, Green, Blue>`
+  * Tuples: `(1, "Warble", true)`
+  * Objects: `{ x = 1, y = 2 }`
+  * Templates: `` `Value: {x}` ``
+  * Functions: `[capture](param) => expression`
+  * Ranges: `0..10` (exclusive), `1...5` (inclusive)
+
+Complete details on each literal type, including their syntax and semantics, can be found in **§4 Types**.
 
 ### 2.3 Comments & Whitespace
 
+Warble treats whitespace characters (spaces, tabs, and newlines) as token separators. Aside from this role, whitespace is ignored by the compiler, allowing programmers flexibility in formatting and indenting code to enhance readability.
+
+**Comments** allow adding explanatory notes and documentation directly in Warble source code. They are ignored by the compiler and have no effect on program execution. Warble supports two styles of comments:
+
+* **Single-line comments** start with `//` and continue until the end of the line:
+
+  ```warble
+  // This is a single-line comment
+  const x = 42; // This comment follows a statement
+  ```
+
+* **Multi-line comments** are enclosed between `/*` and `*/`. They can span multiple lines and may include other comment markers without special interpretation:
+
+  ```warble
+  /*
+    This is a multi-line comment.
+    It can span multiple lines.
+  */
+  const y = 10;
+  ```
+
+Whitespace and comments do not affect the logic or execution of the program. They are purely for developer clarity and code organization.
+
 ### 2.4 Line Terminators & Semicolons
+
+Warble employs explicit statement termination using semicolons (`;`). Each top-level statement must conclude with a semicolon, clearly marking its end and avoiding ambiguity.
+
+Unlike some languages that allow implicit semicolons, Warble explicitly requires semicolons to separate individual statements. This ensures clarity and predictability in code parsing:
+
+```warble
+const x = 1; // valid statement termination
+const y = 2; // another valid termination
+```
+
+At the top level, object literals and similar structured literals used as expressions must also end with a semicolon to form a valid standalone statement:
+
+```warble
+const obj = { x = 1, y = 2 }; // semicolon required here
+```
+
+**Line terminators** (newlines, carriage returns, and other Unicode line-ending characters) serve only as whitespace. They do not implicitly terminate statements. Statements may span multiple lines, provided they end with a semicolon:
+
+```warble
+const total = 1 +
+              2 +
+              3; // valid across multiple lines
+```
 
 ## 3 Fundamentals
 
@@ -253,15 +358,66 @@ In Warble, the lifetime of a declaration begins at its first usage and ends imme
 
 ### 3.2 Scopes & Name Lookup
 
+Scopes in Warble define the visibility and lifetime of declared identifiers, helping organize code into manageable contexts. Warble scopes are created by:
+
+* **Modules** (the top-level scope of a file)
+* **Functions**
+* **Loops** (`for`, `while`, `do-while`)
+* **Conditionals** (`if`, `else`)
+* Explicit **`do`** blocks
+
+Unlike many curly-brace languages, Warble **does not** interpret standalone curly braces (`{ ... }`) as scope blocks. Instead, Warble uses the explicit `do` keyword to introduce scope blocks, eliminating ambiguity with object literals:
+
+```warble
+const x = 10;
+
+do {
+  const x = 20; // shadows outer `x` within this block
+  print(x);     // prints 20
+}
+
+print(x);       // prints 10
+```
+
+**Name lookup** in Warble follows a straightforward rule: when you reference an identifier, Warble searches for the most recent declaration of that identifier, starting from the current scope and moving outward through parent scopes. This lookup proceeds in reverse declaration order, meaning the latest matching declaration shadows any previous declarations with the same name.
+
+Shadowing also applies within the same scope:
+
+```warble
+const a = 1;
+const a = 2; // shadows previous declaration of `a`
+print(a);    // prints 2
+```
+
+The earlier `a` remains in memory and available via reflection but is inaccessible through standard identifier lookup from this point forward.
+
 ### 3.3 Semicolons vs. Empty Literals
 
-### 3.4 **The Symbol Model**
+In Warble, the curly brace notation `{}` always represents an **object literal**, never a scope or a block of statements. This contrasts with languages like C or JavaScript, where `{}` can represent an empty scope block.
 
-#### 3.4.1 Symbol Anatomy (`name`, `type`, `flags`, hierarchy)
+To clearly differentiate scopes from object literals:
 
-#### 3.4.2 Creation Rules
+* **Empty object literal**:
 
-#### 3.4.3 Symbol Access (`$`, `$.` shorthand)
+  ```warble
+  const emptyObject = {}; // empty object literal, must end with a semicolon
+  ```
+
+* **Empty scope block**:
+
+  ```warble
+  do {
+    // This is an empty scope block; no declarations here
+  }
+  ```
+
+A top-level empty object literal used as a standalone statement requires a terminating semicolon:
+
+```warble
+{}; // standalone empty object literal, semicolon required
+```
+
+The explicit requirement of the `do` keyword for scopes and semicolons for literals clarifies parsing rules and avoids ambiguity, maintaining Warble’s commitment to simplicity and explicitness.
 
 ## 4 Types
 
@@ -1079,19 +1235,329 @@ This avoids ambiguity when distinguishing between implicit object literals and e
 
 #### 4.2.1 Variant
 
+A **variant** in Warble is a type-safe tagged union, meaning it can represent exactly one of several possible types at runtime. Variants enable expressive, type-safe handling of values whose type can vary, without the overhead of traditional polymorphism or dynamic dispatch.
+
+##### Creation and Syntax
+
+Unlike many languages, Warble does not directly specify variants through type annotations. Instead, variants are implicitly created through expressions that combine multiple possible values.
+
+For instance, the logical operators `||` (logical OR) and `&&` (logical AND) always return variants in Warble. This is because the result of these logical operators depends on runtime conditions:
+
+```warble
+let data = 42 || "";
+```
+
+Here, the compiler infers that `data` has the variant type `<compiler.integer, compiler.string>` since it could store either type depending on runtime conditions. The initial value placed in the variant (`42` in this example) follows the standard logical rules of the operator.
+
+However, if you want to explicitly create a variant without performing logical evaluations, Warble provides the special `!!` operator:
+
+```warble
+let data = 0 !! "Hello" !! true;
+```
+
+In this case, `data` is explicitly assigned the variant `<compiler.integer, compiler.string, compiler.boolean>`. The value placed in the variant is always the first operand (`0`), regardless of its truthiness. This gives the programmer precise control over both the contained value and the variant's possible types.
+
+##### Variant Returns from Functions
+
+Warble functions do not explicitly declare variant return types. Instead, the compiler infers variant returns automatically when you use the special `return case` syntax within multiple code paths:
+
+```warble
+const parse(input: compiler.string) {
+  if (input.is_number()) {
+    return case input.to_int();
+  } else {
+    return case error("Not a number");
+  }
+}
+```
+
+Here, the compiler determines that `parse` returns the variant `<compiler.integer, compiler.error>`. The keyword `case` informs the compiler that the returned type is intended to be part of a variant, rather than forcing each return path to match exactly the same type.
+
+##### Pattern Matching
+
+Variants are commonly narrowed into specific types using Warble's pattern matching syntax:
+
+```warble
+let result = get_result();
+
+match (result) {
+  is (compiler.integer) as num {  
+    print(num * 2); 
+  }
+  default { 
+    print("Result was not an integer"); 
+  }
+}
+```
+
+Here, `match` inspects the runtime tag of the variant. If `result` currently holds a `compiler.integer`, the matched value is extracted into `num`, and the corresponding block executes. If it contains a different type, the `default` case executes.
+
+##### Memory and Performance
+
+Variants store a type-tag alongside their contained value. The total memory size of a variant is the size of its largest possible contained type plus a small, optimized tag. Details on how tags are organized and optimized are covered in section 4.3.3 Type Tag Layout.
+
+Further details, including the complete semantics of variant creation, flattening rules, narrowing operators, and unpacking mechanisms, are explained thoroughly in section 4.3 Variant Mechanics.
+
 #### 4.2.2 Module
 
-#### 4.2.3 Block
+In Warble, a **module** represents a single imported source file. For every source file included in a project, exactly one corresponding module object is created—no matter how many times that file is imported. The module acts as the root scope and primary container for all information defined within that source file.
 
-#### 4.2.4 Symbol
+##### Module Structure and Data Layout
+
+Modules store extensive metadata required by the compiler, debugger, and runtime. Each module includes the following structures:
+
+* **Symbol Table**
+  The symbol table is stored in a columnar (struct-of-arrays) format rather than an array-of-structs. Each symbol's properties are stored as separate columns of data. Symbols are accessed exclusively via 32-bit indexes rather than pointers. Even constructs like symbol references and lookups internally resolve to these 32-bit symbol indexes. This design ensures memory compactness, cache efficiency, and simplified symbol management.
+
+* **Character Data Buffer**
+  The module stores a large buffer of UTF-32 characters. This character buffer aggregates all textual identifier names and string literals found within the source code of that module. Identifiers and string literals reference substrings within this buffer, optimizing memory reuse and lookup efficiency.
+
+* **Enum Data Buffer**
+  Similar to the character data buffer, modules store an enum data buffer. This buffer contains sequences of 32-bit symbol indexes, representing enum literal definitions. Enum literals are managed and referenced similarly to text literals, providing uniformity and efficiency.
+
+* **Source Mapping Information**
+  To support debugging, error reporting, and source reconstruction, the module maintains precise source mapping data. This consists of two tightly-coupled buffers:
+
+  * **Tokens Buffer**: An array of 8-bit values representing each lexical token in the source code. Each numerical token uniquely identifies a syntactic element from the Warble source file.
+  * **Widths Buffer**: An accompanying 8-bit array storing each token's width (in characters). The tokens and widths buffers are always kept exactly synchronized, ensuring the original source code can be faithfully reconstructed and providing exact character ranges for error reporting or source highlighting.
+
+  Each symbol in the symbol table includes source mapping references that index into these buffers, enabling precise location information retrieval.
+
+* **Lines Table**
+  A module also maintains an array of 32-bit indexes called the "lines table," containing positions for each newline character (`\n`) in the original source text. This table enables efficient binary search operations to determine line and column information, essential for readable diagnostics and source code display.
+
+##### Static Allocation and Memory
+
+All module data described above are statically allocated and stored directly within data pages embedded in the compiled executable. This static embedding eliminates dynamic allocation overhead at runtime, ensuring rapid initialization and predictable memory usage.
+
+Additionally, the module object may contain user-defined top-level declarations. To accommodate these declarations, the compiler reserves a dedicated static memory block for each module. Each top-level declaration is assigned a specific slot within this memory block, analogous to how a function call uses a stack frame for its local variables.
+
+#### 4.2.3 Symbol
+
+Symbols are fundamental building blocks of Warble's type and runtime systems. Every value in Warble, whether it's a literal, an object, a function, or any other entity, is represented internally by a **symbol**. Symbols encapsulate extensive metadata, including type information, memory layout details, visibility, and other compile-time properties. Users cannot directly instantiate or modify symbols, but they interact with them through reflection, type-checking operators, and object-oriented constructs.
+
+##### Symbol Structure and Properties
+
+Conceptually, each symbol presents to the user as a structured object containing these key properties:
+
+* **`type`**: A simple 8 bit numeric ID that describes the type associated with the symbol.
+
+* **`registers`**: A bitset marking which CPU register indexes this symbol’s runtime value potentially resides in at any point during its lifetime.
+
+* **`flags`**: A bitset marking various modifiers and metadata. Common flags include:
+
+  * `CONST` – indicates a declaration was bound with `const`.
+  * `PUBLIC`, `PROTECTED`, `PRIVATE` – visibility modifiers.
+  * `SPREAD` – marks a symbol as being created from a spread operation `...`.
+  * `REPEAT` – marks an array symbol as being created by the repetition syntax (`[value; length]`).
+  * ...Etc.
+
+* **`value`**: A generic typeless field, interpreted according to the symbol’s type. It may store an immediate literal, a pointer or index, or other arbitrary data as required by the symbol’s semantics.
+
+* **`size`**: A 32 bit number representing memory footprint of the symbol, measured in bytes. Some symbol types, like the string and enum, repurpose this to refer to the number of elements they represent instead of their byte size. The byte size can still be determined by multiplying the `size` by the element size.
+
+* **`displacement`**: A 32 bit offset from its parent symbol in bytes. Symbols representing fields or subcomponents use this displacement for efficient address calculation.
+
+* **`name`**: A reference to a symbol that identifies this symbol. For named declarations like variables or functions, this reference a string literal symbol, holding the identifier's name. An anonymous symbol will reference the globally unique `null` symbol indicating its lack of a name.
+
+* **`parent`**: A reference to the parent symbol (such as a containing object, function, or module). This relationship enables efficient hierarchical address resolution. The root symbol of a hierarchy is always the module, which references the global `null` symbol as its parent.
+
+* **`children`**: A reference to an enum list of child symbols. Aggregates such as objects or arrays represent their fields variants as child symbols. Many symbol types, such as primitives like booleans or numbers, do not have children. They reference an empty enum symbol `<>` to indicate this.
+
+Additionally, symbols contain source mapping data, facilitating debugging and diagnostics:
+
+* **`token_start`**, **`token_end`**, **`character_start`**: 32 bit indexes linking symbols back to their corresponding locations in the source code.
+
+##### Symbol Creation
+
+Symbols are exclusively produced by expressions in Warble. Each expression, no matter how simple or complex, generates exactly one symbol. Literals, arithmetic operations, function calls, and other constructs all yield symbols upon evaluation:
+
+```warble
+const a = 42; // creates a symbol representing the literal '42'
+const b = a + 1; // creates symbols for 'a', '1', and the result of '+'
+```
+
+Symbols created by expressions are temporary and anonymous by default. To preserve a symbol beyond its immediate expression, it must be named explicitly through a declaration:
+
+```warble
+const namedValue = 100; // assigns the symbol for '100' a name and `CONST` flag
+```
+
+##### Symbol Addressing and Lookup
+
+Warble utilizes symbols extensively for efficient address resolution through a two-phase lookup process:
+
+* **Downward Resolution**: To access nested symbols, Warble sums the displacements of child symbols.
+* **Upward Resolution**: Starting from a given symbol, Warble recursively sums parent displacements until reaching a context symbol (such as a module or function).
+
+Addressing strategies depend on the context:
+
+* **Module Symbols**: Utilize RIP-relative addressing for top-level variables.
+* **Function Symbols**: Utilize RSP-relative addressing for local variables.
+
+##### Reflection and Runtime Access
+
+Users access symbol metadata at runtime through Warble’s reflection operator `$`:
+
+```warble
+const sym = $namedValue;
+print(sym.name); // Prints "namedValue"
+```
+
+Reflection provides a powerful, dynamic interface for debugging, logging, and runtime type introspection.
+
+##### Type-Checking and Identity Operators
+
+Warble offers powerful type-checking operators leveraging symbols’ structural metadata:
+
+* **`is`**: Verifies structural equivalence between symbols.
+
+  ```warble
+  if (dog1 is dog2) { /* structurally identical */ }
+  ```
+
+* **`has`**: Verifies that a symbol structurally includes required properties or methods.
+
+  ```warble
+  if (socket has { send(){}, recv(){} }) { /* satisfies the interface */ }
+  ```
+
+* **`from`**: Checks provenance, confirming if a value originates from a particular constructor.
+
+  ```warble
+  if (cat from Cat) { /* cat was created by Cat constructor */ }
+  ```
+
+##### Object-Oriented Programming via Symbols
+
+Warble’s object-oriented system is fully symbol-based:
+
+* Constructor functions define object structures.
+* Spread (`...`) syntax provides inheritance by marking child symbols with the `SPREAD` flag.
+* Visibility modifiers (`PUBLIC`, `PROTECTED`, `PRIVATE`) enforce encapsulation at compile-time.
+* Overriding methods are implemented by symbol shadowing; the `super` keyword adjusts the lookup anchor to invoke overridden symbols.
+
+##### Performance and Memory Considerations
+
+Warble’s columnar internal symbol layout provides excellent memory locality and efficiency. Although users perceive symbols as individual structured entities, internally they are managed as columnar data (arrays for each property). Users interact transparently without needing to manage indexes directly, enjoying a simple abstraction that preserves high performance and scalability.
+
+This columnar design allows Warble symbols to scale linearly with the number of program operations, ensuring predictable memory usage even in large codebases.
+
+Symbols thus form the backbone of Warble’s powerful and expressive type system, providing efficient representation, strong type guarantees, flexible reflection capabilities, and performance-oriented internal design.
+
+#### 4.2.4 Block
+> TODO
 
 ### 4.3 Variant Mechanics
 
-#### 4.3.1 Creation (`||`, `&&`, `return case`, manual)
+This section provides a detailed explanation of how variants are created, manipulated, and represented in memory. While variants are conceptually straightforward as tagged unions, Warble provides several powerful and ergonomic operators for working with them, ensuring both expressive power and performance efficiency.
 
-#### 4.3.2 Flattening & Tag Layout
+#### 4.3.1 Creation (`||`, `&&`, `!!`, `return case`)
 
-#### 4.3.3 Narrowing & Unpacking (`?.`, `??`)
+Variants in Warble are created implicitly through certain expressions rather than explicit type annotations. The main ways variants arise are:
+
+##### Logical Operators (`||`, `&&`)
+
+* `a || b` evaluates the truthiness of `a`. If `a` is truthy, the variant holds `a`; otherwise, it holds `b`.
+* `a && b` evaluates the truthiness of `a`. If `a` is falsy, the variant holds `a`; otherwise, it holds `b`.
+
+Example:
+
+```warble
+let result = 0 || "hello"; // variant holds "hello"
+let another = 42 && false; // variant holds false
+```
+
+These operators always yield a variant containing exactly the operand chosen based on runtime conditions.
+
+##### Explicit Variant Creation (`!!`)
+
+The `!!` operator explicitly creates a variant without evaluating the truthiness of its operands. The first operand always becomes the initial value, while subsequent operands define additional possible types.
+
+Example:
+
+```warble
+let explicitVariant = 0 !! "Hello" !! true;
+// explicitVariant holds 0, with possible types: integer, string, boolean
+```
+
+This operator provides precise control over variant creation, especially useful for cases when the initial value may be falsy.
+
+##### Variant Returns (`return case`)
+
+Inside functions, the `return case` syntax explicitly indicates variant returns. If different code paths return distinct types using `return case`, Warble merges these into a single variant type:
+
+```warble
+const checkValue(x: compiler.integer, compiler.boolean) {
+  if (x from compiler.integer) {
+    return case x;
+  } else {
+    return case "bool";
+  }
+}
+
+// Function returns a variant of <compiler.integer, compiler.string>
+```
+
+The compiler automatically infers the return variant type from these `return case` statements.
+
+#### 4.3.2 Flattening
+
+Warble automatically flattens nested variants, simplifying variant handling and preventing overly complex type trees.
+
+For example:
+
+```warble
+const nested = 1 || false || "Hello";
+// Instead of <compiler.integer, <compiler.boolean, compiler.string>>, Warble flattens it to <compiler.integer, compiler.boolean, compiler.string>
+```
+
+Flattening occurs at compile-time, merging all potential variant types into a single, flat variant type. This simplifies runtime logic and improves performance.
+
+#### 4.3.3 Type-Tag Layout
+
+Every variant stores a small type tag alongside its data to identify which of its possible types is currently active. The tag size is minimized by packing it into the alignment padding or unused bits of the variant's memory representation whenever possible.
+
+The total size of a variant is determined as:
+
+* The size of the largest possible type.
+* Plus the minimal number of bits required to distinguish all variant types.
+
+The compiler ensures tags are consistently ordered and deterministic, enabling efficient ABI and runtime optimizations. Tag lookup, type checking, and narrowing operations are highly performant as a result.
+
+#### 4.3.4 Narrowing (`?.`)
+
+The narrowing operator (`?.`) safely refines a variant to a specific type by verifying method or property presence. It removes incompatible types at compile-time, short-circuiting if runtime checks fail.
+
+Example:
+
+```warble
+const variant = getAnimal(); // returns variant of <Cat, Dog, Fish>
+
+variant?.bark()?.toUpperCase();
+```
+
+* First, Warble checks which types support `.bark()`. (Only `Dog` does.)
+* If at runtime the variant isn't a `Dog`, the expression short-circuits.
+* If it is a `Dog`, narrowing succeeds, and `.bark()` is safely invoked.
+* Further methods, like `.toUpperCase()`, apply only to types remaining after narrowing.
+
+This operator supports chaining, progressively narrowing the variant through multiple operations.
+
+#### 4.3.5 Unpacking (`??`)
+
+The unpacking operator (`??`) extracts a variant's contained value if its runtime type matches that of the fallback provided. If types don't match, the fallback value is used instead:
+
+Example:
+
+```warble
+const data = 1 || "hello"; // variant <compiler.integer, compiler.string>
+
+const str = data ?? "default";
+// If data holds a string then it's unpacked. If not, `str` is "default"
+```
+
+This operator simplifies conditional extraction, eliminating boilerplate associated with explicit type checks or pattern matching. It provides a clean way to safely access a variant's underlying data based on runtime type.
 
 ### 4.4 Type Inference & Compatibility
 
@@ -1119,13 +1585,358 @@ This avoids ambiguity when distinguishing between implicit object literals and e
 
 ### 6.5 Compile-Time Specialization
 
-## 7 Control Flow
+## 7 Statements & Control Flow
 
-### 7.1 `do`, `if`, `else`, `match`
+Warble’s statements provide structured control flow, clearly and predictably managing how code executes. Statements include blocks, conditionals, loops, and jumps, each serving distinct roles in controlling program execution.
 
-### 7.2 Loops (`for`, `while`, `do … while`)
+### 7.1 Block Statements
 
-### 7.3 Early Exit (`break`, `continue`, `return`)
+In Warble, a **block statement** groups multiple statements into a single, compound statement. Unlike many curly-brace languages, Warble explicitly distinguishes between **object literals** (using `{}`) and **scope blocks** (using `do {}`). This explicit differentiation prevents parsing ambiguity and enhances readability.
+
+Warble block statements have these characteristics:
+
+* They form an explicit scope boundary, introducing a new nested scope.
+* Declarations inside a block are scoped to that block and inaccessible from outside.
+* Blocks may contain any number of statements, including further nested blocks, declarations, expressions, and control-flow constructs.
+
+### 7.1.1 Scoped Block (`do`)
+
+To explicitly define a scoped block in Warble, you must use the `do` keyword followed by curly braces:
+
+```warble
+do {
+  const localValue = 42; // Scoped to this block
+  print(localValue);     // Accessible here
+}
+
+print(localValue); // Error: `localValue` is out of scope
+```
+
+Unlike object literals (`{}`), `do {}` blocks do not produce values or data structures. They exist purely to create local scopes and organize code logically.
+
+**Nested blocks** clearly manage inner scopes and shadow outer-scope variables:
+
+```warble
+const value = 1;
+
+do {
+  const value = 2;  // shadows outer `value`
+  
+  do {
+    const value = 3; // shadows the previous block's `value`
+    print(value);    // prints 3
+  }
+  
+  print(value);      // prints 2
+}
+
+print(value);        // prints 1
+```
+
+This explicit scope management, combined with clearly defined shadowing behavior, ensures code clarity and maintainability.
+
+### 7.2 Statement Functions
+
+Warble provides a special construct known as a **statement function**, allowing statements to be directly embedded within expressions. This capability enhances expressiveness and conciseness, enabling a smooth integration between statements and expressions.
+
+Statement functions automatically translate into **immediately-invoked function expressions (IIFEs)**. The compiler wraps your statement inside a function that is immediately invoked, making it behave just like any other expression, allowing its result to be assigned to a declaration or passed directly into other expressions.
+
+#### 7.2.1 Syntax & Motivation
+
+Any single Warble statement can appear in an expression context, such as on the right-hand side of a declaration. This is especially useful for conditionals, loops, and other control-flow constructs that you want to use directly within expressions:
+
+```warble
+const value = if (condition) {
+  return 42;
+} else {
+  return 0;
+};
+```
+
+The compiler interprets this as:
+
+```warble
+const value = [condition]() {
+  if (condition) {
+    return 42;
+  } else {
+    return 0;
+  }
+}(); // Immediately invoked
+```
+
+Using a statement function makes your intent clear and concise, removing the need for explicit function wrapping.
+
+#### 7.2.2 Return Rules & Type Consistency
+
+Within a statement function, `return` statements indicate the expression’s resulting value. All possible code paths must return a value of the same (or compatible) type. Warble enforces this at compile-time, ensuring safety and consistency:
+
+```warble
+// Valid: consistent return types
+const result = if (x > 0) {
+  return "Positive";
+} else if (x < 0) {
+  return "Negative";
+} else {
+  return "Zero";
+};
+```
+
+However, some statements—like loops—do not inherently guarantee that a `return` is executed on every path. For these cases, you use the special `default` keyword at the end of the statement function to provide a fallback value:
+
+```warble
+const found = for (v in values) {
+  if (v == target) {
+    return true;
+  }
+} default false;
+```
+
+Here, the compiler effectively interprets this as:
+
+```warble
+const found = [values, target]() {
+  for (v in values) {
+    if (v == target) {
+      return true;
+    }
+  }
+  return false; // From `default`
+}();
+```
+
+**Note:** The `default` keyword used in this manner is exclusive to statement functions. You cannot use it with normal loops or other statements outside this context, as it wouldn't make semantic sense.
+
+#### 7.2.3 Inlining & Zero-Cost Guarantee
+
+Because statement functions are always immediately invoked and have no references stored anywhere, the compiler guarantees they will always be fully inlined. No actual function calls or runtime overhead occurs:
+
+```warble
+// This incurs no overhead; it’s fully optimized:
+const value = if (a) { return b; } else { return c; };
+```
+
+The function interpretation is purely conceptual—an abstraction for understanding control flow. The compiled program never creates a real callable function object. You can freely use statement functions without concern about performance.
+
+Statement functions are syntactic sugar—convenience shorthand for constructs you could write explicitly as an immediately-invoked function. However, because Warble handles this optimization seamlessly, there's no reason to write such functions manually. Statement functions are particularly useful given Warble’s omission of a traditional ternary operator. They provide a clear, expressive alternative:
+
+```warble
+const minValue = if (a < b) { return a; } else { return b; };
+```
+
+This construct neatly captures conditional logic within expression contexts, promoting clarity, consistency, and conciseness throughout Warble programs.
+
+### 7.3 Conditional Statements
+
+Conditional statements in Warble allow branching execution paths based on runtime conditions. Warble’s primary conditional construct is the familiar `if` statement, optionally followed by an `else` branch. While similar in style to languages like C++ or JavaScript, Warble introduces a few distinctive features and considerations, particularly involving the optional `as` keyword for binding results.
+
+#### 7.3.1 Branching (`if`, `else`)
+
+The basic syntax of Warble’s `if` statement resembles that of many traditional languages. The condition must be enclosed in parentheses, followed by a body, either inline or within curly braces (`{}`):
+
+```warble
+if (x > 0) {
+  print("Positive");
+} else {
+  print("Not positive");
+}
+```
+
+An inline form is also currently permitted:
+
+```warble
+if (condition) print("Condition met"); // Currently valid, though this may change
+```
+
+However, allowing inline bodies remains a design decision under consideration and may be disallowed in the future for clarity or stylistic reasons.
+
+**Capturing Conditional Results with `as`**
+
+Warble provides a special feature allowing you to capture the result of the condition expression into an identifier for convenient reuse inside the body. This is achieved with the `as` keyword, placed immediately after the condition:
+
+```warble
+if (a || b) as c {
+  print(c); // `c` is the variant resulting from `a || b`
+}
+```
+
+In this example:
+
+* The expression `a || b` produces a variant that the condition evaluates for truthiness.
+* If truthy, the variant is bound to the identifier `c` and made available within the block.
+
+**Syntax and Stylistic Considerations**
+
+Currently, the syntax for using `as` with an inline body, though technically unambiguous, presents stylistic concerns:
+
+```warble
+if (condition) as result return result; // Technically valid but stylistically unclear
+```
+
+Although the compiler easily interprets this—`as` clearly indicates the subsequent identifier (`result`) and then the body (`return result;`)—the syntax's readability and clarity are subjects of ongoing design evaluation.
+
+Alternate placements for the `as` keyword, such as within the condition parentheses (`if (a || b as c)`), have been considered but are currently viewed less favorably, as this might suggest the capture is part of the expression rather than a separate binding step.
+
+**Future Directions**
+
+This aspect of Warble’s conditional syntax is still subject to refinement. Future versions of Warble might:
+
+* Forbid inline `if` bodies entirely to enforce clarity.
+* Adjust the placement or usage of the `as` keyword for improved readability or style.
+
+For now, users should be aware that while the current syntax works and is clearly defined, it may evolve as the language matures.
+
+#### 7.3.2 Pattern Matching (`match`, `is`, `has`)
+
+Warble provides a powerful alternative to the traditional `switch` statement called **pattern matching**. Pattern matching is performed with the `match` statement, allowing sophisticated checks and bindings that greatly surpass the capabilities of classic `switch`.
+
+A basic `match` statement looks like this:
+
+```warble
+match (a || b) {
+  is (string) as s {
+    print(s);
+  }
+  is (integer) as i {
+    print(i);
+  }
+  default {
+    print("Unknown type");
+  }
+}
+```
+
+**Basic Structure**
+
+The syntax of the `match` statement is straightforward:
+
+* The condition being matched is enclosed in parentheses immediately following the `match` keyword.
+* The body of a `match` statement is required, and there is no inline version. It must be enclosed in curly braces `{}`.
+* The body of a `match` statement is not a standard scope. It strictly allows specific matching statements: `is`, `has`, and `default`.
+
+**Pattern Matching Keywords**
+
+Within a `match` statement body, the following keywords are supported:
+
+* **`is`**: Performs a type or value match, depending on the matched object’s implementation.
+* **`has`**: Checks for the presence of certain properties or behaviors (primarily used in OOP patterns, details covered later).
+* **`default`**: Serves as a fallback when no other pattern matches. You may only have one `default` case per `match` statement.
+
+Each of these may currently be written with either inline or block syntax, although inline usage is under stylistic reconsideration.
+
+**The `as` Keyword**
+
+Both `is` and `has` can use the optional `as` keyword to bind the result of the match to an identifier. This provides convenient access to the matched value:
+
+```warble
+match (value) {
+  is (string) as s {
+    print("Got a string:", s);
+  }
+  has (length) as l {
+    print("Has length:", l.length);
+  }
+  default {
+    print("Unknown");
+  }
+}
+```
+
+The `default` case cannot use `as`, since it matches by default without performing any checks or bindings.
+
+**Chaining and Fallthrough**
+
+Pattern matching does **not** require a `break` statement. Patterns do not implicitly fall through into subsequent cases. Instead, multiple checks can lead into the same case body by chaining `is` or `has` statements without a body:
+
+```warble
+match (condition) {
+  is (0)
+  is (1)
+  is (2) {
+    // Handles cases 0, 1, and 2
+  }
+}
+```
+
+Rules for chaining:
+
+* Every chain must eventually terminate with a body.
+* `as` may be used exactly once per chain, and if used, it must appear directly before the body:
+
+```warble
+match (value) {
+  is ("yes")
+  is ("y") as affirmative {
+    print(affirmative, "means yes");
+  }
+}
+```
+
+**Differences Between `is` and `has`**
+
+The behavior of `is` and `has` depends on the implementation provided by the matched object's type:
+
+* **`is`** typically performs equality or type tag checks. For instance:
+
+  * For primitive types (integers, strings), `is` checks equality.
+  * For variants, `is` checks the type tag rather than the contained value itself.
+* **`has`** primarily checks structural properties or methods, used extensively with object literals to verify the presence of certain fields or functions.
+
+The exact semantics of `has` and its common use cases are explored later in the section covering object-oriented patterns.
+
+**Exhaustiveness and the `default` Case**
+
+Currently, Warble requires `match` statements to be **exhaustive**, meaning every possible condition should be explicitly handled. If a `match` is not exhaustive, a `default` case is required:
+
+```warble
+match (variant) {
+  is (int) { print("Integer"); }
+  default  { print("Something else"); }
+}
+```
+
+This rule promotes safety and helps prevent errors by explicitly handling every possible case. However, this exhaustiveness requirement may be adjusted in the future based on practical feedback.
+
+**Shorthand Global Binding with `as`**
+
+Warble provides a shorthand syntax that places `as` immediately after the `match` condition to bind a single identifier usable across all subsequent `is` and `has` cases:
+
+```warble
+match (value) as v {
+  is (x) { print("Matched x:", v); }
+  is (y) { print("Matched y:", v); }
+  default { print("Default case"); } // Cannot use `v` here
+}
+```
+
+This shorthand is syntactic sugar for explicitly adding `as` in each `is` or `has` case:
+
+```warble
+match (value) {
+  is (x) as v { print("Matched x:", v); }
+  is (y) as v { print("Matched y:", v); }
+  default { print("Default case"); }
+}
+```
+
+However, note carefully:
+
+* The globally-bound identifier (`v` in the above example) **cannot** be used in the `default` case, since no match occurs there and no value is bound. Attempting to use it results in a compile-time error.
+* Due to this subtlety, the use of global `as` binding remains under evaluation and may be adjusted or removed in future versions of Warble to enhance clarity and prevent confusion.
+
+### 7.4 Loop Statements
+
+#### 7.4.1 While (`while`)
+
+#### 7.4.2 Do While (`do ... while`)
+
+#### 7.4.3 For (`for`)
+
+### 7.5 Jump Statements (`break`, `continue`, `return`)
+
+#### 7.5.1 Break & Continue (`break`, `continue`)
+
+#### 7.5.2 Return (`return`)
 
 ## 8 Objects & Composition
 
