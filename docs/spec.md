@@ -2015,11 +2015,112 @@ for (declaration in iterable [by step]) {
 
 This flexible `for` loop design makes Warble iterations expressive, concise, and efficient, covering most common iteration patterns without the complexity of a traditional `for` loop syntax.
 
+Here's your clearly structured **Jump Statements** section based on the details you've provided:
+
+---
+
 ### 7.5 Jump Statements (`break`, `continue`, `return`)
+
+Jump statements alter the normal execution flow by abruptly transferring control to a different part of your program. Warble provides three types of jump statements: `break`, `continue`, and `return`. These statements behave similarly to those in many traditional languages but include some useful and distinctive features.
+
+---
 
 #### 7.5.1 Break & Continue (`break`, `continue`)
 
+* **`break`** immediately terminates the nearest enclosing loop (`for`, `while`, or `do ... while`). Control transfers to the statement immediately following that loop.
+
+* **`continue`** immediately skips the rest of the current loop iteration, jumping directly to evaluating the loop condition again and starting the next iteration if applicable.
+
+Example of basic usage:
+
+```warble
+for (i in 0..10) {
+  if (i == 5) break;     // Exits loop when i == 5
+  if (i % 2 == 0) continue; // Skips even numbers
+  print(i); // Prints odd numbers less than 5
+}
+```
+
+**Stacked Break and Continue:**
+
+Warble uniquely allows stacking of `break` and `continue` statements to directly exit multiple nested loops without extra logic:
+
+```warble
+for (x in 0..10) {
+  for (y in 0..10) {
+    if (condition_met(x, y)) break break; // Exits both loops immediately
+  }
+}
+```
+
+This is convenient, avoiding cumbersome solutions like flag variables to communicate loop termination between nested loops.
+
+* You must not stack more `break` or `continue` keywords than there are loops. Doing so results in a compile-time error.
+* `break` and `continue` keywords are only valid inside loops. Using them outside a loop context results in a compile-time error.
+* Stacking applies only within a single function context. You cannot use them to exit loops defined in another function or a surrounding context.
+
+**No Expressions Allowed:**
+
+In Warble, neither `break` nor `continue` allows expressions (unlike some languages that permit a value to be returned from these keywords). They are simple, expressionless jump statements.
+
+---
+
 #### 7.5.2 Return (`return`)
+
+The `return` keyword immediately terminates execution of the current function context and returns control to the caller. Optionally, a `return` may provide an expression whose value is returned to the caller:
+
+```warble
+const add(a, b) {
+  return a + b; // Returns the sum of `a` and `b`
+}
+```
+
+* A function without an explicit `return` statement implicitly returns `null`. This behavior matches a function explicitly written as `return null;`.
+
+**Multiple Returns (Structured Literals):**
+
+Warble does not directly support multiple return values using the `return` keyword. However, you can easily emulate multiple return values using structured literals, like tuples or objects, without performance overhead:
+
+```warble
+const getCoordinates() {
+  return (x, y, z); // Returns a tuple
+}
+
+const (x, y, z) = getCoordinates(); // Destructures the tuple
+```
+
+The compiler optimizes this pattern efficiently, ensuring no runtime overhead compared to traditional multi-return semantics.
+
+**Consistent Return Types:**
+
+Warble requires all explicit `return` statements within a function to return the same type. Any mismatch results in a compile-time error:
+
+```warble
+// Error: Inconsistent return types
+const example(a) {
+  if (a) return "string";
+  return 42; // Compiler error due to type mismatch
+}
+```
+
+**Variant Returns (`return case`):**
+
+To allow functions to explicitly return multiple different types in a controlled way, Warble provides the special `return case` syntax:
+
+```warble
+const getValue(condition) {
+  if (condition == "number") {
+    return case 42;     // Returns an integer variant
+  } else if (condition == "string") {
+    return case "Warble"; // Returns a string variant
+  } else {
+    return case null;   // Returns void variant
+  }
+}
+```
+
+* If any `return` uses the `case` keyword, all `return` statements within that function must consistently use `case`. You cannot mix plain `return` and `return case`.
+* Each `return case` statement introduces a new potential type into the function’s return variant, allowing for clearly defined multiple-type returns.
 
 ## 8 Objects & Composition
 
