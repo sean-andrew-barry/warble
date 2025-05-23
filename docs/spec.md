@@ -1926,11 +1926,94 @@ However, note carefully:
 
 ### 7.4 Loop Statements
 
+Warble provides standard loop constructs familiar from other programming languages, enabling repeated execution of statements or expressions. Loops in Warble include `while`, `do ... while`, and a powerful single-form `for` loop for concise iteration over iterables or ranges.
+
 #### 7.4.1 While (`while`)
+
+The `while` loop repeatedly evaluates a condition and executes its body as long as the condition remains true. Its syntax closely resembles the Warble `if` statement:
+
+```warble
+while (condition) {
+  // loop body executes repeatedly while condition is true
+}
+```
+
+As with the `if` statement, Warble allows an optional use of the `as` keyword to bind the condition's result to an identifier. This identifier is then available within the loop body:
+
+```warble
+// Example using `as` to capture a result:
+while (getNextItem()) as item {
+  print(item); // Uses the captured value from the condition
+}
+```
+
+This feature simplifies loops where the condition yields useful data. The loop continues until the condition returns a falsy value, ending the iteration.
 
 #### 7.4.2 Do While (`do ... while`)
 
+The `do ... while` loop executes its body at least once before evaluating its condition. Unlike the regular `while` loop, it does not allow the use of the `as` keyword because the condition is checked **after** each iteration, not before. Thus, there is no initial condition result to bind before the first execution:
+
+```warble
+do {
+  // This body always executes at least once
+} while (condition);
+```
+
+The loop continues as long as the condition remains true. Once the condition evaluates to false, iteration stops immediately.
+
 #### 7.4.3 For (`for`)
+
+Warble's `for` loop is specifically designed for concise iteration over ranges or iterables. Warble does **not** support a traditional C-style `for` loop with explicit initialization, condition, and increment expressions. Instead, it provides a simpler and more powerful syntax designed explicitly for iteration.
+
+The general syntax is:
+
+```warble
+for (declaration in iterable [by step]) {
+  // loop body
+}
+```
+
+* **Declaration**:
+  Declares the loop variable. Modifier keywords (`const` or `let`) are permitted but optional because the compiler always expects a declaration here. If omitted, it defaults to `const`:
+
+  ```warble
+  for (i in 0..10) { // equivalent to `for (const i in 0..10)`
+    print(i);
+  }
+  ```
+
+* **Iterable**:
+  Any expression evaluating to an iterable structure (range, array, string, or user-defined iterable types).
+
+* **Optional Step** (`by`):
+  You may specify a compile-time constant integer as the iteration step size. If omitted, it defaults to `1`:
+
+  ```warble
+  for (i in 0..10 by 2) {
+    print(i); // prints 0, 2, 4, 6, 8
+  }
+  ```
+
+  Negative step sizes reverse the iteration order, starting from the end toward the beginning of the iterable:
+
+  ```warble
+  for (i in 10..0 by -2) {
+    print(i); // prints 10, 8, 6, 4, 2
+  }
+  ```
+
+* **Multiple Iteration Variables**:
+  You may declare multiple iteration variables simultaneously by separating each declaration-expression pair with commas:
+
+  ```warble
+  for (a in arrayA, b in arrayB, c in arrayC) {
+    print(a, b, c);
+  }
+  ```
+
+  The loop iterates each iterable concurrently. Iteration stops as soon as **any** of the iterables is exhausted.
+
+This flexible `for` loop design makes Warble iterations expressive, concise, and efficient, covering most common iteration patterns without the complexity of a traditional `for` loop syntax.
 
 ### 7.5 Jump Statements (`break`, `continue`, `return`)
 
