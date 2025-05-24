@@ -2146,13 +2146,144 @@ const getValue(condition) {
 
 ### 9.5 Allocation Strategies (power-of-2, etc.)
 
-## 10 Modules & Namespaces
+## 10 Modules & Packages
 
-### 10.1 Source Files as `module` Objects
+Warble organizes code through a carefully designed system of **packages** and **modules**. This system emphasizes security, clarity, and explicit dependency management, ensuring both efficiency and trustworthiness in project management and third-party code integration.
 
-### 10.2 Imports & Exports
+### 10.1 Overview
 
-### 10.3 Dependency Graph & Build Units
+* A **package** represents the root directory of a Warble project, explicitly defined via a `register` statement.
+* A **module** corresponds to a single source file (`.wbl`) within a package, imported and exported explicitly to manage code reuse and visibility.
+
+Both packages and modules prioritize security through clear permissions and explicit declarations of dependencies.
+
+### 10.2 Packages
+
+A **package** is explicitly registered and named through the `register` statement. The structure of a `register` statement is:
+
+```
+register "package_name" from "package_url" [with permissions_array in "target_package"];
+```
+
+#### 10.2.1 Registering Packages
+
+Packages are registered at the top level of the project. The registration includes:
+
+* A **package name** as a string literal, for referencing in imports.
+* A **URL**, specifying the root directory location of the package. URLs can be:
+  * Absolute (`file://...`)
+  * Relative (`../local/path`)
+  * Remote (`https://...`)
+* Optional **permissions**, explicitly allowing the registered package to import specified modules from the standard library (`std`) or other packages.
+
+**Examples**:
+
+```warble
+register "local_package" from "../relative/path";
+register "absolute_package" from "file:///C:/absolute/path";
+register "remote_package" from "https://github.com/user/package"
+  with ["math", "memory"] in "std";
+register "extended_package" from "https://github.com/user/extended_package"
+  with [...compiler.permissions.safe, "filesystem"] in "std";
+```
+
+If the same package is imported multiple times, it is shared, not duplicated.
+
+#### 10.2.2 Permissions & Security Model
+
+Warble adopts a security-first approach to package dependencies. Packages must explicitly declare permissions they require. These permissions form an **allow list**, specifying precisely what the package can import.
+
+* Built-in permission sets simplify security declarations:
+
+  * `compiler.permissions.safe`: Grants safe standard library modules (no dangerous access like filesystem or network).
+  * `compiler.permissions.all`: Grants access to the entire standard library. Should be used only for fully trusted packages (typically your own code).
+
+Permissions are inherited strictly; a package cannot grant permissions it doesn't have itself. If a package is registered without certain permissions, it cannot grant those permissions to packages it registers.
+
+**Recommended Practice**:
+Package authors clearly document required permissions. Users review and manually insert these into their `register` statements, making permission grants deliberate and transparent.
+
+### 10.3 Modules
+
+A **module** corresponds to a single Warble source file (`.wbl`) and is accessed via explicit `import` and `export` statements.
+
+#### 10.3.1 Imports
+
+Modules import code explicitly. The syntax for importing is:
+
+```warble
+import identifier from "specifier" [in "package_name"];
+import {a, b as alias} from "specifier" [in "package_name"];
+```
+
+* The **specifier** is resolved as a relative URL from the package root directory.
+* If no file extension is specified, `.wbl` is implicitly assumed.
+* If the optional `in` portion is omitted, imports resolve within the current package context.
+
+**Examples**:
+
+```warble
+import fs from "filesystem" in "std"; // Imports from standard library
+import {util, helper as h} from "./local_module"; // Local module imports
+```
+
+Imports always produce immutable bindings, regardless of the original export mutability. Modules are shared: multiple imports of the same module access the same instance.
+
+#### 10.3.2 Exports
+
+To expose functionality from a module, Warble uses explicit `export` declarations at the module’s top-level scope:
+
+```warble
+export const fn = () => {};
+export let mutableValue = 42;
+```
+
+Only declarations explicitly marked with `export` become visible outside the module.
+
+#### 10.3.3 Asynchronous Imports (`import async`)
+
+Warble provides an asynchronous import syntax (`import async`) to handle situations like circular dependencies or delayed module loading:
+
+```warble
+import async modulePromise from "./module";
+import async {fn as promisedFn} from "./module";
+```
+
+* Imported modules and their properties are available as promises.
+* Async imports are primarily useful to resolve otherwise impossible circular dependencies.
+* The structure and names of module exports are always known to the compiler, so named destructuring remains legal, but properties are available as promises:
+
+```warble
+import async {fn} from "./async_module";
+
+fn.then(actualFn => {
+  actualFn(); // Executes once `fn` is resolved
+});
+```
+
+### 10.4 Dependency Graph & Build Process
+
+Warble packages and modules form a clear, explicit dependency graph defined by their registration, imports, and permissions:
+
+* The compilation process begins with an implicitly trusted project file, granted `compiler.permissions.all`.
+* Each package registers other packages explicitly, clearly defining access and security permissions.
+* Modules import other modules explicitly, creating a deterministic and transparent dependency graph.
+
+The dependency graph determines build order and module initialization. Modules execute concurrently (details covered later), ensuring efficient build times without sacrificing safety or predictability.
+
+### 10.5 Security-First Philosophy
+
+The entire Warble package and module system is built around transparency, explicit permissions, and proactive security considerations. Unlike traditional package managers (e.g., Node.js), Warble intentionally avoids implicit trust in imported packages:
+
+* Packages must explicitly declare the permissions they require. No implicit file-system, network, or sensitive access occurs without explicit consent.
+* Developers can quickly identify packages requiring deeper security reviews (e.g., those requesting `filesystem`, `http`, or other sensitive modules).
+* Harmless packages requesting only safe permissions require minimal scrutiny.
+
+**Example Security Consideration**:
+
+* A package declaring `["filesystem", "http"]` explicitly informs you of its elevated capabilities. This doesn't imply malicious intent—such a package might legitimately implement an HTTP server—but it clearly communicates where review and trust matter most.
+
+Warble’s approach ensures no hidden surprises, fostering a safer and more responsible ecosystem.
 
 ## 11 Compile-Time & Metaprogramming
 
