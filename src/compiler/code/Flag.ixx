@@ -179,9 +179,9 @@ export namespace code {
     constexpr bool All(Flag flag) const { return (bits & flag.bits) == std::numeric_limits<decltype(bits)>::max(); }
 
     constexpr void RotateLeft(int32_t shift) { bits = std::rotl(bits, shift); }
-    constexpr void RotateLight(int32_t shift) { bits = std::rotr(bits, shift); }
+    constexpr void RotateRight(int32_t shift) { bits = std::rotr(bits, shift); }
     constexpr Flag RotateLeft(int32_t shift) const { return std::rotl(bits, shift); }
-    constexpr Flag RotateLight(int32_t shift) const { return std::rotr(bits, shift); }
+    constexpr Flag RotateRight(int32_t shift) const { return std::rotr(bits, shift); }
 
     std::string ToString() { return "Flag TODO"; }
 
