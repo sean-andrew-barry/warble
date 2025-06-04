@@ -2263,7 +2263,7 @@ Warble’s approach ensures no hidden surprises, fostering a safer and more resp
 
 ## 11 Compile-Time & Metaprogramming
 
-### 11.1 Decorators (`#`)
+### 11.1 Decorators
 
 ### 11.2 Conditional Compilation
 
@@ -2305,4 +2305,63 @@ Warble’s approach ensures no hidden surprises, fostering a safer and more resp
 
 ### 18.2 Reserved Words
 
-### 18.3 Change Log
+This appendix lists all reserved keywords in Warble. A reserved keyword is a token that is explicitly recognized by the Warble lexer and parser and cannot be redefined or used as an identifier name within the language.
+
+Warble emphasizes minimalism; most language functionality is implemented as identifiers bound to built-in library symbols rather than reserved keywords. However, the following words form the minimal set of fundamental keywords required by the language syntax, and as such, they are strictly reserved.
+
+#### Declaration and Binding
+
+* **`let`** — Begins a declaration statement, introducing a new binding.
+
+#### Control Flow
+
+* **`if`** — Begins a conditional block.
+* **`else`** — Provides an alternative branch in a conditional statement.
+* **`for`** — Begins a looping construct over an iterable.
+* **`while`** — Begins a loop construct based on a boolean condition.
+* **`do`** — Begins a do-while style loop construct.
+
+#### Pattern Matching and Constraints
+
+* **`match`** — Begins a pattern-matching construct.
+* **`is`** — Indicates the type or variant in a pattern-match.
+* **`from`** — Specifies the source of data or symbol in a match or import.
+* **`has`** — Indicates a property presence check in a pattern-match.
+* **`as`** — Introduces type aliasing or binding within patterns.
+
+#### Jump Statements
+
+* **`return`** — Returns a value from a function.
+* **`yield`** — Produces a value in a resumable generator or coroutine.
+* **`break`** — Exits the nearest enclosing loop.
+* **`continue`** — Skips to the next iteration of the nearest enclosing loop.
+* **`case`** — Marks a function's return statement as returning a variant of multiple possible types.
+
+#### Module and Imports
+
+* **`import`** — Imports symbols from external modules.
+* **`register`** — Registers a URL as a package, which serves as the base for imports.
+* **`with`** — Used in conjunction with register statements to specify allowed modules for a package.
+
+#### Literals
+
+* **`null`** — Represents a null literal (type `void`).
+* **`undefined`** — Represents an explicitly undefined value.
+* **`true`** — Boolean literal for logical truth.
+* **`false`** — Boolean literal for logical falsehood.
+
+#### Special Compiler Reserved
+
+* **`this`** — Refers to the instance on which a method or constructor is invoked.
+* **`compiler`** — Provides access to compiler intrinsics and built-in symbols. This namespace is fundamental and cannot be rebound.
+* **`auto`** — Serves as a placeholder type, replaced by the compiler with an inferred or specified type during type checking.
+
+---
+
+#### Important Notes:
+
+* Warble previously considered keywords such as `const`, `mut`, `async`, `private`, `export`, and `static`, but these have all been redefined as identifiers that refer to built-in functions or decorators, allowing users to shadow or rebind them.
+* The keyword `super`, which was present in earlier drafts, has been removed and is no longer reserved.
+* The previously defined keyword `local` has also been removed.
+
+This reserved keyword set is deliberately minimal and focused on structural, syntactic, and foundational compiler-level operations, preserving maximum flexibility for user-defined functionality within Warble.
