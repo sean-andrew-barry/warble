@@ -1233,7 +1233,9 @@ This avoids ambiguity when distinguishing between implicit object literals and e
 
 ### 4.2 Compiler-Generated Non-Literal Types
 
-#### 4.2.1 Variant
+#### 4.2.1 Reference
+
+#### 4.2.2 Variant
 
 A **variant** in Warble is a type-safe tagged union, meaning it can represent exactly one of several possible types at runtime. Variants enable expressive, type-safe handling of values whose type can vary, without the overhead of traditional polymorphism or dynamic dispatch.
 
@@ -1298,7 +1300,7 @@ Variants store a type-tag alongside their contained value. The total memory size
 
 Further details, including the complete semantics of variant creation, flattening rules, narrowing operators, and unpacking mechanisms, are explained thoroughly in section 4.3 Variant Mechanics.
 
-#### 4.2.2 Module
+#### 4.2.3 Module
 
 In Warble, a **module** represents a single imported source file. For every source file included in a project, exactly one corresponding module object is created—no matter how many times that file is imported. The module acts as the root scope and primary container for all information defined within that source file.
 
@@ -1332,7 +1334,7 @@ All module data described above are statically allocated and stored directly wit
 
 Additionally, the module object may contain user-defined top-level declarations. To accommodate these declarations, the compiler reserves a dedicated static memory block for each module. Each top-level declaration is assigned a specific slot within this memory block, analogous to how a function call uses a stack frame for its local variables.
 
-#### 4.2.3 Symbol
+#### 4.2.4 Symbol
 
 Symbols are fundamental building blocks of Warble's type and runtime systems. Every value in Warble, whether it's a literal, an object, a function, or any other entity, is represented internally by a **symbol**. Symbols encapsulate extensive metadata, including type information, memory layout details, visibility, and other compile-time properties. Users cannot directly instantiate or modify symbols, but they interact with them through reflection, type-checking operators, and object-oriented constructs.
 
@@ -1445,7 +1447,7 @@ This columnar design allows Warble symbols to scale linearly with the number of 
 
 Symbols thus form the backbone of Warble’s powerful and expressive type system, providing efficient representation, strong type guarantees, flexible reflection capabilities, and performance-oriented internal design.
 
-#### 4.2.4 Block
+#### 4.2.5 Block
 > TODO
 
 ### 4.3 Variant Mechanics
@@ -2181,10 +2183,8 @@ Packages are registered at the top level of the project. The registration includ
 ```warble
 register "local_package" from "../relative/path";
 register "absolute_package" from "file:///C:/absolute/path";
-register "remote_package" from "https://github.com/user/package"
-  with ["math", "memory"] in "std";
-register "extended_package" from "https://github.com/user/extended_package"
-  with [...compiler.permissions.safe, "filesystem"] in "std";
+register "remote_package" from "https://github.com/user/package" with ["math", "memory"] in "std";
+register "extended_package" from "https://github.com/user/extended_package" with [...compiler.permissions.safe, "filesystem"] in "std";
 ```
 
 If the same package is imported multiple times, it is shared, not duplicated.
@@ -2234,8 +2234,8 @@ Imports always produce immutable bindings, regardless of the original export mut
 To expose functionality from a module, Warble uses explicit `export` declarations at the module’s top-level scope:
 
 ```warble
-export const fn = () => {};
-export let mutableValue = 42;
+export const fn = (){};
+export let mutableValue = 42; // Only mutable internally, dependency modules cannot mutate
 ```
 
 Only declarations explicitly marked with `export` become visible outside the module.
@@ -2251,15 +2251,7 @@ import async {fn as promisedFn} from "./module";
 
 * Imported modules and their properties are available as promises.
 * Async imports are primarily useful to resolve otherwise impossible circular dependencies.
-* The structure and names of module exports are always known to the compiler, so named destructuring remains legal, but properties are available as promises:
-
-```warble
-import async {fn} from "./async_module";
-
-fn.then(actualFn => {
-  actualFn(); // Executes once `fn` is resolved
-});
-```
+* The structure and names of module exports are always known to the compiler, so named destructuring remains legal, but properties are available as promises.
 
 ### 10.4 Dependency Graph & Build Process
 
@@ -2269,7 +2261,7 @@ Warble packages and modules form a clear, explicit dependency graph defined by t
 * Each package registers other packages explicitly, clearly defining access and security permissions.
 * Modules import other modules explicitly, creating a deterministic and transparent dependency graph.
 
-The dependency graph determines build order and module initialization. Modules execute concurrently (details covered later), ensuring efficient build times without sacrificing safety or predictability.
+The dependency graph determines build order and module initialization. Modules execute concurrently (details covered later), ensuring efficient execution without sacrificing safety or predictability.
 
 ### 10.5 Security-First Philosophy
 
