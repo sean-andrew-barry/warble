@@ -494,15 +494,15 @@ Warble supports the following escape sequences:
 **Examples:**
 
 ```warble
-const newline = '\n';
-const heart = '\u2764';
-const smiley = '\u{1F600}';
+let newline = '\n';
+let heart = '\u2764';
+let smiley = '\u{1F600}';
 ```
 
 Invalid example (multiple code points):
 
 ```warble
-// const invalidChar = 'ab'; // Error: Multiple code points
+// let invalidChar = 'ab'; // Error: Multiple code points
 ```
 
 #### 4.1.5 Numeric (Integer, Decimal)
@@ -536,11 +536,11 @@ All numeric literals (integers and decimals) can use underscores (`_`) as separa
 **Examples:**
 
 ```warble
-const largeInteger = 1_000_000;
-const binaryLiteral = 0b1010_1101;
-const hexLiteral = 0xDE_AD_BE_EF;
-const decimalValue = 123_456.789_012;
-const scientificDecimal = 1.23e4;
+let largeInteger = 1_000_000;
+let binaryLiteral = 0b1010_1101;
+let hexLiteral = 0xDE_AD_BE_EF;
+let decimalValue = 123_456.789_012;
+let scientificDecimal = 1.23e4;
 ```
 
 #### 4.1.6 String
@@ -552,7 +552,7 @@ String literals in Warble represent textual data and are essentially a specializ
 String literals use double quotes (`"`) to denote the start and end of the string:
 
 ```warble
-const greeting = "Hello, Warble!";
+let greeting = "Hello, Warble!";
 ```
 
 Internally, the compiler stores all string literals (including identifiers) within a large, per-module buffer of UTF-32 characters. Each character in this buffer is stored as a 32-bit Unicode code point.
@@ -576,8 +576,8 @@ String literals support the same set of escape sequences as character literals:
 Example:
 
 ```warble
-const message = "Line 1\nLine 2\tTabbed";
-const unicodeExample = "I \u2764 Warble!";
+let message = "Line 1\nLine 2\tTabbed";
+let unicodeExample = "I \u2764 Warble!";
 ```
 
 ##### Interaction with Arrays
@@ -585,7 +585,7 @@ const unicodeExample = "I \u2764 Warble!";
 Because strings are effectively specialized arrays of characters, they can be directly converted into arrays of characters through the spread syntax (`...`). This conversion is allowed explicitly due to the close relationship between strings and arrays:
 
 ```warble
-const charArray = [..."Warble"];
+let charArray = [..."Warble"];
 // charArray is now an array of UTF-32 characters: ['W', 'a', 'r', 'b', 'l', 'e']
 ```
 
@@ -607,7 +607,7 @@ Array literals represent sequential collections of elements, where each element 
 For instance, this is valid:
 
 ```warble
-const nums = [0u8, 1, 2, 3];
+let nums = [0u8, 1, 2, 3];
 ```
 
 Here, the first element explicitly defines the array as an array of unsigned 8-bit integers (`u8`). The following elements, although lacking explicit type suffixes, are implicitly converted to match the first element's type.
@@ -616,7 +616,7 @@ In contrast, the following is invalid because the second element (`null`) is of 
 
 ```warble
 // Invalid example:
-const flags = [true, null]; // Error: Cannot place 'null' (void) into boolean array
+let flags = [true, null]; // Error: Cannot place 'null' (void) into boolean array
 ```
 
 ##### Runtime Data vs. Compile-time Symbol Structure
@@ -626,7 +626,7 @@ Every symbol in Warble includes a `children` field, which is a collection of sym
 Consider an array explicitly enumerating its elements:
 
 ```warble
-const explicitArray = [1, 2, 3];
+let explicitArray = [1, 2, 3];
 ```
 
 This array symbol will have three children, each representing the integer values `1`, `2`, and `3`.
@@ -636,7 +636,7 @@ This array symbol will have three children, each representing the integer values
 Warble provides a convenient syntax (borrowed from Rust) to initialize arrays with repeated elements, useful for large arrays:
 
 ```warble
-const repeatedArray = [0; 100]; // Creates an array of 100 zeros
+let repeatedArray = [0; 100]; // Creates an array of 100 zeros
 ```
 
 This syntax indicates a single value (`0`) repeated to fill an array of length specified by a compile-time constant (`100`). The runtime memory footprint matches an array of 100 elements, but its compile-time symbol will only have a single child representing the repeated element, rather than explicitly listing each element. Such arrays are marked internally with the `REPEAT` flag. The actual length can be inferred at compile-time by dividing the total size of the array by the size of the single child element.
@@ -646,8 +646,8 @@ This syntax indicates a single value (`0`) repeated to fill an array of length s
 Warble also supports array expansion or "spreading" via the `...` syntax:
 
 ```warble
-const firstArray = [1, 2];
-const combinedArray = [0, ...firstArray, 3];
+let firstArray = [1, 2];
+let combinedArray = [0, ...firstArray, 3];
 ```
 
 In this example, the array `combinedArray` contains `[0, 1, 2, 3]` at runtime. However, its compile-time `children` structure differs for efficiency reasons. Instead of cloning each element from `firstArray`, the symbol representing `combinedArray` will have three children:
@@ -663,7 +663,7 @@ This avoids excessive duplication in the compiler's internal representation, esp
 Empty arrays are valid and simply contain no children in their compile-time representation:
 
 ```warble
-const emptyArray = [];
+let emptyArray = [];
 ```
 
 Such arrays initially have no defined element type but can still be validly used in contexts where the element type is inferred later from usage.
@@ -687,14 +687,14 @@ Enum literals in Warble represent sequences of symbols. Like string literals, en
 Enum literals use angle brackets (`< >`) as their defining syntax:
 
 ```warble
-const colors = <Red, Green, Blue>;
+let colors = <Red, Green, Blue>;
 ```
 
 Each entry inside an enum literal must already exist as a defined symbol. If you attempt to reference an undeclared identifier within an enum literal, you will encounter a compilation error:
 
 ```warble
 // Error example:
-const invalidEnum = <Apple, Banana>; // Error if Apple or Banana aren't previously defined
+let invalidEnum = <Apple, Banana>; // Error if Apple or Banana aren't previously defined
 ```
 
 This behavior emphasizes a critical difference between Warble enums and traditional enums found in languages like C++ or Java. Warble enums reference pre-existing identifiers rather than creating new symbolic names. If your goal is to define a new set of identifiers (similar to a traditional `enum class`), you should instead use object literals (covered in a later section).
@@ -713,8 +713,8 @@ To efficiently handle symbol references, the compiler maintains specialized per-
 Similar to strings, enum literals can be spread directly into arrays. This is explicitly permitted due to their inherent structural similarity. Enums are essentially considered a specialized form of array, and thus they naturally support this type of conversion:
 
 ```warble
-const enumValues = <One, Two, Three>;
-const arrayOfSymbols = [...enumValues];
+let enumValues = <One, Two, Three>;
+let arrayOfSymbols = [...enumValues];
 // arrayOfSymbols now contains [$One, $Two, $Three]
 ```
 
@@ -728,8 +728,8 @@ Despite this close relationship, there is a significant difference between enums
 Example illustrating this difference clearly:
 
 ```warble
-const enumExample = <a, b, c>;     // Enum literal (static, symbolic references)
-const arrayExample = [$a, $b, $c]; // Array of symbols (runtime-local memory)
+let enumExample = <a, b, c>;     // Enum literal (static, symbolic references)
+let arrayExample = [$a, $b, $c]; // Array of symbols (runtime-local memory)
 ```
 
 ##### Summary of Enum Literal Features:
@@ -749,7 +749,7 @@ Tuples in Warble represent flexible, sequential, indexable containers capable of
 Tuple literals are enclosed using parentheses `( )`:
 
 ```warble
-const exampleTuple = (1, true, "Warble");
+let exampleTuple = (1, true, "Warble");
 ```
 
 This tuple contains three elements, each of different types: an integer, a boolean, and a string literal.
@@ -761,7 +761,7 @@ A critical point to understand about Warble is that it does not have traditional
 However, familiar grouping behavior can still be achieved through tuples due to a simple operator forwarding mechanism. When an operator is applied to a tuple, the operation is automatically forwarded to the first element of the tuple, and the tuple returns the result of this forwarded operation:
 
 ```warble
-const result = (a + b) * c;
+let result = (a + b) * c;
 ```
 
 This code is intuitively identical in behavior to other languages, but internally, Warble interprets it slightly differently:
@@ -774,13 +774,13 @@ Thus, the absence of grouping operators does not practically limit expressions b
 For instance, if you explicitly write:
 
 ```warble
-const wrappedResult = (a + b);
+let wrappedResult = (a + b);
 ```
 
 Here, the resulting `wrappedResult` is a tuple containing one element, the result of `a + b`. If the tuple behavior is undesired, simply remove the parentheses:
 
 ```warble
-const result = a + b; // Not wrapped in a tuple
+let result = a + b; // Not wrapped in a tuple
 ```
 
 Or explicitly destructure the tuple afterward, if necessary.
@@ -790,11 +790,11 @@ Or explicitly destructure the tuple afterward, if necessary.
 Tuples are the most permissive container type in Warble, capable of accepting elements of varying types and sources. Because of this, you can freely spread arrays, enums, and strings into tuples:
 
 ```warble
-const arrayExample = [1, 2, 3];
-const stringExample = "Warble";
-const enumExample = <Red, Green>;
+let arrayExample = [1, 2, 3];
+let stringExample = "Warble";
+let enumExample = <Red, Green>;
 
-const combinedTuple = (...arrayExample, ..."Warble", ...enumExample, true, 3.14);
+let combinedTuple = (...arrayExample, ..."Warble", ...enumExample, true, 3.14);
 ```
 
 This works naturally due to tuples' inherent flexibility. They do not impose strict type requirements, making them a convenient "catch-all" container.
@@ -802,10 +802,10 @@ This works naturally due to tuples' inherent flexibility. They do not impose str
 However, this flexibility is deliberately one-directional. While you can spread arrays, enums, and strings into tuples, you cannot spread tuples back into stricter container types such as arrays or enums—even if the tuple technically meets the type requirements:
 
 ```warble
-const tupleOfInts = (1, 2, 3);
+let tupleOfInts = (1, 2, 3);
 
 // Invalid:
-const arrayOfInts = [...tupleOfInts]; // Not permitted, even though semantically valid.
+let arrayOfInts = [...tupleOfInts]; // Not permitted, even though semantically valid.
 ```
 
 This restriction ensures clarity and prevents confusion by keeping automatic conversions intuitive: from stricter containers to the more flexible tuple. To perform the reverse, you must explicitly convert or destructure the tuple manually.
@@ -828,7 +828,7 @@ Template literals in Warble are specialized structured containers designed for c
 Template literals begin and end with the backtick character (`` ` ``), similar to JavaScript's template strings:
 
 ```warble
-const greeting = `Hello, {name}! You have {unreadCount} unread messages.`;
+let greeting = `Hello, {name}! You have {unreadCount} unread messages.`;
 ```
 
 Interpolated expressions are marked by curly braces (`{}`). Unlike JavaScript, Warble does not require a dollar sign (`$`) before these curly braces:
@@ -836,7 +836,7 @@ Interpolated expressions are marked by curly braces (`{}`). Unlike JavaScript, W
 * To insert literal curly braces, escape them with a backslash (`\{` and `\}`):
 
 ```warble
-const example = `Literal braces: \{ and \}`;
+let example = `Literal braces: \{ and \}`;
 ```
 
 Within the curly braces, you can interpolate values of any type. The sections outside the braces become standard string literals, while the sections inside the braces retain their original types without automatic stringification.
@@ -848,8 +848,8 @@ Internally, a template literal is structured similarly to a tuple literal—an i
 Each interpolated symbol inside a template literal is automatically flagged (the exact name of this flag is to be determined) to clearly indicate its status as an interpolated value. This distinction is critical because even interpolated string literals are logically different from the surrounding string literals within the template itself:
 
 ```warble
-const count = 42;
-const template = `You have {count} messages.`;
+let count = 42;
+let template = `You have {count} messages.`;
 // Internally: tuple ["You have ", 42 (flagged), " messages."]
 ```
 
@@ -869,8 +869,8 @@ print(`The answer is {42}`);
 Because template literals structurally resemble tuples, you can freely spread a template literal into a tuple literal:
 
 ```warble
-const tpl = `Value: {10}`;
-const tplAsTuple = (...tpl);
+let tpl = `Value: {10}`;
+let tplAsTuple = (...tpl);
 // tplAsTuple becomes ("Value: ", 10)
 ```
 
@@ -932,7 +932,7 @@ obj.a; // resolves to the second declaration (value: 2)
 This mechanism also supports function overloads, allowing multiple functions with identical names but differing signatures to coexist:
 
 ```warble
-const mathOps = {
+let mathOps = {
   add = (a, b){ return a + b; },
   add = (a, b, c){ return a + b + c; }, // overloads previous `add`
 };
@@ -1165,13 +1165,13 @@ Example:
 
 ```warble
 // Inferred return type: int
-const getValue = () {
+let getValue = () {
   if (condition) return 10;
   return 20;
 };
 
 // Inferred return type: void
-const logSomething = (msg) {
+let logSomething = (msg) {
   print(msg);
   return; // equivalent to `return null;`
 };
@@ -1208,7 +1208,7 @@ Unlike JavaScript, Warble explicitly disallows arrow functions with a curly-brac
 
 ```warble
 // Invalid: curly-braced bodies are disallowed in arrow functions
-// const invalid = (x) => { return x + 1; };
+// let invalid = (x) => { return x + 1; };
 
 // Correct form for explicit bodies:
 let valid = (x) { return x + 1; };
@@ -1261,7 +1261,7 @@ In this case, `data` is explicitly assigned the variant `<compiler.integer, comp
 Warble functions do not explicitly declare variant return types. Instead, the compiler infers variant returns automatically when you use the special `return case` syntax within multiple code paths:
 
 ```warble
-const parse(input: compiler.string) {
+let parse = (input: string) {
   if (input.is_number()) {
     return case input.to_int();
   } else {
@@ -1345,7 +1345,7 @@ Conceptually, each symbol presents to the user as a structured object containing
 
 * **`flags`**: A bitset marking various modifiers and metadata. Common flags include:
 
-  * `CONST` – indicates a declaration was bound with `const`.
+  * `MUTABLE` – indicates a declaration was flagged with `mut`.
   * `PUBLIC`, `PROTECTED`, `PRIVATE` – visibility modifiers.
   * `SPREAD` – marks a symbol as being created from a spread operation `...`.
   * `REPEAT` – marks an array symbol as being created by the repetition syntax (`[value; length]`).
@@ -1372,14 +1372,14 @@ Additionally, symbols contain source mapping data, facilitating debugging and di
 Symbols are exclusively produced by expressions in Warble. Each expression, no matter how simple or complex, generates exactly one symbol. Literals, arithmetic operations, function calls, and other constructs all yield symbols upon evaluation:
 
 ```warble
-const a = 42; // creates a symbol representing the literal '42'
-const b = a + 1; // creates symbols for 'a', '1', and the result of '+'
+let a = 42; // creates a symbol representing the literal '42'
+let b = a + 1; // creates symbols for 'a', '1', and the result of '+'
 ```
 
 Symbols created by expressions are temporary and anonymous by default. To preserve a symbol beyond its immediate expression, it must be named explicitly through a declaration:
 
 ```warble
-const namedValue = 100; // assigns the symbol for '100' a name and `CONST` flag
+let namedValue = 100; // assigns the symbol for '100' a name and `CONST` flag
 ```
 
 ##### Symbol Addressing and Lookup
@@ -1399,7 +1399,7 @@ Addressing strategies depend on the context:
 Users access symbol metadata at runtime through Warble’s reflection operator `$`:
 
 ```warble
-const sym = $namedValue;
+let sym = $namedValue;
 print(sym.name); // Prints "namedValue"
 ```
 
@@ -1487,7 +1487,7 @@ This operator provides precise control over variant creation, especially useful 
 Inside functions, the `return case` syntax explicitly indicates variant returns. If different code paths return distinct types using `return case`, Warble merges these into a single variant type:
 
 ```warble
-const checkValue(x: compiler.integer, compiler.boolean) {
+let checkValue = (x: compiler.integer, compiler.boolean) {
   if (x from compiler.integer) {
     return case x;
   } else {
@@ -1507,7 +1507,7 @@ Warble automatically flattens nested variants, simplifying variant handling and 
 For example:
 
 ```warble
-const nested = 1 || false || "Hello";
+let nested = 1 || false || "Hello";
 // Instead of <compiler.integer, <compiler.boolean, compiler.string>>, Warble flattens it to <compiler.integer, compiler.boolean, compiler.string>
 ```
 
@@ -1531,7 +1531,7 @@ The narrowing operator (`?.`) safely refines a variant to a specific type by ver
 Example:
 
 ```warble
-const variant = getAnimal(); // returns variant of <Cat, Dog, Fish>
+let variant = getAnimal(); // returns variant of <Cat, Dog, Fish>
 
 variant?.bark()?.toUpperCase();
 ```
@@ -1550,9 +1550,9 @@ The unpacking operator (`??`) extracts a variant's contained value if its runtim
 Example:
 
 ```warble
-const data = 1 || "hello"; // variant <compiler.integer, compiler.string>
+let data = 1 || "hello"; // variant <compiler.integer, compiler.string>
 
-const str = data ?? "default";
+let str = data ?? "default";
 // If data holds a string then it's unpacked. If not, `str` is "default"
 ```
 
@@ -1604,7 +1604,7 @@ To explicitly define a scoped block in Warble, you must use the `do` keyword fol
 
 ```warble
 do {
-  const localValue = 42; // Scoped to this block
+  let localValue = 42; // Scoped to this block
   print(localValue);     // Accessible here
 }
 
@@ -1616,13 +1616,13 @@ Unlike object literals (`{}`), `do {}` blocks do not produce values or data stru
 **Nested blocks** clearly manage inner scopes and shadow outer-scope variables:
 
 ```warble
-const value = 1;
+let value = 1;
 
 do {
-  const value = 2;  // shadows outer `value`
+  let value = 2;  // shadows outer `value`
   
   do {
-    const value = 3; // shadows the previous block's `value`
+    let value = 3; // shadows the previous block's `value`
     print(value);    // prints 3
   }
   
@@ -1645,7 +1645,7 @@ Statement functions automatically translate into **immediately-invoked function 
 Any single Warble statement can appear in an expression context, such as on the right-hand side of a declaration. This is especially useful for conditionals, loops, and other control-flow constructs that you want to use directly within expressions:
 
 ```warble
-const value = if (condition) {
+let value = if (condition) {
   return 42;
 } else {
   return 0;
@@ -1655,7 +1655,7 @@ const value = if (condition) {
 The compiler interprets this as:
 
 ```warble
-const value = [condition]() {
+let value = [condition]() {
   if (condition) {
     return 42;
   } else {
@@ -1672,7 +1672,7 @@ Within a statement function, `return` statements indicate the expression’s res
 
 ```warble
 // Valid: consistent return types
-const result = if (x > 0) {
+let result = if (x > 0) {
   return "Positive";
 } else if (x < 0) {
   return "Negative";
@@ -1684,7 +1684,7 @@ const result = if (x > 0) {
 However, some statements—like loops—do not inherently guarantee that a `return` is executed on every path. For these cases, you use the special `default` keyword at the end of the statement function to provide a fallback value:
 
 ```warble
-const found = for (v in values) {
+let found = for (v in values) {
   if (v == target) {
     return true;
   }
@@ -1694,7 +1694,7 @@ const found = for (v in values) {
 Here, the compiler effectively interprets this as:
 
 ```warble
-const found = [values, target]() {
+let found = [values, target]() {
   for (v in values) {
     if (v == target) {
       return true;
@@ -1712,7 +1712,7 @@ Because statement functions are always immediately invoked and have no reference
 
 ```warble
 // This incurs no overhead; it’s fully optimized:
-const value = if (a) { return b; } else { return c; };
+let value = if (a) { return b; } else { return c; };
 ```
 
 The function interpretation is purely conceptual—an abstraction for understanding control flow. The compiled program never creates a real callable function object. You can freely use statement functions without concern about performance.
@@ -1720,7 +1720,7 @@ The function interpretation is purely conceptual—an abstraction for understand
 Statement functions are syntactic sugar—convenience shorthand for constructs you could write explicitly as an immediately-invoked function. However, because Warble handles this optimization seamlessly, there's no reason to write such functions manually. Statement functions are particularly useful given Warble’s omission of a traditional ternary operator. They provide a clear, expressive alternative:
 
 ```warble
-const minValue = if (a < b) { return a; } else { return b; };
+let minValue = if (a < b) { return a; } else { return b; };
 ```
 
 This construct neatly captures conditional logic within expression contexts, promoting clarity, consistency, and conciseness throughout Warble programs.
