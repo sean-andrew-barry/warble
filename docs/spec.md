@@ -1333,39 +1333,26 @@ Additionally, the module object may contain user-defined top-level declarations.
 
 #### 4.2.4 Symbol
 
-Symbols are fundamental building blocks of Warble's type and runtime systems. Every value in Warble, whether it's a literal, an object, a function, or any other entity, is represented internally by a **symbol**. Symbols encapsulate extensive metadata, including type information, memory layout details, visibility, and other compile-time properties. Users cannot directly instantiate or modify symbols, but they interact with them through reflection, type-checking operators, and object-oriented constructs.
+Symbols are fundamental building blocks of Warble's type and runtime systems. Every value in Warble, whether it's a literal, an object, a function, or any other entity, is represented internally by a **symbol**. In practice, a symbol is simply a 32‑bit index into a module's columnar symbol table. Each column stores one property (such as the type or name) for all symbols. Users do not manipulate these columns directly; instead, they obtain a symbol index and query properties through compiler-provided functions.
 
 ##### Symbol Structure and Properties
 
-Conceptually, each symbol presents to the user as a structured object containing these key properties:
+Because a symbol is just an index, each property lives in its own column and is accessed through a compiler‑defined function. These columns are:
 
-* **`type`**: A simple 8 bit numeric ID that describes the type associated with the symbol.
+* `typeof(sym)` – an 8‑bit type ID. This column stores the basic category of every symbol.
+* `registersof(sym)` – a bitset of CPU register indexes where the symbol’s runtime value might reside.
+* `flagsof(sym)` – a bitset of modifiers. Common flags include `MUTABLE`, visibility markers (`PUBLIC`, `PROTECTED`, `PRIVATE`), `SPREAD`, and `REPEAT`.
+* `valueof(sym)` – a typeless field interpreted according to the symbol’s type: an immediate value, pointer, or index.
+* `sizeof(sym)` – a 32‑bit size field representing byte footprint or element count for strings and enums.
+* `displacementof(sym)` – a 32‑bit offset from the parent symbol for efficient address calculation.
+* `nameof(sym)` – a reference to a string literal symbol containing the identifier’s name, or `null` for anonymous symbols.
+* `parentof(sym)` – the parent symbol index. The module is the root of every chain and itself references the global `null` symbol as its parent.
+* `childrenof(sym)` – a reference to an enum list of child symbol indexes. Primitives reference an empty enum `<>`.
 
-* **`registers`**: A bitset marking which CPU register indexes this symbol’s runtime value potentially resides in at any point during its lifetime.
+Source mapping information is held in parallel columns and retrieved in the same way:
 
-* **`flags`**: A bitset marking various modifiers and metadata. Common flags include:
-
-  * `MUTABLE` – indicates a declaration was flagged with `mut`.
-  * `PUBLIC`, `PROTECTED`, `PRIVATE` – visibility modifiers.
-  * `SPREAD` – marks a symbol as being created from a spread operation `...`.
-  * `REPEAT` – marks an array symbol as being created by the repetition syntax (`[value; length]`).
-  * ...Etc.
-
-* **`value`**: A generic typeless field, interpreted according to the symbol’s type. It may store an immediate literal, a pointer or index, or other arbitrary data as required by the symbol’s semantics.
-
-* **`size`**: A 32 bit number representing memory footprint of the symbol, measured in bytes. Some symbol types, like the string and enum, repurpose this to refer to the number of elements they represent instead of their byte size. The byte size can still be determined by multiplying the `size` by the element size.
-
-* **`displacement`**: A 32 bit offset from its parent symbol in bytes. Symbols representing fields or subcomponents use this displacement for efficient address calculation.
-
-* **`name`**: A reference to a symbol that identifies this symbol. For named declarations like variables or functions, this reference a string literal symbol, holding the identifier's name. An anonymous symbol will reference the globally unique `null` symbol indicating its lack of a name.
-
-* **`parent`**: A reference to the parent symbol (such as a containing object, function, or module). This relationship enables efficient hierarchical address resolution. The root symbol of a hierarchy is always the module, which references the global `null` symbol as its parent.
-
-* **`children`**: A reference to an enum list of child symbols. Aggregates such as objects or arrays represent their fields variants as child symbols. Many symbol types, such as primitives like booleans or numbers, do not have children. They reference an empty enum symbol `<>` to indicate this.
-
-Additionally, symbols contain source mapping data, facilitating debugging and diagnostics:
-
-* **`token_start`**, **`token_end`**, **`character_start`**: 32 bit indexes linking symbols back to their corresponding locations in the source code.
+* `token_startof(sym)` and `token_endof(sym)` – indexes into the module’s tokens buffer.
+* `character_startof(sym)` – index into the module’s character buffer.
 
 ##### Symbol Creation
 
@@ -1400,7 +1387,7 @@ Users access symbol metadata at runtime through Warble’s reflection operator `
 
 ```warble
 let sym = $namedValue;
-print(sym.name); // Prints "namedValue"
+print(nameof(sym)); // Prints "namedValue"
 ```
 
 Reflection provides a powerful, dynamic interface for debugging, logging, and runtime type introspection.
@@ -1438,7 +1425,7 @@ Warble’s object-oriented system is fully symbol-based:
 
 ##### Performance and Memory Considerations
 
-Warble’s columnar internal symbol layout provides excellent memory locality and efficiency. Although users perceive symbols as individual structured entities, internally they are managed as columnar data (arrays for each property). Users interact transparently without needing to manage indexes directly, enjoying a simple abstraction that preserves high performance and scalability.
+Warble’s columnar internal symbol layout provides excellent memory locality and efficiency. Rather than pretending a symbol is a contiguous struct, Warble exposes its columnar nature directly through the accessor functions above. Symbols are lightweight indexes, and all property lookups go through these compiler‑defined helpers. This straightforward model keeps memory compact while still allowing high‑level reflection and analysis.
 
 This columnar design allows Warble symbols to scale linearly with the number of program operations, ensuring predictable memory usage even in large codebases.
 
