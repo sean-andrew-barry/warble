@@ -231,7 +231,7 @@ Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct ident
 Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
 
 ```
-const, let, do, null, undefined, true, false, return, match, is, from, has, default, local
+let, do, null, undefined, true, false, return, match, is, from, has, default, local
 ```
 
 A full list of reserved keywords is available in Appendix 18.2.
@@ -317,7 +317,7 @@ let total = 1 +
 
 ### 3.1 Declarations
 
-All scope-level bindings in Warble begin with the keyword `let`. The keyword itself does not express mutability; every declaration is immutable unless its type symbol has the `MUTABLE` flag enabled. This flag can be toggled using helper functions such as `mut`.
+Any binding may begin with the keyword `let`, but it is **required** only for scope-level declarations where the compiler must be told that the statement is a declaration rather than an expression.  In contexts that already expect declarations—such as object literals, capture lists, parameter lists, and `for` loop headers—the `let` keyword can be omitted without changing semantics.  The keyword itself does not express mutability; every declaration is immutable unless its type symbol has the `MUTABLE` flag enabled. This flag can be toggled using helper functions such as `mut`.
 
 Example:
 
@@ -900,9 +900,9 @@ let point = { x = 10, y = 20 };
 
 Declarations inside object literals follow nearly identical rules as scope-level declarations:
 
-* Each property declaration begins with `let`.
+* Each property is a declaration. Because the compiler already expects a declaration here, the `let` keyword is optional.
 * Mutability is controlled via decorators like `mut` on the property's type.
-* Modifier keywords such as `private`, `protected`, and `public` can also be used, influencing property visibility rules during lookup.
+* Visibility is controlled via decorators such as `private()` or `protected()`, with `public()` restoring the default public state.
 
 For example:
 
@@ -910,7 +910,7 @@ For example:
 let user = {
   name = "Sean",
   age: mut(auto) = 32,          // mutable
-  private email = "...", // visibility modifier
+  email: private(auto) = "...", // visibility modifier
 };
 ```
 
@@ -973,12 +973,12 @@ let movingObject = {
 
 Internally, this spreading does not deeply clone each property. Instead, it adds a single symbol of type `object`, flagged with `SPREAD`, to the target's `children`. During property lookups, the compiler transparently recognizes these spread symbols, recursively searching their contained properties as needed.
 
-Spreading can include visibility modifiers as well:
+Spreading can include visibility decorators as well:
 
 ```warble
 let obj = {
-  private ...secretProperties,
-  public ...publicProperties,
+  ...private(secretProperties),
+  ...public(publicProperties),
 };
 ```
 
@@ -1013,8 +1013,8 @@ let Example = {
 ##### Summary of Object Literal Features:
 
 * Defined using curly braces `{ }`.
-* Consist of named declarations beginning with `let`. Properties are immutable unless their type is decorated with `mut`.
-* Support visibility modifiers (`public`, `private`, `protected`).
+* Consist of named declarations. The `let` keyword is optional in this context. Properties are immutable unless their type is decorated with `mut`.
+* Support visibility decorators (`public`, `private`, `protected`).
 * Allow shadowing and overloads via backward lookup.
 * Allow property names defined as strings or enums.
 * Enable composition via object spreading (`...`).
@@ -1096,7 +1096,7 @@ The syntax inside capture groups closely resembles object literal declarations:
 
 * Comma-separated declarations.
 * Bindings are immutable unless their type uses `mut`.
-* Short-hand declarations allowed: writing `a` alone is equivalent to writing `let a = a;`.
+* Short-hand declarations allowed; writing `a` alone is equivalent to writing `let a = a;`. Because captures are always declarations, the `let` keyword may be omitted.
 * Captures can be renamed using explicit assignment: `[x = a]` captures `a` from the outer scope and names it `x` inside the function.
 
 Examples:
@@ -1973,10 +1973,10 @@ for (declaration in iterable [by step]) {
 ```
 
 * **Declaration**:
-  Declares the loop variable. Loop bindings always begin with `let` and are immutable unless their type uses `mut`:
+  Declares the loop variable. Because the loop header expects a declaration, the `let` keyword may be omitted. Loop variables are immutable unless their type uses `mut`:
 
   ```warble
-  for (let i in 0..10) {
+  for (i in 0..10) {
     print(i);
   }
   ```
@@ -2231,8 +2231,8 @@ Imports always produce immutable bindings, regardless of the original export mut
 To expose functionality from a module, Warble uses explicit `export` declarations at the module’s top-level scope:
 
 ```warble
-export const fn = (){};
-export let mutableValue = 42; // Only mutable internally, dependency modules cannot mutate
+let fn: export(auto) = (){};
+let mutableValue: export(mut(auto)) = 42; // Only mutable internally, dependency modules cannot mutate
 ```
 
 Only declarations explicitly marked with `export` become visible outside the module.
