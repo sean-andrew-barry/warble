@@ -599,7 +599,6 @@ Note that this behavior is a special allowance. Generally, spreading one type of
 * Support standard escape sequences consistent with character literals.
 * Convertible to arrays of characters using spread syntax (`[...]`).
 
-
 #### 4.1.7 Array
 
 Array literals represent sequential collections of elements, where each element shares a common data type. The type of an array is always inferred from its first element. Once the type is defined by this initial element, every subsequent element must either match this type exactly or be implicitly convertible to it.
@@ -1069,8 +1068,9 @@ Function literals in Warble represent first-class functions defined directly as 
 
 Function literals have three main parts, closely mirroring C++ lambdas:
 
-* **Capture group**: Defined with square brackets (`[ ]`). *(Optional)*
-* **Parameter list**: Defined with parentheses (`( )`). *(Optional, but at least one of captures or parameters is required)*
+* **Template list**: Defined with angle braces (`< >`). *(Optional)*
+* **Capture list**: Defined with square brackets (`[ ]`). *(Optional)*
+* **Parameter list**: Defined with parentheses (`( )`). *(Optional, but at least one of templates, captures, or parameters is required)*
 * **Function body**: Defined with curly braces (`{ }`). *(Required, except in shorthand arrow syntax)*
 
 Examples:
@@ -1088,11 +1088,143 @@ let printX = [x] { print(x); };
 
 If both captures and parameters are present, captures must come first. If neither are specified, the function literal would be indistinguishable from an object literal, thus one of them must always be present.
 
-##### Capture Groups
+##### Templates
 
-The capture group (`[ ]`) allows functions to access variables from their defining scope. Captures are optional. If omitted entirely, the function implicitly captures referenced external variables. To prevent implicit capturing, provide an explicit empty capture group (`[]`).
+Template lists in Warble function literals specify one or more type symbols that parameterize the function. These type symbols are defined within angle brackets (`<>`) immediately preceding the capture or parameter lists. Templates enable functions to specialize their implementation based on the types of their arguments, similar to generic programming found in languages like C++ or Rust, but with Warble's simpler, more explicit model.
 
-The syntax inside capture groups closely resembles object literal declarations:
+Warble function templates primarily facilitate compile-time specialization, ensuring maximum performance without runtime overhead.
+
+**Template List Syntax:**
+
+```warble
+let func = <T, U>(a: T, b: U) {
+  // implementation using T and U
+};
+```
+
+The template list (`<T, U>`) explicitly introduces type symbol parameters (`T`, `U`) that the function uses internally.
+
+If all parameter types are explicitly declared or implicitly resolved via `auto`, the template list is optional:
+
+```warble
+// Using auto parameters (template list omitted, compiler infers specializations)
+let add = (a: auto, b: auto) {
+  return a + b;
+};
+```
+
+When calling such functions, the compiler resolves each `auto` parameter automatically based on the arguments:
+
+```warble
+let x = add(1i8, 2i8);   // Compiler generates specialized add(i8, i8)
+let y = add(1i32, 2i32); // Compiler generates specialized add(i32, i32)
+```
+
+In both calls above, the compiler implicitly generates specialized versions of `add`.
+
+Explicit template specialization is also allowed by manually specifying types:
+
+```warble
+let x = add<i8, i8>(1, 2); // Manually selects specialized add(i8, i8)
+```
+
+The manually specialized version `add<i8, i8>` is identical to the implicitly specialized version `add(1i8, 2i8)`.
+
+**Template Access Within Functions:**
+
+If a function literal needs direct access to its specialization symbols (useful for metaprogramming or reflection), explicitly declare the template list:
+
+```warble
+let describe = <T>(value: T) {
+  print("Type is: ", nameof(T));
+  print("Size is: ", sizeof(T));
+};
+
+describe(42i32);
+// Prints:
+// Type is: i32
+// Size is: 4
+```
+
+While the template list explicitly binds type symbols to named identifiers (`T` in this case), these symbols could alternatively have been inferred from parameter symbols (`$value`) if the template list were omitted. However, explicitly declaring templates is clearer when the function logic depends directly on these symbols.
+
+**Specializations Without Parameters:**
+
+Sometimes a function might require template specialization but does not take any runtime parameters. In this case, the explicit template parameter must be provided when calling the function, since the compiler cannot infer it automatically:
+
+```warble
+let vector = <T>() {
+  return {
+    elements: [],
+    element_type: T,
+  };
+};
+
+let ints = vector<i32>(); // required explicit specialization
+```
+
+Calling `vector()` without the specialization (`<i32>`) is invalid, as the compiler has no way of resolving the template parameter.
+
+**Using Specialized Functions Directly:**
+
+Specialized functions are themselves first-class values and can be freely assigned to identifiers, passed as arguments, or used directly:
+
+```warble
+let vector = <T>() { /* ... */ };
+let int_vector = vector<i32>; // Specialized function assigned to identifier
+
+let v1 = int_vector();
+let v2 = vector<i32>(); // equivalent call
+```
+
+#### Examples of Templates:
+
+**Implicit specialization with `auto`:**
+
+```warble
+let multiply = (x: auto, y: auto) {
+  return x * y;
+};
+
+let a = multiply(3i32, 4i32); // specialization: multiply(i32, i32)
+let b = multiply(1.5, 2.0);   // specialization: multiply(f64, f64)
+```
+
+**Explicit template specialization:**
+
+```warble
+let make_pair = <A, B>(a: A, b: B) {
+  return { first: a, second: b };
+};
+
+let pair = make_pair<i32, bool>(10, true);
+```
+
+**Direct template usage inside function body:**
+
+```warble
+let allocate = <T>(count: u64) {
+  let buffer_size = sizeof(T) * count;
+  print("Allocating ", buffer_size, " bytes.");
+  return compiler.unsafe.alloc(buffer_size);
+};
+
+let data = allocate<f64>(1000);
+```
+
+#### Key Points and Rules Summary:
+
+* Template lists explicitly introduce type symbols for function specialization.
+* Template parameters can be inferred automatically via `auto` parameters.
+* Explicit template lists allow direct access to type symbols within the function.
+* Specializations without parameters require explicit template arguments on invocation.
+* Specialized functions are first-class values, freely assignable and callable.
+
+##### Capture List
+
+The capture list (`[ ]`) allows functions to access variables from their defining scope. Captures are optional. If omitted entirely, the function implicitly captures referenced external variables. To prevent implicit capturing, provide an explicit empty capture list (`[]`).
+
+The syntax inside capture list closely resembles object literal declarations:
 
 * Comma-separated declarations.
 * Bindings are immutable unless their type uses `mut`.
