@@ -451,7 +451,7 @@ Variants internally include a small type tag indicating the current active type 
 
 The reason the `void` type has a size of `0` is specifically to avoid increasing the memory footprint of variant types. If `void` occupied actual memory (for instance, 64 bits), it would force all variants containing it, such as `<u8, void>`, to increase their size unnecessarily. Because `void` has zero size, the memory footprint is minimized, containing only the size necessary for the non-void type and the variant's type tag.
 
-Additionally, functions in Warble without explicit return types are automatically assigned a return type of `void`. The following forms of returning from such a function are equivalent:
+Functions that do not explicitly return a value implicitly return `void`. The following forms are equivalent:
 
 ```warble
 return;
@@ -2459,7 +2459,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`is`** — Indicates the type or variant in a pattern-match.
 * **`from`** — Specifies the source of data or symbol in a match or import.
 * **`has`** — Indicates a property presence check in a pattern-match.
-* **`as`** — Introduces type aliasing or binding within patterns.
+* **`as`** — Binds values in patterns or control-flow conditions and also introduces type aliases.
 
 #### Jump Statements
 
