@@ -1400,7 +1400,7 @@ Users access symbol metadata at runtime through Warble’s reflection operator `
 
 ```warble
 let sym = $namedValue;
-print(sym.name); // Prints "namedValue"
+print(nameof(sym)); // Prints "namedValue"
 ```
 
 Reflection provides a powerful, dynamic interface for debugging, logging, and runtime type introspection.
