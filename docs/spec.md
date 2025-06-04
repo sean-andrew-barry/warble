@@ -2452,6 +2452,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`for`** — Begins a looping construct over an iterable.
 * **`while`** — Begins a loop construct based on a boolean condition.
 * **`do`** — Introduces a scoped block, or starts the `do` section of a `do ... while` loop.
+* **`await`** — Unary prefix operator that suspends the current thread until a promise resolves, repeatedly returning to the work queue between checks.
 
 #### Pattern Matching and Constraints
 
