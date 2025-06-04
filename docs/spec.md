@@ -2411,11 +2411,46 @@ Warble’s approach ensures no hidden surprises, fostering a safer and more resp
 
 ## 13 Concurrency & Parallelism
 
+Warble programs are inherently concurrent. A pool of worker threads executes
+tasks drawn from per-thread work-stealing queues. Modules form a dependency
+graph that drives safe parallel execution while the runtime schedules async
+functions, timers and other work units.
+
 ### 13.1 Tasks & Schedulers
+
+* **Worker Threads** – Every thread owns a Chase‑Lev deque. Tasks pushed to the
+  bottom run locally while idle threads may steal from the top.
+* **Task Types** – Module ticks, async function promises, timers and I/O events
+  are all scheduled as tasks.
+* **Work Loop** – After completing a task or suspending on `await`/`yield`, a
+  thread:
+  1. Pops another task from its deque.
+  2. Runs pending module ticks in dependency order (leaves first).
+  3. Attempts to steal from another thread if no local work exists.
+  4. Sleeps when the global system has no work.
+* **Module DAG** – Regular imports create a directed acyclic graph. A module
+  tick executes only when all dependencies have finished their tick. Using
+  `import async` breaks this ordering and exposes promises that must be awaited
+  before their values are used.
+* **Suspension** – When an async task suspends it is requeued at the steal end
+  or in a background queue, allowing other tasks to proceed before it resumes.
+* **THREADSAFE** – Mutable data may cross thread boundaries only when the
+  symbol is marked `THREADSAFE`. Async functions cannot capture or accept `mut`
+  references to non‑`THREADSAFE` values.
 
 ### 13.2 Atomic Operations
 
+The standard library provides atomic counters and flags that are implicitly
+`THREADSAFE`. They offer lock‑free read, write and compare‑exchange operations
+with explicit memory ordering. Only atomic or otherwise `THREADSAFE` values may
+be shared mutably between threads.
+
 ### 13.3 Data-Parallel Helpers
+
+High‑level helpers such as `parallel.for` or `parallel.map` spawn lightweight
+async tasks across the worker pool. These helpers obey the same scheduling rules
+as manual tasks and integrate with the module DAG, enabling safe data‑parallel
+loops without explicit thread management.
 
 ## 14 Standard Library (overview)
 
