@@ -1039,7 +1039,7 @@ A basic example of an exclusive range used in iteration:
 
 ```warble
 // Iterates from 0 up to (but not including) 10
-for (i in 0..10) {
+for (let i in 0..10) {
   print(i);
 }
 ```
@@ -1988,7 +1988,7 @@ for (declaration in iterable [by step]) {
   You may specify a compile-time constant integer as the iteration step size. If omitted, it defaults to `1`:
 
   ```warble
-  for (i in 0..10 by 2) {
+  for (let i in 0..10 by 2) {
     print(i); // prints 0, 2, 4, 6, 8
   }
   ```
@@ -1996,7 +1996,7 @@ for (declaration in iterable [by step]) {
   Negative step sizes reverse the iteration order, starting from the end toward the beginning of the iterable:
 
   ```warble
-  for (i in 10..0 by -2) {
+  for (let i in 10..0 by -2) {
     print(i); // prints 10, 8, 6, 4, 2
   }
   ```
@@ -2033,7 +2033,7 @@ Jump statements alter the normal execution flow by abruptly transferring control
 Example of basic usage:
 
 ```warble
-for (i in 0..10) {
+for (let i in 0..10) {
   if (i == 5) break;     // Exits loop when i == 5
   if (i % 2 == 0) continue; // Skips even numbers
   print(i); // Prints odd numbers less than 5
