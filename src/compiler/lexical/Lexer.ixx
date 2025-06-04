@@ -108,7 +108,7 @@ namespace lexical {
             if (width > 0) {
               Save(lexical::Tokens::WHITESPACE, width);
               width = 0;
-            } 1000000
+            }
 
             if (Peek(1) == U'/') {
               Advance(2);
