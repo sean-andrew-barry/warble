@@ -2451,7 +2451,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`else`** — Provides an alternative branch in a conditional statement.
 * **`for`** — Begins a looping construct over an iterable.
 * **`while`** — Begins a loop construct based on a boolean condition.
-* **`do`** — Begins a do-while style loop construct.
+* **`do`** — Introduces a scoped block, or starts the `do` section of a `do ... while` loop.
 
 #### Pattern Matching and Constraints
 
