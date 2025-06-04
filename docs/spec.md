@@ -29,9 +29,9 @@ Warble keeps it simple, readable, and intuitive.
 Warble automatically infers types based on context:
 
 ```warble
-const number = 42;              // inferred as integer
-let message = "Warble is cool"; // inferred as string
-message = "Still cool!";        // mutable (`let`) declaration
+let number = 42;                       // type defaults to `auto`
+let message: mut(auto) = "Warble is cool"; // explicitly mutable
+message = "Still cool!";
 ```
 
 ---
@@ -41,9 +41,9 @@ message = "Still cool!";        // mutable (`let`) declaration
 Warble provides clear and concise structured literals:
 
 ```warble
-const array = [1, 2, 3, 4];
-const tuple = (1, "two", true);
-const object = { name = "Aura", age = 2 };
+let array = [1, 2, 3, 4];
+let tuple = (1, "two", true);
+let object = { name = "Aura", age = 2 };
 
 print(object.name); // prints "Aura"
 ```
@@ -55,8 +55,8 @@ print(object.name); // prints "Aura"
 Warble's functions are intuitive and powerful:
 
 ```warble
-const multiplier = [factor](x) => x * factor;
-const double = multiplier(2);
+let multiplier = [factor](x) => x * factor;
+let double = multiplier(2);
 
 print(double(10)); // prints 20
 ```
@@ -64,8 +64,8 @@ print(double(10)); // prints 20
 Functions can implicitly capture context:
 
 ```warble
-const factor = 5;
-const multiplyByFactor = (x) { return x * factor; };
+let factor = 5;
+let multiplyByFactor = (x) { return x * factor; };
 
 print(multiplyByFactor(3)); // prints 15
 ```
@@ -77,7 +77,7 @@ print(multiplyByFactor(3)); // prints 15
 Warble supports expressive and readable pattern matching:
 
 ```warble
-const value = something;
+let value = something;
 
 match (value) {
   is (a) { print("Operation successful!"); }
@@ -127,10 +127,10 @@ for (i in 1...3) { // inclusive range
 Warble prefers composition over inheritance:
 
 ```warble
-const position = { x = 10, y = 20 };
-const velocity = { dx = 1, dy = -1 };
+let position = { x = 10, y = 20 };
+let velocity = { dx = 1, dy = -1 };
 
-const entity = {
+let entity = {
   ...position,
   ...velocity,
   name = "Player",
@@ -231,7 +231,7 @@ Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct ident
 Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
 
 ```
-const, let, do, null, undefined, true, false, return, match, is, from, has, default, local
+let, do, null, undefined, true, false, return, match, is, from, has, default, local
 ```
 
 A full list of reserved keywords is available in Appendix 18.2.
@@ -273,7 +273,7 @@ Warble treats whitespace characters (spaces, tabs, and newlines) as token separa
 
   ```warble
   // This is a single-line comment
-  const x = 42; // This comment follows a statement
+  let x = 42; // This comment follows a statement
   ```
 
 * **Multi-line comments** are enclosed between `/*` and `*/`. They can span multiple lines and may include other comment markers without special interpretation:
@@ -283,7 +283,7 @@ Warble treats whitespace characters (spaces, tabs, and newlines) as token separa
     This is a multi-line comment.
     It can span multiple lines.
   */
-  const y = 10;
+  let y = 10;
   ```
 
 Whitespace and comments do not affect the logic or execution of the program. They are purely for developer clarity and code organization.
@@ -295,39 +295,36 @@ Warble employs explicit statement termination using semicolons (`;`). Each top-l
 Unlike some languages that allow implicit semicolons, Warble explicitly requires semicolons to separate individual statements. This ensures clarity and predictability in code parsing:
 
 ```warble
-const x = 1; // valid statement termination
-const y = 2; // another valid termination
+let x = 1; // valid statement termination
+let y = 2; // another valid termination
 ```
 
 At the top level, object literals and similar structured literals used as expressions must also end with a semicolon to form a valid standalone statement:
 
 ```warble
-const obj = { x = 1, y = 2 }; // semicolon required here
+let obj = { x = 1, y = 2 }; // semicolon required here
 ```
 
 **Line terminators** (newlines, carriage returns, and other Unicode line-ending characters) serve only as whitespace. They do not implicitly terminate statements. Statements may span multiple lines, provided they end with a semicolon:
 
 ```warble
-const total = 1 +
+let total = 1 +
               2 +
               3; // valid across multiple lines
 ```
 
 ## 3 Fundamentals
 
-### 3.1 Declarations (`const`, `let`, shadowing)
+### 3.1 Declarations
 
-Declarations introduce named bindings (variables or constants) into Warble code. Warble provides two primary declaration keywords:
-
-* **`const`**: Declares an immutable (read-only) binding. Once initialized, the bound value cannot change.
-* **`let`**: Declares a mutable binding. The bound value can be reassigned after initialization.
+Any binding may begin with the keyword `let`, but it is **required** only for scope-level declarations where the compiler must be told that the statement is a declaration rather than an expression.  In contexts that already expect declarations—such as object literals, capture lists, parameter lists, and `for` loop headers—the `let` keyword can be omitted without changing semantics.  The keyword itself does not express mutability; every declaration is immutable unless its type symbol has the `MUTABLE` flag enabled. This flag can be toggled using helper functions such as `mut`.
 
 Example:
 
 ```warble
-const pi = 3.14159; // Immutable binding
-let count = 0;      // Mutable binding
-count = 10;         // Allowed reassignment
+let pi = 3.14159;           // immutable by default
+let count: mut(auto) = 0;   // mutable binding
+count += 10;                // Allowed reassignment
 ```
 
 #### Shadowing
@@ -336,9 +333,9 @@ Shadowing occurs whenever a new declaration uses the same name as a previous dec
 
 ```warble
 // Shadowing within the same scope:
-const value = 42;
-const value = "hello";
-const value = true;
+let value = 42;
+let value = "hello";
+let value = true;
 ```
 
 Each subsequent declaration of the same name "shadows" the previous ones. A lookup like `print(value)` refers exclusively to the most recent declaration, effectively making earlier declarations of the same name invisible from that point onward.
@@ -346,8 +343,8 @@ Each subsequent declaration of the same name "shadows" the previous ones. A look
 Shadowing allows you to create a sequence of updated immutable values clearly and safely, enabling code that behaves similarly to mutation but preserves immutability. This works because, in Warble, the right-hand side of a declaration executes before the name on the left-hand side is introduced, allowing the declaration to refer to the previous binding of the same name:
 
 ```warble
-const value = 10;
-const value = value * 10;
+let value = 10;
+let value = value * 10;
 print(value); // Prints "100"
 ```
 
@@ -369,10 +366,10 @@ Scopes in Warble define the visibility and lifetime of declared identifiers, hel
 Unlike many curly-brace languages, Warble **does not** interpret standalone curly braces (`{ ... }`) as scope blocks. Instead, Warble uses the explicit `do` keyword to introduce scope blocks, eliminating ambiguity with object literals:
 
 ```warble
-const x = 10;
+let x = 10;
 
 do {
-  const x = 20; // shadows outer `x` within this block
+  let x = 20; // shadows outer `x` within this block
   print(x);     // prints 20
 }
 
@@ -384,8 +381,8 @@ print(x);       // prints 10
 Shadowing also applies within the same scope:
 
 ```warble
-const a = 1;
-const a = 2; // shadows previous declaration of `a`
+let a = 1;
+let a = 2; // shadows previous declaration of `a`
 print(a);    // prints 2
 ```
 
@@ -400,7 +397,7 @@ To clearly differentiate scopes from object literals:
 * **Empty object literal**:
 
   ```warble
-  const emptyObject = {}; // empty object literal, must end with a semicolon
+  let emptyObject = {}; // empty object literal, must end with a semicolon
   ```
 
 * **Empty scope block**:
@@ -436,8 +433,8 @@ Boolean literals represent simple truth values and are stored as 8-bit values. W
 **Examples:**
 
 ```warble
-const isReady = true;
-const hasFailed = false;
+let isReady = true;
+let hasFailed = false;
 ```
 
 #### 4.1.2 Void
@@ -898,22 +895,22 @@ Object literals are the most versatile and complex type of literal in Warble. Th
 Object literals use curly braces `{ }` to enclose their declarations, with each declaration separated by a comma:
 
 ```warble
-const point = { x = 10, y = 20 };
+let point = { x = 10, y = 20 };
 ```
 
 Declarations inside object literals follow nearly identical rules as scope-level declarations:
 
-* They can optionally use `const` or `let` to specify mutability.
-* If omitted, declarations default to immutable (`const`).
-* Modifier keywords such as `private`, `protected`, and `public` can also be used, influencing property visibility rules during lookup.
+* Each property is a declaration. Because the compiler already expects a declaration here, the `let` keyword is optional.
+* Mutability is controlled via decorators like `mut` on the property's type.
+* Visibility is controlled via decorators such as `private()` or `protected()`, with `public()` restoring the default public state.
 
 For example:
 
 ```warble
-const user = {
+let user = {
   name = "Sean",
-  let age = 32,          // mutable
-  private email = "...", // visibility modifier
+  age: mut(auto) = 32,          // mutable
+  email: private(auto) = "...", // visibility modifier
 };
 ```
 
@@ -924,7 +921,7 @@ Each declaration inside an object literal becomes a child symbol of the object, 
 Lookups for object properties (`obj.a`) search backward through the `children` list, beginning at the end, to find a symbol matching the requested name. This backward lookup allows for shadowing of properties, enabling properties defined later to override earlier ones with the same name:
 
 ```warble
-const obj = {
+let obj = {
   a = 1,
   a = 2, // shadows the first `a`
 };
@@ -948,7 +945,7 @@ During lookup, Warble initially hits the most recent definition (the last listed
 In addition to standard identifiers, properties can be named using string literals or even enum literals. These allow names that wouldn't otherwise be valid identifiers:
 
 ```warble
-const obj = {
+let obj = {
   "some-key" = 42,
   <Red, Green> = "ColorPair",
 };
@@ -964,10 +961,10 @@ These alternate naming syntaxes are particularly useful in advanced design patte
 Warble emphasizes composition over inheritance, making object spreading an essential feature. You can spread one object literal's properties into another using the spread syntax (`...`):
 
 ```warble
-const position = { x = 0, y = 0 };
-const velocity = { vx = 1, vy = 1 };
+let position = { x = 0, y = 0 };
+let velocity = { vx = 1, vy = 1 };
 
-const movingObject = {
+let movingObject = {
   ...position,
   ...velocity,
   name = "Player",
@@ -976,12 +973,12 @@ const movingObject = {
 
 Internally, this spreading does not deeply clone each property. Instead, it adds a single symbol of type `object`, flagged with `SPREAD`, to the target's `children`. During property lookups, the compiler transparently recognizes these spread symbols, recursively searching their contained properties as needed.
 
-Spreading can include visibility modifiers as well:
+Spreading can include visibility decorators as well:
 
 ```warble
-const obj = {
-  private ...secretProperties,
-  public ...publicProperties,
+let obj = {
+  ...private(secretProperties),
+  ...public(publicProperties),
 };
 ```
 
@@ -992,19 +989,19 @@ Note: Only object literals can be spread into object literals; other containers 
 Warble provides a convenient shorthand to replicate traditional enum class behavior (common in languages like C++). By prefixing property names with the hash character (`#`) and omitting explicit assignments, you instruct the compiler to assign sequential numeric values automatically, beginning at zero:
 
 ```warble
-const Colors = { #Red, #Green, #Blue };
+let Colors = { #Red, #Green, #Blue };
 ```
 
 This shorthand expands to:
 
 ```warble
-const Colors = { Red = 0, Green = 1, Blue = 2 };
+let Colors = { Red = 0, Green = 1, Blue = 2 };
 ```
 
 Auto-incrementing properties may be mixed freely with explicitly defined properties, including methods and other values:
 
 ```warble
-const Example = {
+let Example = {
   #Start,          // implicitly 0
   #Middle,         // implicitly 1
   description = "Example enum-like structure",
@@ -1016,8 +1013,8 @@ const Example = {
 ##### Summary of Object Literal Features:
 
 * Defined using curly braces `{ }`.
-* Consist of named declarations, optionally mutable (`let`) or immutable (`const`, default).
-* Support visibility modifiers (`public`, `private`, `protected`).
+* Consist of named declarations. The `let` keyword is optional in this context. Properties are immutable unless their type is decorated with `mut`.
+* Support visibility decorators (`public`, `private`, `protected`).
 * Allow shadowing and overloads via backward lookup.
 * Allow property names defined as strings or enums.
 * Enable composition via object spreading (`...`).
@@ -1080,13 +1077,13 @@ Examples:
 
 ```warble
 // Full syntax with captures and parameters
-const add = [x](y) { return x + y; };
+let add = [x](y) { return x + y; };
 
 // Captures omitted (implicit capture)
-const square = (x) { return x * x; };
+let square = (x) { return x * x; };
 
 // Parameters omitted (captures required)
-const printX = [x] { print(x); };
+let printX = [x] { print(x); };
 ```
 
 If both captures and parameters are present, captures must come first. If neither are specified, the function literal would be indistinguishable from an object literal, thus one of them must always be present.
@@ -1098,23 +1095,23 @@ The capture group (`[ ]`) allows functions to access variables from their defini
 The syntax inside capture groups closely resembles object literal declarations:
 
 * Comma-separated declarations.
-* Default to immutable (`const`) if `let` isn't specified explicitly.
-* Short-hand declarations allowed: writing `a` alone is equivalent to writing `const a = a;`.
+* Bindings are immutable unless their type uses `mut`.
+* Short-hand declarations allowed; writing `a` alone is equivalent to writing `let a = a;`. Because captures are always declarations, the `let` keyword may be omitted.
 * Captures can be renamed using explicit assignment: `[x = a]` captures `a` from the outer scope and names it `x` inside the function.
 
 Examples:
 
 ```warble
-const x = 10, y = 20;
+let x = 10, y = 20;
 
 // Implicit captures (automatically captures x)
-const implicit = () { return x; };
+let implicit = () { return x; };
 
 // Explicit captures (no implicit capturing)
-const explicit = [x, y] { return x + y; };
+let explicit = [x, y] { return x + y; };
 
 // Renamed captures
-const renamed = [total = x] { return total; };
+let renamed = [total = x] { return total; };
 ```
 
 ##### Explicit Copy or Reference Capturing
@@ -1129,8 +1126,8 @@ To explicitly force one behavior or the other, you can prefix captures with spec
 Examples:
 
 ```warble
-const byRef = [&x] { /* x captured by reference */ };
-const byCopy = [@x] { /* x captured by copy */ };
+let byRef = [&x] { /* x captured by reference */ };
+let byCopy = [@x] { /* x captured by copy */ };
 ```
 
 Symbols generated from capturing are flagged as `CAPTURE`.
@@ -1139,15 +1136,15 @@ Symbols generated from capturing are flagged as `CAPTURE`.
 
 Parameters (`( )`) are also declared as a comma-separated list, following similar rules as captures:
 
-* Parameters default to immutable (`const`), explicit use of `let` can override this.
-* Short-hand notation allowed; explicit `const` or `let` can be omitted.
+* Parameters are immutable unless their type is decorated with `mut`.
+* Short-hand notation allowed; explicit `let` can be omitted.
 * Parameters uniquely allow incomplete declarations (no initial value), because their values are provided upon invocation.
 
 Examples:
 
 ```warble
-const add = (a, b) { return a + b; };
-const increment = (let x) { x++; return x; };
+let add = (a, b) { return a + b; };
+let increment = (x: mut(auto)) { x++; return x; };
 ```
 
 All parameters are inherently templates (traditional template concept, not to be confused with template literals). Their types are determined by the function invocation arguments. Before specialization, parameter symbols are assigned the type `undefined`, marking them incomplete.
@@ -1198,13 +1195,13 @@ Warble also supports a concise shorthand for single-expression functions, inspir
 Examples:
 
 ```warble
-const double = (x) => x * 2;
+let double = (x) => x * 2;
 
 // Single parameter shorthand (no parentheses needed)
-const square = x => x * x;
+let square = x => x * x;
 
 // With implicit captures
-const multiplier = [factor] x => x * factor;
+let multiplier = [factor] x => x * factor;
 ```
 
 Unlike JavaScript, Warble explicitly disallows arrow functions with a curly-braced body. If a body is needed, a normal function literal must be used instead:
@@ -1214,7 +1211,7 @@ Unlike JavaScript, Warble explicitly disallows arrow functions with a curly-brac
 // const invalid = (x) => { return x + 1; };
 
 // Correct form for explicit bodies:
-const valid = (x) { return x + 1; };
+let valid = (x) { return x + 1; };
 ```
 
 This avoids ambiguity when distinguishing between implicit object literals and explicit function bodies.
@@ -1976,10 +1973,10 @@ for (declaration in iterable [by step]) {
 ```
 
 * **Declaration**:
-  Declares the loop variable. Modifier keywords (`const` or `let`) are permitted but optional because the compiler always expects a declaration here. If omitted, it defaults to `const`:
+  Declares the loop variable. Because the loop header expects a declaration, the `let` keyword may be omitted. Loop variables are immutable unless their type uses `mut`:
 
   ```warble
-  for (i in 0..10) { // equivalent to `for (const i in 0..10)`
+  for (i in 0..10) {
     print(i);
   }
   ```
@@ -2072,7 +2069,7 @@ In Warble, neither `break` nor `continue` allows expressions (unlike some langua
 The `return` keyword immediately terminates execution of the current function context and returns control to the caller. Optionally, a `return` may provide an expression whose value is returned to the caller:
 
 ```warble
-const add(a, b) {
+let add(a, b) {
   return a + b; // Returns the sum of `a` and `b`
 }
 ```
@@ -2084,11 +2081,11 @@ const add(a, b) {
 Warble does not directly support multiple return values using the `return` keyword. However, you can easily emulate multiple return values using structured literals, like tuples or objects, without performance overhead:
 
 ```warble
-const getCoordinates() {
+let getCoordinates() {
   return (x, y, z); // Returns a tuple
 }
 
-const (x, y, z) = getCoordinates(); // Destructures the tuple
+let (x, y, z) = getCoordinates(); // Destructures the tuple
 ```
 
 The compiler optimizes this pattern efficiently, ensuring no runtime overhead compared to traditional multi-return semantics.
@@ -2099,7 +2096,7 @@ Warble requires all explicit `return` statements within a function to return the
 
 ```warble
 // Error: Inconsistent return types
-const example(a) {
+let example(a) {
   if (a) return "string";
   return 42; // Compiler error due to type mismatch
 }
@@ -2110,7 +2107,7 @@ const example(a) {
 To allow functions to explicitly return multiple different types in a controlled way, Warble provides the special `return case` syntax:
 
 ```warble
-const getValue(condition) {
+let getValue(condition) {
   if (condition == "number") {
     return case 42;     // Returns an integer variant
   } else if (condition == "string") {
@@ -2234,8 +2231,8 @@ Imports always produce immutable bindings, regardless of the original export mut
 To expose functionality from a module, Warble uses explicit `export` declarations at the module’s top-level scope:
 
 ```warble
-export const fn = (){};
-export let mutableValue = 42; // Only mutable internally, dependency modules cannot mutate
+let fn: export(auto) = (){};
+let mutableValue: export(mut(auto)) = 42; // Only mutable internally, dependency modules cannot mutate
 ```
 
 Only declarations explicitly marked with `export` become visible outside the module.
