@@ -231,7 +231,7 @@ Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct ident
 Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
 
 ```
-let, do, null, undefined, true, false, return, match, is, from, has, default, local
+let, do, null, undefined, true, false, return, match, is, from, has, default
 ```
 
 A full list of reserved keywords is available in Appendix 18.2.
@@ -1551,9 +1551,9 @@ Warble offers powerful type-checking operators leveraging symbols’ structural 
 Warble’s object-oriented system is fully symbol-based:
 
 * Constructor functions define object structures.
-* Spread (`...`) syntax provides inheritance by marking child symbols with the `SPREAD` flag.
+* Spread (`...`) syntax supports composition by marking child symbols with the `SPREAD` flag.
 * Visibility modifiers (`PUBLIC`, `PROTECTED`, `PRIVATE`) enforce encapsulation at compile-time.
-* Overriding methods are implemented by symbol shadowing; the `super` keyword adjusts the lookup anchor to invoke overridden symbols.
+* Overriding methods rely on symbol shadowing. To call an overridden implementation, reference the parent symbol directly.
 
 ##### Performance and Memory Considerations
 
