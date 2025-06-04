@@ -114,6 +114,9 @@ export namespace code {
     SIGN_FLAG,
     DIRECTION_FLAG,
     OVERFLOW_FLAG,
+
+    SPREAD, // Indicates a symbol is spread into another container, such as `[a, ...arr]`
+    REPEAT, // Indicates a symbol is repeated in another container, such as `[0; 10]`
   };
 
   class Flag {
