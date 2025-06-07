@@ -4,62 +4,78 @@ import <cstdint>;
 
 namespace lexical {
   export enum class Tokens : uint8_t {
-    // Trivial
     NONE,
-    COMMENT,
-    WHITESPACE,
+    SPACE1,
+    SPACE2,
+    SPACE3,
+    SPACE4,
+    SPACE5,
+    SPACE6,
+    SPACE7,
+    SPACE8,
+    SPACE16,
+    TAB1,
+    TAB2,
+    TAB3,
+    TAB4,
+    TAB5,
+    TAB6,
+    TAB7,
+    TAB8,
+    TAB16,
+    IDENTIFIER1,                  
+    IDENTIFIER3,
+    IDENTIFIER5,
+    IDENTIFIER7,
+    IDENTIFIER8,
+    IDENTIFIER16,
+    TEXT1,
+    TEXT3,
+    TEXT5,
+    TEXT7,
+    TEXT8,
+    TEXT16,
+    DIGIT1,
+    DIGIT3,
+    DIGIT5,
+    DIGIT7,
+    DIGIT8,
+    DIGIT16,
     NEWLINE,
-    TAB,
+    UNDERSCORE,
     ZERO_WIDTH_SPACE,
     COMMENT_CLOSE,
     COMMENT_OPEN,
     MULTI_LINE_COMMENT_CLOSE,
     MULTI_LINE_COMMENT_OPEN,
-
-    // Literals
     UNDEFINED,
     _NULL,
-    FALSE,
     TRUE,
-    NUMBER,
-    INTEGER,
-    DECIMAL,
-    HEX_INTEGER,
-    HEX_NUMBER,
-    OCTAL_INTEGER,
-    OCTAL_NUMBER,
-    BINARY_INTEGER,
-    BINARY_NUMBER,
-
-    // Escapes
+    FALSE,
+    HEX, // 0x
+    OCTAL, // 0o
+    BINARY, // 0b
     ESCAPE_NEWLINE, // (\n) - A newline character.
     ESCAPE_TAB, // (\t) - A tab character.
     ESCAPE_BACKSPACE, // (\b) - A backspace.
     ESCAPE_RETURN, // (\r) - A carriage return.
     ESCAPE_FORM_FEED, // (\f) - A form feed.
     ESCAPE_LITERAL, // (\X) - A literal character
-    ESCAPE_UNICODE_CODEPOINT, // (\u{XXXXX...}) - A variable length Unicode code point
+    ESCAPE_UNICODE_CODEPOINT_START, // (\u{XXXXX...}) - A variable length Unicode code point
+    ESCAPE_UNICODE_CODEPOINT_END, // }
     ESCAPE_UNICODE_SHORT, // (\uXXXX) - A Unicode character using exactly four hexadecimal digits.
     ESCAPE_HEX_CODE, // (\xXX) - A character specified by a hexadecimal value of exactly two digits.
-
-    // Contextual keywords
-    SUPER,
     THIS,
-    SELF,
-
-    // Binary operators
     WITH,
     USE,
     ADD, // +
     AND, // &&
     OR, // ||
+    WRAP, // !!
     UNWRAP, // ??
-    TRUTHY_AND, // !!
-    TRUTHY_OR, // ??
     ASSIGN, // =
     CONSTRUCTOR, // =>
     DIVIDE, // /
-    EMPLACE, // =?
     EQUAL, // ==
     EXPONENT, // **
     GREATER_OR_EQUAL, // >=
@@ -111,13 +127,10 @@ namespace lexical {
     BITWISE_ASSIGN_AND, // &=
     BITWISE_ASSIGN_XOR, // ^=
     BITWISE_ASSIGN_OR, // |=
-
-    // Unary operators
     YIELD, // yield
     EXPECTED, // expected
     UNEXPECTED, // unexpected
     AWAIT, // await
-    CONTRACT, // !
     COPY, // @
     DECREMENT, // --
     INCREMENT, // ++
@@ -127,24 +140,13 @@ namespace lexical {
     OPTIONAL, // ?
     POSITIVE, // +
     REFERENCE, // &
+    MUTABLE_REFERENCE, // *
     OPTIONAL_REFERENCE, // ^
     SPREAD, // ...
-    SYMBOL, // $
-    VIRTUAL, // *
+    SYMBOLOF, // $
+    RETURNOF, // #
     MOVE, // =
     BITWISE_NOT, // ~
-    POSTFIX_CONTRACT,
-    POSTFIX_COPY,
-    POSTFIX_DECREMENT,
-    POSTFIX_INCREMENT,
-    POSTFIX_BORROW,
-    POSTFIX_OPTIONAL,
-    POSTFIX_REFERENCE,
-    POSTFIX_SPREAD,
-    POSTFIX_SYMBOL,
-    POSTFIX_VIRTUAL,
-
-    // Statements
     AS,
     HAS,
     ASYNC,
@@ -163,57 +165,12 @@ namespace lexical {
     IS,
     IN,
     IMPORT,
-    TRANSFORM,
     WHILE,
     CASE,
-
-    // Modifiers
     LET,
-    CONST,
-    COMTIME,
     COMPILER,
-    EXPORT,
-    RUNTIME,
-    IMMUTABLE,
-    MUTABLE,
-    PRIVATE,
-    PROTECTED,
-    PUBLIC,
-    STATIC,
-
-    // Types
-    AUTO,
-    ARRAY,
-    BOOL,
-    CLASS,
-    BYTE,
-    CHAR,
-    CHAR8,
-    CHAR16,
-    CHAR32,
-    ENUM,
-    FLOAT,
-    FLOAT16,
-    FLOAT32,
-    FLOAT64,
-    FUNCTION,
-    INT,
-    INT8,
-    INT16,
-    INT32,
-    INT64,
-    OBJECT,
-    STRING,
-    TUPLE,
-    UINT,
-    UINT8,
-    UINT16,
-    UINT32,
-    UINT64,
-    VARIANT,
-    VOID,
-    
-    // Symbols
+    AUTO, // auto
+    VOID, // void
     ARRAY_OPEN, // [
     ARRAY_CLOSE, // ]
     ENUM_OPEN, // <
@@ -230,13 +187,9 @@ namespace lexical {
     DESTRUCTURED_OBJECT_CLOSE, // }
     DESTRUCTURED_TUPLE_OPEN, // (
     DESTRUCTURED_TUPLE_CLOSE, // )
-    CHAR_CLOSE, // '
     CHAR_OPEN, // '
+    CHAR_CLOSE, // '
     COMMA, // ,
-    COMPUTED_PROPERTY_OPEN, // [
-    COMPUTED_PROPERTY_CLOSE, // ]
-    ENUM_PROPERTY_OPEN, // <
-    ENUM_PROPERTY_CLOSE, // >
     CONDITION_OPEN, // (
     CONDITION_CLOSE, // )
     IMPORTS_OPEN, // {
@@ -246,9 +199,8 @@ namespace lexical {
     CAPTURE_CLOSE, // ]
     PARAMETER_OPEN, // (
     PARAMETER_CLOSE, // )
-    RETURN_TYPE_OPEN, // <
-    RETURN_TYPE_CLOSE, // >
-    INLINE_SCOPE_START, // :
+    TEMPLATE_OPEN, // <
+    TEMPLATE_CLOSE, // >
     SCOPE_OPEN, // {
     SCOPE_CLOSE, // }
     SEMICOLON, // ;
@@ -256,14 +208,10 @@ namespace lexical {
     TEMPLATE_STRING_CLOSE, // `
     TEMPLATE_STRING_EXPRESSION_OPEN, // {
     TEMPLATE_STRING_EXPRESSION_CLOSE, // }
-    STRING_CLOSE, // "
     STRING_OPEN, // "
+    STRING_CLOSE, // "
     TYPE_START, // :
     WILDCARD, // *
-
-    // Misc
-    IDENTIFIER,
-    TEXT,
     ERROR,
   };
 };
