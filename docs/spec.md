@@ -1498,7 +1498,7 @@ let b = a + 1; // creates symbols for 'a', '1', and the result of '+'
 Symbols created by expressions are temporary and anonymous by default. To preserve a symbol beyond its immediate expression, it must be named explicitly through a declaration:
 
 ```warble
-let namedValue = 100; // assigns the symbol for '100' a name and `CONST` flag
+let namedValue = 100; // assigns the symbol for '100' a name
 ```
 
 ##### Symbol Addressing and Lookup
@@ -1563,7 +1563,73 @@ This columnar design allows Warble symbols to scale linearly with the number of 
 
 Symbols thus form the backbone of Warble’s powerful and expressive type system, providing efficient representation, strong type guarantees, flexible reflection capabilities, and performance-oriented internal design.
 
+##### Flags
+
+One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific meaning and describes how the symbol should be used.
+
+- SIZE8:
+- SIZE16:
+- SIZE32:
+- SIZE64:
+- SIZE128:
+- SIZE256:
+- SIZE512: Each of the size flags marks a potential size in bits for the symbol. Many symbols can have multiple size flags, indicating they are comfortable in a variety of memory slots.
+- EXTENDED: Is an extended property in an object literal. This makes it act transparently, causing lookups to pass through it to recursively match its children.
+- SPREAD: Marks a symbol spread into another using the `...` operator. Similar to `EXTENDED` this also makes it behave transparently.
+- IMPORT: This means it references a symbol from another module.
+- EXPORT: Visible through an `import` statement.
+- PRIVATE: Only visible via `this`, excludes `EXTENDED` properties.
+- PROTECTED: Only visible via the `this` reference, including indirectly through `EXTENDED` properties. `PROTECTED` is ignored if `PRIVATE` is also active.
+- STATIC: Marks a property as being accessible via lookup on the symbol, rather than via the value.
+- MUTABLE: Allows assignment operations.
+- ATOMIC: Uses the atomic versions of instructions when available.
+- THREADSAFE: Allows `MUTABLE` to be preserved when seen across thread boundaries.
+- ASYNC: Marks a function as async, so it returns a promise.
+- GENERATOR: Marks a function as a generator, so it returns an iterable.
+- VARIED: Marks a function as varied, so it returns a variant of multiple return types.
+- RETURN: Is the return of a function. This is always first in the function's `children`.
+- PARAMETER: Is a parameter of a function. Parameters always immediately follow the `RETURN` in a function's `children`.
+- CAPTURE: Is a capture of a function. Can be anywhere after the parameters in a function's `children`.
+- IMPURE: Indicates that this can cause side effects or contains something that can.
+- LOOP: If this block forms a loop. Used by keywords like `break` and `continue` to find the nearest loop.
+- SIGNED: If this numeric type is signed or not.
+- INTERPOLATED: Marks an expression embedded in a template string literal. This allows it to distinguish between normal string portions of the template string and expressions that resolve to string literals.
+- INTERNAL: Has been statically proven to never escape its stack frame, enabling many optimizations.
+- FIXED: Has a fixed address that can be accessed via RIP-relative addressing. The absence of this implies access via RSP-relative addressing.
+- VOLATILE: Warns the compiler to be cautious about any assumptions made.
+- ACCUMULATOR: An accumulator, such as the index in a loop. Useful for register allocation.
+- THIS: Represents the special `this` reference within an object literal. Used to apply visibility rules.
+- INLINE_PREFERRED: Marks a function as wanting to be inlined. This is only a hint, the compiler is not obligated to comply.
+- INLINE_AVOIDED: Marks a function as NOT wanting to be inlined. This is only a hint, the compiler is not obligated to comply.
+- COMTIME: Fully defined at compile-time.
+- RUNTIME: Unknown at compile-time.
+
+Each of the following types are stored as an 8 bit enumeration value in the low byte of the flags field.
+
+- DECIMAL: A numeric literal that contains a decimal point. Defaults to `SIZE64`. (NOTE: I am unsure about this, but I feel like it's a safer default for floating points than `SIZE32`.)
+- INTEGER: All non-`DECIMAL` numeric literals. The size defaults to the smallest that can fully contain the `value` field. This depends on if it's `SIGNED` or not. For example, if unsigned and the `value` is below 256, it will be `SIZE8`.
+- BOOLEAN: A `true`/`false` value. Defaults to `SIZE8`.
+- CHARACTER: A UTF-32 character literal. Defaults to `SIZE32`.
+- REFERENCE: An address or alias. Always `SIZE64`. Compile-time constant references use their `value` fields to encode either one or two symbol indexes. Two are used to represent member access, where the first is the object and the second is the property. A reference marked as `IMPORT` uses slightly different lookup rules, because its first half will be a local symbol, but its second half will index into a different module's symbol table.
+- VOID: The zero size type of the keyword literal `null`.
+- SYMBOL: Indicates a 32 bit unsigned index that is used to access the various columns that make up a symbol. So it's important to distinguish that this is just the access, not the symbol itself.
+- ARRAY: An indexed collection of a uniform type. The first value always determines the type.
+- STRING: Array of UTF-32 characters. Has no `children`. (NOTE: May be renamed to distinguish it from a standard library dynamic string type.)
+- ENUM: Array of 32 bit symbol indexes.
+- TUPLE: A collection of unrelated types, accessible via indexing.
+- TEMPLATE: Fancy string based version of a tuple.
+- OBJECT: A collection of unrelated types, accessible via names.
+- VARIANT: A union of unrelated types, always sized to its largest member. Also has a type tag, usually a `uint8_t` that the compiler manages separately. The tag may or may not be encoded with the variant's runtime value.
+- RANGE: A start and end point for iteration. Always has exactly two `children`. (NOTE: For optimization reasons I may change this to embed the two symbol indexes into the `value` field instead of `children`, similar to how references do it.)
+- FUNCTION: A function literal. Its first symbol in `children` is always its `RETURN`, followed by any `PARAMETER` symbols. A child not marked as `RETURN`, `PARAMETER`, or `CAPTURE` is a local.
+- MODULE: Represents a source file. Its `children` will be everything it imports from other modules and then `BLOCK`s.
+- BLOCK: Represents a CFG block. Its `children` will be all the symbols declared in the block. This does not necessarily mean their lifetime begins in the block, that is determined by their constructor and destructor instructions. It is possible for the constructor instruction to be deferred into a different block. Blocks are used as operands for jump instructions.
+- AUTO: Special placeholder type, used to represent a generic.
+- UNDEFINED: Special placeholder value, used to represent an incomplete declaration's value.
+
 #### 4.2.5 Block
+A control flow graph block.
+
 > TODO
 
 ### 4.3 Variant Mechanics
