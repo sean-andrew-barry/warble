@@ -1455,7 +1455,7 @@ Modules store extensive metadata required by the compiler, debugger, and runtime
   Each symbol in the symbol table includes source mapping references that index into these buffers, enabling precise location information retrieval.
 
 * **Lines Table**
-  A module also maintains an array of 32-bit indexes called the "lines table," containing positions for each newline character (`\n`) in the original source text. This table enables efficient binary search operations to determine line and column information, essential for readable diagnostics and source code display.
+  A module also maintains an array of 32-bit indexes called the "lines table", containing the index for each newline character (`\n`) in both the original source text and in the tokens buffer. This table enables efficient binary search operations to determine line and column information, essential for readable diagnostics and source code display.
 
 ##### Static Allocation and Memory
 
@@ -1471,20 +1471,16 @@ Symbols are fundamental building blocks of Warble's type and runtime systems. Ev
 
 Because a symbol is just an index, each property lives in its own column and is accessed through a compiler‑defined function. These columns are:
 
-* `typeof(sym)` – an 8‑bit type ID. This column stores the basic category of every symbol.
 * `registersof(sym)` – a bitset of CPU register indexes where the symbol’s runtime value might reside.
-* `flagsof(sym)` – a bitset of modifiers. Common flags include `MUTABLE`, visibility markers (`PUBLIC`, `PROTECTED`, `PRIVATE`), `SPREAD`, and `REPEAT`.
+* `flagsof(sym)` – a bitset of modifiers. Common flags include `MUTABLE`, visibility markers (`EXPORT`, `PROTECTED`, `PRIVATE`), `SPREAD`, and `REPEAT`.
+* `typeof(sym)` – an 8‑bit type ID. This stores the basic category of every symbol. This isn't a distinct column and is actually embedded as part of the `flags` column.
 * `valueof(sym)` – a typeless field interpreted according to the symbol’s type: an immediate value, pointer, or index.
 * `sizeof(sym)` – a 32‑bit size field representing byte footprint or element count for strings and enums.
 * `displacementof(sym)` – a 32‑bit offset from the parent symbol for efficient address calculation.
 * `nameof(sym)` – a reference to a string literal symbol containing the identifier’s name, or `null` for anonymous symbols.
 * `parentof(sym)` – the parent symbol index. The module is the root of every chain and itself references the global `null` symbol as its parent.
 * `childrenof(sym)` – a reference to an enum list of child symbol indexes. Primitives reference an empty enum `<>`.
-
-Source mapping information is held in parallel columns and retrieved in the same way:
-
-* `token_startof(sym)` and `token_endof(sym)` – indexes into the module’s tokens buffer.
-* `character_startof(sym)` – index into the module’s character buffer.
+* `tokenof(sym)` – The token index where the symbol begins, used for source mapping.
 
 ##### Symbol Creation
 
@@ -1552,7 +1548,7 @@ Warble’s object-oriented system is fully symbol-based:
 
 * Constructor functions define object structures.
 * Spread (`...`) syntax supports composition by marking child symbols with the `SPREAD` flag.
-* Visibility modifiers (`PUBLIC`, `PROTECTED`, `PRIVATE`) enforce encapsulation at compile-time.
+* Visibility modifiers (`EXPORT`, `PROTECTED`, `PRIVATE`) enforce encapsulation at compile-time.
 * Overriding methods rely on symbol shadowing. To call an overridden implementation, reference the parent symbol directly.
 
 ##### Performance and Memory Considerations
@@ -1576,6 +1572,7 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - SIZE512: Each of the size flags marks a potential size in bits for the symbol. Many symbols can have multiple size flags, indicating they are comfortable in a variety of memory slots.
 - EXTENDED: Is an extended property in an object literal. This makes it act transparently, causing lookups to pass through it to recursively match its children.
 - SPREAD: Marks a symbol spread into another using the `...` operator. Similar to `EXTENDED` this also makes it behave transparently.
+- REPEAT: Marks an array as being created via the repeat syntax, such as `[0; 10]`.
 - IMPORT: This means it references a symbol from another module.
 - EXPORT: Visible through an `import` statement.
 - PRIVATE: Only visible via `this`, excludes `EXTENDED` properties.
@@ -1595,7 +1592,7 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - SIGNED: If this numeric type is signed or not.
 - INTERPOLATED: Marks an expression embedded in a template string literal. This allows it to distinguish between normal string portions of the template string and expressions that resolve to string literals.
 - INTERNAL: Has been statically proven to never escape its stack frame, enabling many optimizations.
-- FIXED: Has a fixed address that can be accessed via RIP-relative addressing. The absence of this implies access via RSP-relative addressing.
+- FIXED: Has a fixed address that can be accessed via RIP-relative addressing. The absence of this implies access via RSP-relative addressing. (May deprecate, because iterating the parent chain anyway is a necessary part of addressing in order to calculate the displacements.)
 - VOLATILE: Warns the compiler to be cautious about any assumptions made.
 - ACCUMULATOR: An accumulator, such as the index in a loop. Useful for register allocation.
 - THIS: Represents the special `this` reference within an object literal. Used to apply visibility rules.
@@ -2530,6 +2527,239 @@ be shared mutably between threads.
 
 ### 18.1 Grammar (EBNF)
 
+#### Notation
+
+This appendix provides the complete normative grammar specification for Warble in Extended Backus-Naur Form (EBNF). All grammar examples elsewhere in the specification are informative; in case of any disagreement, the grammar defined here takes precedence.
+
+**Character Set:** All grammar rules and literal symbols refer to Unicode code-points. Terminals defined in quotes `'...'` represent literal characters.
+
+**EBNF Conventions:**
+
+| Symbol    | Meaning                   |             |
+| --------- | ------------------------- | ----------- |
+| `::=`     | Production separator      |             |
+| \`        | \`                        | Alternative |
+| `[...]`   | Optional (zero or one)    |             |
+| `{...}`   | Repetition (zero or more) |             |
+| `( ... )` | Grouping                  |             |
+| *italic*  | Non-terminal              |             |
+| `'...'`   | Literal terminal symbol   |             |
+
+Whitespace and comments are ignored except as necessary to separate tokens; see §2.3 for details.
+
+Lexical elements (identifiers, literals, etc.) are defined separately in the lexical grammar (§2.2).
+
+---
+
+#### Top-level Grammar Structure
+
+The following non-terminals are entry points into Warble's grammar:
+
+```ebnf
+CompilationUnit       ::= Module;
+Module                ::= { ImportDeclaration } { TopLevelDeclaration };
+TopLevelDeclaration   ::= FunctionDeclaration | Declaration | Statement | TypeDeclaration | ...;
+```
+
+#### Common Building Blocks
+
+```ebnf
+IdentifierBinding
+  ::= Identifier [ TypeAnnotation ];
+
+TypeAnnotation
+  ::= ':' TypeExpression;
+
+(* literal forms that may omit '=' in a scope declaration *)
+ImplicitInitLiteral
+  ::= CharacterLiteral
+   |  StringLiteral
+   |  ArrayLiteral
+   |  EnumLiteral
+   |  TupleLiteral
+   |  TemplateLiteral
+   |  ObjectLiteral
+   |  FunctionLiteral;
+
+ExplicitInitializer
+  ::= '=' Expression;
+
+Initializer
+  ::= ExplicitInitializer
+   |  ImplicitInitLiteral; (* allowed only where grammar references it *)
+```
+
+---
+
+#### Module and Imports
+
+```ebnf
+ImportDeclaration     ::= 'import' ImportSpecifier ';';
+ImportSpecifier       ::= StringLiteral | QualifiedIdentifier | ...;
+```
+
+---
+
+#### Declarations
+
+```ebnf
+Binding
+  ::= Identifier [':' TypeSpecifier] ['=' Expression];
+
+DeclarationStmt
+  ::= LetBindingStmt
+   | ConstBindingStmt
+   | ObjectDeclaration
+   | FunctionDeclaration;
+
+LetBindingStmt
+  ::= 'let' Binding ';';
+
+ConstBindingStmt
+  ::= 'const' Binding ';';
+
+EmbeddedBinding                
+  ::= [ 'const' ] Binding; (* used where a declaration is expected *)
+
+ObjectDeclaration
+  ::= 'object' Identifier ObjectLiteral;
+
+FunctionDeclaration
+  ::= 'fn' Identifier FunctionSignature FunctionBody;
+```
+
+---
+
+#### Types and Literals
+
+```ebnf
+TypeSpecifier         ::= SimpleType | CompositeType | FunctionType | VariantType | ...
+SimpleType            ::= Identifier
+CompositeType         ::= TupleType | ObjectType | ArrayType
+TupleType             ::= '(' [TypeSpecifier {',' TypeSpecifier}] ')'
+ObjectType            ::= '{' [PropertyTypeList] '}'
+ArrayType             ::= '[' TypeSpecifier ']'
+FunctionType          ::= ParameterTypeList '->' TypeSpecifier
+VariantType           ::= 'case' '{' VariantList '}'
+
+Literal               ::= IntegerLiteral | StringLiteral | BooleanLiteral | TupleLiteral | ObjectLiteral | ...
+```
+
+---
+
+#### Expressions
+
+```ebnf
+Expression            ::= AssignmentExpression
+
+AssignmentExpression  ::= ConditionalExpression
+                       | LeftHandSideExpression AssignmentOperator AssignmentExpression
+
+ConditionalExpression ::= LogicalOrExpression
+                       | LogicalOrExpression '?' Expression ':' ConditionalExpression
+
+LogicalOrExpression   ::= LogicalAndExpression { '||' LogicalAndExpression }
+LogicalAndExpression  ::= EqualityExpression { '&&' EqualityExpression }
+EqualityExpression    ::= RelationalExpression { ('==' | '!=') RelationalExpression }
+RelationalExpression  ::= AdditiveExpression { ('<' | '>' | '<=' | '>=') AdditiveExpression }
+
+AdditiveExpression    ::= MultiplicativeExpression { ('+' | '-') MultiplicativeExpression }
+MultiplicativeExpression ::= UnaryExpression { ('*' | '/' | '%') UnaryExpression }
+
+UnaryExpression       ::= ('!' | '-' | '&' | '@') UnaryExpression
+                       | PrimaryExpression
+
+PrimaryExpression     ::= Literal
+                       | Identifier
+                       | TupleLiteral
+                       | ObjectLiteral
+                       | FunctionLiteral
+                       | '(' Expression ')'
+```
+
+---
+
+#### Statements and Control Flow
+
+```ebnf
+Statement             ::= Declaration
+                       | ExpressionStatement
+                       | ControlFlowStatement
+                       | BlockStatement
+                       | ...
+
+ExpressionStatement   ::= Expression ';'
+
+ControlFlowStatement  ::= IfStatement | WhileStatement | ForStatement | MatchStatement | ReturnStatement | ...
+
+IfStatement           ::= 'if' '(' Expression ')' Statement ['else' Statement]
+WhileStatement        ::= 'while' '(' Expression ')' Statement
+ForStatement          ::= 'for' '(' [ForInit] ';' [Expression] ';' [Expression] ')' Statement
+MatchStatement        ::= 'match' '(' Expression ')' '{' MatchCaseList '}'
+ReturnStatement       ::= 'return' ['case'] [Expression] ';'
+
+BlockStatement        ::= 'do' '{' { Statement } '}'
+```
+
+---
+
+#### Function Literals and Calls
+
+```ebnf
+FunctionLiteral       ::= [TemplateList] CaptureList ParameterList FunctionBody
+CaptureList           ::= '[' [CaptureSpecifier {',' CaptureSpecifier}] ']'
+ParameterList         ::= '(' [Parameter {',' Parameter}] ')'
+FunctionBody          ::= BlockStatement | '=>' Expression
+
+FunctionCall          ::= LeftHandSideExpression ArgumentList
+ArgumentList          ::= '(' [Expression {',' Expression}] ')'
+```
+
+---
+
+#### Object and Tuple Literals
+
+```ebnf
+ObjectLiteral           ::= '{' [PropertyDeclarationList] '}'
+PropertyDeclarationList ::= PropertyDeclaration {',' PropertyDeclaration}
+PropertyDeclaration     ::= Identifier ':' Expression
+
+TupleLiteral            ::= '(' [Expression {',' Expression}] ')'
+```
+
+---
+
+#### Miscellaneous Constructs
+
+```ebnf
+Decorator             ::= '#' Identifier [DecoratorArgumentList]
+DecoratorArgumentList ::= '(' [Expression {',' Expression}] ')'
+```
+
+---
+
+#### Operator Precedence
+
+> TODO: Include a small table or paragraph cross-referencing the earlier operator precedence definition.
+
+See §4.3 for operator precedence and associativity rules.
+
+---
+
+#### Semantics Cross-References
+
+For detailed semantics and behavior of specific constructs, see relevant chapters:
+
+* **Modules & Imports**: §3
+* **Declarations & Scope**: §4
+* **Types & Signatures**: §5
+* **Expressions & Evaluation**: §6
+* **Control Flow**: §7
+* **Functions & Lambdas**: §8
+* **Variants & Pattern Matching**: §9
+* **Memory Model & Lifetimes**: §10
+* **Decorators & Attributes**: §11
+
 ### 18.2 Reserved Words
 
 This appendix lists all reserved keywords in Warble. A reserved keyword is a token that is explicitly recognized by the Warble lexer and parser and cannot be redefined or used as an identifier name within the language.
@@ -2546,7 +2776,8 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`else`** — Provides an alternative branch in a conditional statement.
 * **`for`** — Begins a looping construct over an iterable.
 * **`while`** — Begins a loop construct based on a boolean condition.
-* **`do`** — Introduces a scoped block, or starts the `do` section of a `do ... while` loop.
+* **`do`** — Introduces a scoped block.
+* **`repeat`** — Begins a loop, which can optionally end with a `while (condition)` portion.
 * **`await`** — Unary prefix operator that suspends the current thread until a promise resolves, repeatedly returning to the work queue between checks.
 
 #### Pattern Matching and Constraints
@@ -2563,7 +2794,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`yield`** — Produces a value in a resumable generator or coroutine.
 * **`break`** — Exits the nearest enclosing loop.
 * **`continue`** — Skips to the next iteration of the nearest enclosing loop.
-* **`case`** — Marks a function's return statement as returning a variant of multiple possible types.
+* **`case`** — Marks a function's return statement as returning a variant of multiple possible types. (May deprecate, I am actively looking for a better keyword.)
 
 #### Module and Imports
 
