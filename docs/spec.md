@@ -359,7 +359,7 @@ Scopes in Warble define the visibility and lifetime of declared identifiers, hel
 
 * **Modules** (the top-level scope of a file)
 * **Functions**
-* **Loops** (`for`, `while`, `do-while`)
+* **Loops** (`for`, `while`, `repeat-while`)
 * **Conditionals** (`if`, `else`)
 * Explicit **`do`** blocks
 
@@ -2107,7 +2107,7 @@ However, note carefully:
 
 ### 7.4 Loop Statements
 
-Warble provides standard loop constructs familiar from other programming languages, enabling repeated execution of statements or expressions. Loops in Warble include `while`, `do ... while`, and a powerful single-form `for` loop for concise iteration over iterables or ranges.
+Warble provides standard loop constructs familiar from other programming languages, enabling repeated execution of statements or expressions. Loops in Warble include `while`, `repeat ... while`, and a powerful single-form `for` loop for concise iteration over iterables or ranges.
 
 #### 7.4.1 While (`while`)
 
@@ -2130,12 +2130,12 @@ while (getNextItem()) as item {
 
 This feature simplifies loops where the condition yields useful data. The loop continues until the condition returns a falsy value, ending the iteration.
 
-#### 7.4.2 Do While (`do ... while`)
+#### 7.4.2 Repeat While (`repeat ... while`)
 
-The `do ... while` loop executes its body at least once before evaluating its condition. Unlike the regular `while` loop, it does not allow the use of the `as` keyword because the condition is checked **after** each iteration, not before. Thus, there is no initial condition result to bind before the first execution:
+The `repeat ... while` loop executes its body at least once before evaluating its condition. Unlike the regular `while` loop, it does not allow the use of the `as` keyword because the condition is checked **after** each iteration, not before. Thus, there is no initial condition result to bind before the first execution:
 
 ```warble
-do {
+repeat {
   // This body always executes at least once
 } while (condition);
 ```
