@@ -29,52 +29,71 @@ namespace lexical {
     IDENTIFIER7,
     IDENTIFIER8,
     IDENTIFIER16,
-    TEXT1,
-    TEXT3,
-    TEXT5,
-    TEXT7,
-    TEXT8,
-    TEXT16,
+    CHARACTER1,
+    CHARACTER3,
+    CHARACTER5,
+    CHARACTER7,
+    CHARACTER8,
+    CHARACTER16,
     DIGIT1,
     DIGIT3,
     DIGIT5,
     DIGIT7,
     DIGIT8,
     DIGIT16,
-    NEWLINE,
-    UNDERSCORE,
-    ZERO_WIDTH_SPACE,
-    COMMENT_CLOSE,
-    COMMENT_OPEN,
+    NEWLINE_LF1, // `\n` - Line feed character
+    NEWLINE_LF2,
+    NEWLINE_LF3,
+    NEWLINE_LF4,
+    NEWLINE_LF5,
+    NEWLINE_LF6,
+    NEWLINE_LF7,
+    NEWLINE_LF8,
+    NEWLINE_LF16,
+    NEWLINE_CRLF1, // `\r\n` - Combination carriage return and line feed
+    NEWLINE_CRLF2,
+    NEWLINE_CRLF3,
+    NEWLINE_CRLF4,
+    NEWLINE_CRLF5,
+    NEWLINE_CRLF6,
+    NEWLINE_CRLF7,
+    NEWLINE_CRLF8,
+    NEWLINE_CRLF16,
+    NEWLINE_CR, // `\r` - Carriage return character
+    NEWLINE_LS, // `'\u2028'` - Unicode line separator
+    NEWLINE_PS, // `\u2029` - Unicode paragraph separator
+    VERTICAL_TAB, // `\v`
+    FORM_FEED, // `\f`
+    UNDERSCORE, // `_` - Used as a spacer in numeric literals
+    COMMENT_OPEN, // `//` - Starts a single line comment
+    COMMENT_CLOSE, // Simple marker, doesn't represent a character
     MULTI_LINE_COMMENT_CLOSE,
     MULTI_LINE_COMMENT_OPEN,
+    ERROR, // Special error marker indicating an error symbol was created
     UNDEFINED,
     _NULL,
     TRUE,
     FALSE,
-    HEX, // 0x
-    OCTAL, // 0o
-    BINARY, // 0b
-    ESCAPE_NEWLINE, // (\n) - A newline character.
-    ESCAPE_TAB, // (\t) - A tab character.
-    ESCAPE_BACKSPACE, // (\b) - A backspace.
-    ESCAPE_RETURN, // (\r) - A carriage return.
-    ESCAPE_FORM_FEED, // (\f) - A form feed.
+    THIS, // `this` - Used in object literals and functions
+    HEX, // `0x` or `0X`
+    OCTAL, // `0o` or `0O`
+    BINARY, // `0b` or `0B`
+    ESCAPE_NEWLINE, // (\n) - A newline character
+    ESCAPE_TAB, // (\t) - A tab character
+    ESCAPE_BACKSPACE, // (\b) - A backspace
+    ESCAPE_RETURN, // (\r) - A carriage return
+    ESCAPE_FORM_FEED, // (\f) - A form feed
     ESCAPE_LITERAL, // (\X) - A literal character
-    ESCAPE_UNICODE_CODEPOINT_START, // (\u{XXXXX...}) - A variable length Unicode code point
-    ESCAPE_UNICODE_CODEPOINT_END, // }
-    ESCAPE_UNICODE_SHORT, // (\uXXXX) - A Unicode character using exactly four hexadecimal digits.
-    ESCAPE_HEX_CODE, // (\xXX) - A character specified by a hexadecimal value of exactly two digits.
-    THIS,
-    WITH,
-    USE,
+    ESCAPE_UNICODE_CODEPOINT_START, // `\u{` - A variable length Unicode code point like `\u{XXXXX...}`
+    ESCAPE_UNICODE_CODEPOINT_END, // `}` - The end marker
+    ESCAPE_UNICODE_SHORT, // (\uXXXX) - A Unicode character using exactly four hexadecimal digits
+    ESCAPE_HEX_CODE, // (\xXX) - A character specified by a hexadecimal value of exactly two digits
     ADD, // +
     AND, // &&
     OR, // ||
-    WRAP, // !!
-    UNWRAP, // ??
-    ASSIGN, // =
-    CONSTRUCTOR, // =>
+    WRAP, // `!!` - Builds a variant from values
+    UNWRAP, // `??` - Conditionally unwraps a variant
+    INLINE_FUNCTION_ARROW, // `=>` - Used to mark the body of an inline function
     DIVIDE, // /
     EQUAL, // ==
     EXPONENT, // **
@@ -84,25 +103,22 @@ namespace lexical {
     INCLUSIVE_RANGE, // ...
     LESSER_OR_EQUAL, // <=
     LESSER, // <
-    MEMBER_ACCESS, // .
+    MEMBER_ACCESS, // `.` - Standard identifier based lookup
+    MEMBER_ACCESS_OPTIONAL, // `?.` - Returns an optional for the member
+    MEMBER_ACCESS_STATIC, // `:` - Used to access static members via a symbol
+    MEMBER_ACCESS_STATIC_OPTIONAL, // `?:` - Returns an optional for the static member
     MODULO, // %
     MULTIPLY, // *
     NOT_EQUAL, // !=
-    ASSIGN_OPTIONAL, // ?=
-    OPTIONAL_MEMBER_ACCESS, // ?.
-    CONDITIONAL_MEMBER_ACCESS, // ?.
-    SYMBOL_MEMBER_ACCESS, // $.
     SUBTRACT, // -
-    STATIC_MEMBER_ACCESS, // ::
     TRIPLE_LEFT_SHIFT, // <<<
     TRIPLE_RIGHT_SHIFT, // >>>
-    THREE_WAY_COMPARISON, // <=>
-    TERNARY_CONDITION, // ?
-    TERNARY_ALTERNATE, // :
+    ASSIGN_OPTIONAL, // `?=` - Conditional assignment
     ASSERT_EQUAL, // ===
     ASSERT_GREATER_OR_EQUAL, // >==
     ASSERT_LESSER_OR_EQUAL, // <==
     ASSERT_NOT_EQUAL, // !==
+    ASSIGN, // =
     ASSIGN_ADD, // +=
     ASSIGN_DIVIDE, // /=
     ASSIGN_EXPONENT, // **=
@@ -128,36 +144,28 @@ namespace lexical {
     BITWISE_ASSIGN_XOR, // ^=
     BITWISE_ASSIGN_OR, // |=
     YIELD, // yield
-    EXPECTED, // expected
-    UNEXPECTED, // unexpected
     AWAIT, // await
     COPY, // @
+    SYMBOL, // $
+    REFERENCE, // &
+    SPREAD, // ...
+    MUTABLE_REFERENCE, // *
     DECREMENT, // --
     INCREMENT, // ++
-    BORROW, // #
     NEGATIVE, // -
     NOT, // !
-    OPTIONAL, // ?
     POSITIVE, // +
-    REFERENCE, // &
-    MUTABLE_REFERENCE, // *
-    OPTIONAL_REFERENCE, // ^
-    SPREAD, // ...
-    SYMBOLOF, // $
-    RETURNOF, // #
-    MOVE, // =
     BITWISE_NOT, // ~
-    AS,
+    AS, // `as` - Used for aliasing
     HAS,
-    ASYNC,
     BREAK,
     CONTINUE,
-    COVER,
     DEFAULT,
     DO,
     ELSE,
     FOR,
     REGISTER,
+    WITH, // Used in `register` statements to specify the allow list
     FROM,
     IF,
     RETURN,
@@ -165,7 +173,9 @@ namespace lexical {
     IS,
     IN,
     IMPORT,
+    EXPORT,
     WHILE,
+    REPEAT,
     CASE,
     LET,
     COMPILER,
@@ -194,13 +204,13 @@ namespace lexical {
     CONDITION_CLOSE, // )
     IMPORTS_OPEN, // {
     IMPORTS_CLOSE, // }
-    ARROW, // ->
+    CALL, // ->
+    TEMPLATE_OPEN, // <
+    TEMPLATE_CLOSE, // >
     CAPTURE_OPEN, // [
     CAPTURE_CLOSE, // ]
     PARAMETER_OPEN, // (
     PARAMETER_CLOSE, // )
-    TEMPLATE_OPEN, // <
-    TEMPLATE_CLOSE, // >
     SCOPE_OPEN, // {
     SCOPE_CLOSE, // }
     SEMICOLON, // ;
@@ -211,7 +221,6 @@ namespace lexical {
     STRING_OPEN, // "
     STRING_CLOSE, // "
     TYPE_START, // :
-    WILDCARD, // *
-    ERROR,
+    WILDCARD, // `*` - Used in aggregating export statements
   };
 };
