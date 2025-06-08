@@ -1,0 +1,325 @@
+EOF         ::= ? end of input ?;
+NewLine     ::= '\n' | '\u2028' | '\u2029';
+WhiteSpace  ::= ' ' | '\t' | '\r' | '\v' | '\f' | NewLine;
+BinaryDigit ::= '0' | '1';
+OctalDigit  ::= BinaryDigit | '2' | '3' | '4' | '5' | '6' | '7';
+Digit       ::= OctalDigit | '8' | '9';
+HexDigit    ::= Digit | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'a' | 'b' | 'c' | 'd' | 'e' | 'f';
+AsciiLetter ::= 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z';
+Underscore  ::= '_';
+
+BinaryDigits      ::= BinaryDigit { BinaryDigit | '_' BinaryDigit } ;
+OctalDigits       ::= OctalDigit  { OctalDigit  | '_' OctalDigit  } ;
+DecimalDigits     ::= Digit       { Digit       | '_' Digit       } ;
+HexDigits         ::= HexDigit    { HexDigit    | '_' HexDigit    } ;
+
+BinaryPrefix      ::= '0' ( 'b' | 'B' ) ;
+OctalPrefix       ::= '0' ( 'o' | 'O' ) ;
+HexPrefix         ::= '0' ( 'x' | 'X' ) ;
+
+FractionPart  ::= '.' DecimalDigits ;
+ExponentPart  ::= ( 'e' | 'E' ) [ SignOperator ] DecimalDigits ;
+
+(*──────────*)
+(* Comments *)
+(*──────────*)
+Comment
+  ::= MultiLineComment
+    | SingleLineComment;
+
+MultiLineComment
+  ::= '/*' { SourceCharacter } '*/';
+
+SingleLineComment
+  ::= '//' { SourceCharacter - NewLine } NewLine | EOF;
+
+(*─────────────────────────────*)
+(* individual keyword tokens   *)
+(*─────────────────────────────*)
+LetKeyword       ::= 'let';
+
+IfKeyword        ::= 'if';
+ElseKeyword      ::= 'else';
+ForKeyword       ::= 'for';
+WhileKeyword     ::= 'while';
+DoKeyword        ::= 'do';
+AwaitKeyword     ::= 'await';
+
+MatchKeyword     ::= 'match';
+IsKeyword        ::= 'is';
+FromKeyword      ::= 'from';
+HasKeyword       ::= 'has';
+AsKeyword        ::= 'as';
+
+ReturnKeyword    ::= 'return';
+YieldKeyword     ::= 'yield';
+BreakKeyword     ::= 'break';
+ContinueKeyword  ::= 'continue';
+CaseKeyword      ::= 'case';
+
+ImportKeyword    ::= 'import';
+RegisterKeyword  ::= 'register';
+WithKeyword      ::= 'with';
+
+NullKeyword      ::= 'null';
+UndefinedKeyword ::= 'undefined';
+TrueKeyword      ::= 'true';
+FalseKeyword     ::= 'false';
+
+ThisKeyword      ::= 'this';
+CompilerKeyword  ::= 'compiler';
+AutoKeyword      ::= 'auto';
+
+(*─────────────────────────────*)
+(* thematic groupings          *)
+(*─────────────────────────────*)
+DeclarationKeyword ::= LetKeyword;
+
+ControlFlowKeyword
+  ::= IfKeyword
+    | ElseKeyword
+    | ForKeyword
+    | WhileKeyword
+    | DoKeyword
+    | AwaitKeyword;
+
+PatternKeyword
+  ::= MatchKeyword
+    | IsKeyword
+    | FromKeyword
+    | HasKeyword
+    | AsKeyword;
+
+JumpKeyword
+  ::= ReturnKeyword
+    | YieldKeyword
+    | BreakKeyword
+    | ContinueKeyword
+    | CaseKeyword;
+
+ModuleKeyword
+  ::= ImportKeyword
+    | RegisterKeyword
+    | WithKeyword;
+
+LiteralKeyword
+  ::= NullKeyword
+    | UndefinedKeyword
+    | TrueKeyword
+    | FalseKeyword;
+
+SpecialKeyword
+  ::= ThisKeyword
+    | CompilerKeyword
+    | AutoKeyword;
+
+(*───────────────────────────────*)
+(* master list of reserved words *)
+(*───────────────────────────────*)
+Keyword
+  ::= DeclarationKeyword
+    | ControlFlowKeyword
+    | PatternKeyword
+    | JumpKeyword
+    | ModuleKeyword
+    | LiteralKeyword
+    | SpecialKeyword;
+
+(*───────────────────────────────*)
+(* identifier excluding keywords *)
+(*───────────────────────────────*)
+IdentifierStart ::= Letter | Underscore;
+IdentifierPart  ::= IdentifierStart | Digit;
+Identifier      ::= IdentifierStart { IdentifierPart } - Keyword;
+
+(*────────────────────────────────────────*)
+(* 1. individual operator tokens          *)
+(*────────────────────────────────────────*)
+ReferenceOperator ::= '&';
+MutableReferenceOperator ::= '*';
+CopyOperator ::= '@';
+OptionalOperator ::= '?';
+CounterOperator ::= '#';
+PositiveOperator ::= '+';
+NegativeOperator ::= '-';
+IncrementOperator ::= '++';
+DecrementOperator ::= '--';
+LogicalNotOperator ::= '!';
+BitwiseNotOperator ::= '~';
+SpreadOperator ::= '...';
+
+AddOperator             ::= '+'  ;
+SubtractOperator        ::= '-'  ;
+MultiplyOperator        ::= '*'  ;
+DivideOperator          ::= '/'  ;
+ModuloOperator          ::= '%'  ;
+ExponentOperator        ::= '**'  ;
+
+LeftShiftOperator       ::= '<<' ;
+RightShiftOperator      ::= '>>' ;
+
+LessOperator            ::= '<'  ;
+LessEqualOperator       ::= '<=' ;
+GreaterOperator         ::= '>'  ;
+GreaterEqualOperator    ::= '>=' ;
+
+EqualOperator           ::= '==' ;
+NotEqualOperator        ::= '!=' ;
+
+BitwiseAndOperator      ::= '&'  ;
+BitwiseXorOperator      ::= '^'  ;
+BitwiseOrOperator       ::= '|'  ;
+
+LogicalAndOperator      ::= '&&' ;
+LogicalOrOperator       ::= '||' ;
+
+AssignOperator          ::= '='  ;
+AddAssignOperator       ::= '+=' ;
+SubtractAssignOperator  ::= '-=' ;
+MultiplyAssignOperator  ::= '*=' ;
+DivideAssignOperator    ::= '/=' ;
+ModuloAssignOperator    ::= '%=' ;
+ExponentAssignOperator  ::= '**=' ;
+AndAssignOperator       ::= '&=' ;
+OrAssignOperator        ::= '|=' ;
+XorAssignOperator       ::= '^=' ;
+LeftShiftAssignOperator ::= '<<=' ;
+RightShiftAssignOperator::= '>>=' ;
+
+MemberOperator ::= '.' ;
+ConditionalMemberOperator ::= '?.' ;
+StaticMemberOperator ::= '::' ;
+
+ExclusiveRangeOperator ::= '..';
+InclusiveRangeOperator ::= '...';
+
+WrapOperator ::= '!!';
+UnwrapOperator ::= '??';
+
+(*──────────────────────────────────────────*)
+(* thematic groupings / precedence tiers    *)
+(*──────────────────────────────────────────*)
+SignOperator ::= PositiveOperator | NegativeOperator;
+
+UnaryPrefixOperator
+  ::= IncrementOperator
+    | DecrementOperator
+    | PositiveOperator
+    | NegativeOperator
+    | LogicalNotOperator
+    | BitwiseNotOperator;
+
+MultiplicativeOperator
+  ::= AsteriskOperator
+    | SlashOperator
+    | PercentOperator;
+
+AdditiveOperator
+  ::= PlusOperator
+    | MinusOperator;
+
+ShiftOperator
+  ::= LeftShiftOperator
+    | RightShiftOperator;
+
+RelationalOperator
+  ::= LessOperator
+    | LessEqualOperator
+    | GreaterOperator
+    | GreaterEqualOperator;
+
+EqualityOperator
+  ::= EqualOperator
+    | NotEqualOperator;
+
+BitwiseAndOperatorGrp
+  ::= BitwiseAndOperator;
+
+BitwiseXorOperatorGrp
+  ::= BitwiseXorOperator;
+
+BitwiseOrOperatorGrp
+  ::= BitwiseOrOperator;
+
+LogicalAndOperatorGrp
+  ::= LogicalAndOperator;
+
+LogicalOrOperatorGrp
+  ::= LogicalOrOperator;
+
+ConditionalOperator
+  ::= QuestionOperator;
+
+AssignmentOperator
+  ::= AssignOperator
+    | AddAssignOperator
+    | SubtractAssignOperator
+    | MultiplyAssignOperator
+    | DivideAssignOperator
+    | ModuloAssignOperator
+    | ExponentAssignOperator
+    | AndAssignOperator
+    | OrAssignOperator
+    | XorAssignOperator
+    | LeftShiftAssignOperator
+    | RightShiftAssignOperator;
+
+(*──────────────────────────────────────────*)
+(* Literals *)
+(*──────────────────────────────────────────*)
+
+NullLiteral ::= NullKeyword;
+UndefinedLiteral ::= UndefinedKeyword;
+BooleanLiteral ::= TrueKeyword | FalseKeyword;
+
+(*──────────────────────────────────────────*)
+(*  integer-literal flavours                *)
+(*──────────────────────────────────────────*)
+BinaryIntegerLiteral
+  ::= [ SignOperator ] BinaryPrefix BinaryDigits ;
+
+OctalIntegerLiteral
+  ::= [ SignOperator ] OctalPrefix  OctalDigits ;
+
+HexIntegerLiteral
+  ::= [ SignOperator ] HexPrefix    HexDigits ;
+
+PlainIntegerLiteral
+  ::= [ SignOperator ] DecimalDigits ;
+
+IntegerLiteral
+  ::= BinaryIntegerLiteral
+    | OctalIntegerLiteral
+    | HexIntegerLiteral
+    | PlainIntegerLiteral;
+
+DecimalLiteral
+  ::= [ SignOperator ] DecimalDigits
+      ( FractionPart [ ExponentPart ] | ExponentPart ) ;
+
+NumericLiteral ::= IntegerLiteral | DecimalLiteral;
+
+KeywordLiteralExpression
+  ::= BooleanLiteral
+    | NullLiteral
+    | UndefinedLiteral;
+
+CallableLiteralExpression
+  ::= CharacterLiteral
+    | NumericLiteral
+    | StringLiteral
+    | ArrayLiteral
+    | EnumLiteral
+    | TupleLiteral
+    | TemplateLiteral
+    | ObjectLiteral
+    | FunctionLiteral;
+
+LiteralExpression
+  ::= KeywordLiteralExpression
+    | CallableLiteralExpression;
+
+Expression
+  ::= LiteralExpression
+    | UnaryPrefixExpression
+    | BinaryExpression;
