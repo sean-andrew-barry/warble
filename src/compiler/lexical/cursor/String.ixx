@@ -204,6 +204,10 @@ namespace lexical::cursor {
       return Super::Peek() == c;
     }
 
+    constexpr bool Check(const unsigned char c) const {
+      return static_cast<unsigned char>(Super::Peek()) == c;
+    }
+
     constexpr bool Check(const std::string_view text) const {
       if (!Fits(text)) return false; // If it doesn't fit, it can't match
 
@@ -220,6 +224,16 @@ namespace lexical::cursor {
     constexpr bool Match(const char c) {
       auto iter = cbegin();
       if (iter != cend() && *iter == c) {
+        Advance();
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    constexpr bool Match(const unsigned char c) {
+      auto iter = cbegin();
+      if (iter != cend() && static_cast<unsigned char>(*iter) == c) {
         Advance();
         return true;
       } else {
