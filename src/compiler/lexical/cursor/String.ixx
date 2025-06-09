@@ -98,7 +98,7 @@ namespace lexical::cursor {
   });
 
   inline constexpr auto NUMBER_START = MakeBitset([](auto& bs){
-    for (char c : ".+-") bs.set(c);
+    for (char c : "+-") bs.set(c);
   }) | DIGIT;
 
   inline constexpr auto NOT_ASCII = MakeBitset([](auto& bs){
