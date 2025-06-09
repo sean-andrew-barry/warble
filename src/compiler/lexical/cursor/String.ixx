@@ -168,7 +168,7 @@ namespace lexical::cursor {
     using Super::Super;
     using Super::Peek;
 
-    char32_t PeekCodePoint() {
+    char32_t PeekCodePoint() const {
       char8_t ch = Super::Peek();
       size_t length = lexical::Unicode::GetCodePointLength(ch);
 
