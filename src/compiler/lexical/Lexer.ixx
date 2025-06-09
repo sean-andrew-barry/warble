@@ -557,6 +557,7 @@ namespace lexical {
     bool Register() { return Keyword(lexical::Tokens::REGISTER, "register"); }
     bool From() { return Keyword(lexical::Tokens::FROM, "from"); }
     bool With() { return Keyword(lexical::Tokens::WITH, "with"); }
+    bool Has() { return Keyword(lexical::Tokens::HAS, "has"); }
     bool If() { return Keyword(lexical::Tokens::IF, "if"); }
     bool Else() { return Keyword(lexical::Tokens::ELSE, "else"); }
     bool Do() { return Keyword(lexical::Tokens::DO, "do"); }
@@ -609,7 +610,6 @@ namespace lexical {
     bool ConditionOpen() { return Test(lexical::Tokens::CONDITION_OPEN, '('); }
     bool ConditionClose() { return Test(lexical::Tokens::CONDITION_CLOSE, ')'); }
     bool Call() { return Test(lexical::Tokens::CALL, "->"); }
-    bool InlineScopeStart() { return Test(lexical::Tokens::INLINE_SCOPE_START, ':'); }
     bool Wildcard() { return Test(lexical::Tokens::WILDCARD, '*'); }
     bool Comma() { return Test(lexical::Tokens::COMMA, ','); }
     bool Semicolon() { return Test(lexical::Tokens::SEMICOLON, ';'); }
@@ -663,16 +663,15 @@ namespace lexical {
 
     bool UnaryPostfixOperatorHelper() {
       switch (Peek()) {
-        case '*': return Test(lexical::Tokens::POSTFIX_VIRTUAL, '*');
-        case '&': return Test(lexical::Tokens::POSTFIX_REFERENCE, '&');
-        case '$': return Test(lexical::Tokens::POSTFIX_SYMBOL, '$');
-        case '?': return Test(lexical::Tokens::POSTFIX_OPTIONAL, '?');
-        case '@': return Test(lexical::Tokens::POSTFIX_COPY, '@');
-        case '#': return Test(lexical::Tokens::POSTFIX_BORROW, '#');
-        case '+': return Test(lexical::Tokens::POSTFIX_INCREMENT, "++");
-        case '-': return Test(lexical::Tokens::POSTFIX_DECREMENT, "--");
-        case '!': return Test(lexical::Tokens::POSTFIX_CONTRACT, '!');
-        case '.': return Test(lexical::Tokens::POSTFIX_SPREAD, "...");
+        case '*': return MutableReference();
+        case '&': return Reference();
+        case '$': return Symbol();
+        case '@': return Copy();
+        case '#': return Counted();
+        case '+': return Increment();
+        case '-': return Decrement();
+        case '!': return Not();
+        case '.': return Spread();
         default: return false;
       }
     }
@@ -682,8 +681,6 @@ namespace lexical {
 
     // Binary operators
     bool Assign() { return Test(lexical::Tokens::ASSIGN, '='); }
-    bool Constructor() { return Test(lexical::Tokens::CONSTRUCTOR, "=>"); }
-    bool Emplace() { return Test(lexical::Tokens::EMPLACE, "=?"); }
     bool Equal() { return Test(lexical::Tokens::EQUAL, "=="); }
     bool AssertEqual() { return Test(lexical::Tokens::ASSERT_EQUAL, "==="); }
     bool NotEqual() { return Test(lexical::Tokens::NOT_EQUAL, "!="); }
@@ -704,11 +701,15 @@ namespace lexical {
     bool BitwiseAssignXor() { return Test(lexical::Tokens::BITWISE_ASSIGN_XOR, "^="); }
     bool BitwiseOr() { return Test(lexical::Tokens::BITWISE_OR, '|'); }
     bool BitwiseAssignOr() { return Test(lexical::Tokens::BITWISE_ASSIGN_OR, "|="); }
+    bool Wrap() { return Test(lexical::Tokens::WRAP, "!!"); }
+    bool Unwrap() { return Test(lexical::Tokens::UNWRAP, "??"); }
+    bool InlineFunctionArrow() { return Test(lexical::Tokens::INLINE_FUNCTION_ARROW, "=>"); }
     bool InclusiveRange() { return Test(lexical::Tokens::INCLUSIVE_RANGE, "..."); }
     bool ExclusiveRange() { return Test(lexical::Tokens::EXCLUSIVE_RANGE, ".."); }
     bool MemberAccess() { return Test(lexical::Tokens::MEMBER_ACCESS, '.'); }
-    bool StaticMemberAccess() { return Test(lexical::Tokens::STATIC_MEMBER_ACCESS, ':'); }
-    bool OptionalMemberAccess() { return Test(lexical::Tokens::OPTIONAL_MEMBER_ACCESS, "?."); }
+    bool MemberAccessStatic() { return Test(lexical::Tokens::MEMBER_ACCESS_STATIC, ':'); }
+    bool MemberAccessStaticOptional() { return Test(lexical::Tokens::MEMBER_ACCESS_STATIC_OPTIONAL, "?:"); }
+    bool MemberAccessOptional() { return Test(lexical::Tokens::MEMBER_ACCESS_OPTIONAL, "?."); }
     bool Lesser() { return Test(lexical::Tokens::LESSER, '<'); }
     bool LesserOrEqual() { return Test(lexical::Tokens::LESSER_OR_EQUAL, "<="); }
     bool AssertLesserOrEqual() { return Test(lexical::Tokens::ASSERT_LESSER_OR_EQUAL, "<=="); }
@@ -732,7 +733,7 @@ namespace lexical {
             case '!': {
               switch (Peek(2)) {
                 case '=': return Skip(lexical::Tokens::ASSIGN_TRUTHY_AND, 3);
-                default: return Skip(lexical::Tokens::TRUTHY_AND, 2);
+                default: return Skip(lexical::Tokens::WRAP, 2);
               }
             }
             case '=': {
@@ -746,8 +747,7 @@ namespace lexical {
         }
         case '=': {
           switch (Peek(1)) {
-            case '>': return Skip(lexical::Tokens::CONSTRUCTOR, 2);
-            case '?': return Skip(lexical::Tokens::EMPLACE, 2);
+            case '>': return Skip(lexical::Tokens::INLINE_FUNCTION_ARROW, 2);
             case '=': {
               switch (Peek(2)) {
                 case '=': return Skip(lexical::Tokens::ASSERT_EQUAL, 3);
@@ -840,14 +840,15 @@ namespace lexical {
         case '?': {
           switch (Peek(1)) {
             case '.': return Skip(lexical::Tokens::OPTIONAL_MEMBER_ACCESS, 2);
+            case ':': return Skip(lexical::Tokens::MEMBER_ACCESS_STATIC_OPTIONAL, 2);
             case '?': {
               switch (Peek(2)) {
                 case '=': return Skip(lexical::Tokens::ASSIGN_TRUTHY_OR, 3);
-                default: return Skip(lexical::Tokens::TRUTHY_OR, 2);
+                default: return Skip(lexical::Tokens::UNWRAP, 2);
               }
             }
             case '=': return Skip(lexical::Tokens::ASSIGN_OPTIONAL, 2);
-            default: return Skip(lexical::Tokens::TERNARY_CONDITION, 1);
+            default: return false;
           }
         }
         case '&': {
@@ -876,7 +877,6 @@ namespace lexical {
         case 'o': return Keyword(lexical::Tokens::OR, "or");
         case 'a': return Keyword(lexical::Tokens::AND, "and");
         case 'w': return With();
-        case 'u': return Use();
         case '.': {
           switch (Peek(1)) {
             case '.': {
@@ -890,8 +890,7 @@ namespace lexical {
         }
         case ':': {
           switch (Peek(1)) {
-            case ':': return Skip(lexical::Tokens::STATIC_MEMBER_ACCESS, 2);
-            // default: return Skip(lexical::Tokens::TERNARY_ALTERNATE, 1);
+            case ':': return Skip(lexical::Tokens::MEMBER_ACCESS_STATIC, 2);
             default: return false;
           }
         }
