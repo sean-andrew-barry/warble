@@ -6,6 +6,12 @@ import lexical.unicode;
 import <string>;
 import <string_view>;
 import <bitset>;
+import <cstdint>;
+import <ranges>;
+import <execution>;
+import <iterator>;
+import <algorithm>;
+import <cassert>;
 
 namespace lexical::cursor {
   consteval std::bitset<256> MakeBitset(auto fn) {
