@@ -347,7 +347,8 @@ namespace lexical::cursor {
     constexpr bool IsURLAuthority(size_t i) const { return IsURLAuthority(Super::Peek(i)); }
     constexpr bool IsFilePath(size_t i) const { return IsFilePath(Super::Peek(i)); }
 
-    constexpr static bool IsBreak(const char c) { return c == '\n'; }
+    // constexpr static bool IsBreak(const char c) { return c == '\n'; }
+    constexpr static bool IsASCII(const char c) { return static_cast<uint8_t>(c) < 0x80; }
     constexpr static bool IsSpace(const char c) { return WHITESPACE[static_cast<uint8_t>(c)]; }
     constexpr static bool IsAlpha(const char c) { return ALPHA[static_cast<uint8_t>(c)]; }
     constexpr static bool IsAlNum(const char c) { return ALNUM[static_cast<uint8_t>(c)]; }
