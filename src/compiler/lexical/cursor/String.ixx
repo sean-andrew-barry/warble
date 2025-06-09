@@ -249,6 +249,53 @@ namespace lexical::cursor {
       return true;
     }
 
+    // ────────────────────────────────────────────────────────────────
+    //  Count a run of *one* repeated character
+    // ────────────────────────────────────────────────────────────────
+    constexpr uint32_t Count(const unsigned char ch) const noexcept {
+      // `find_if_not` turns into a single auto-vectorised loop that
+      // stops as soon as a mismatch is observed.
+      const iterator first_not = std::find_if_not(cbegin(), cend(), [=](unsigned char c) { return c == ch; });
+
+      return static_cast<uint32_t>(first_not - cbegin());
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    //  Count a run of *repeated pattern*  (e.g. "/*" or "\r\n")
+    // ────────────────────────────────────────────────────────────────
+    constexpr uint32_t Count(const std::string_view pat) const noexcept {
+      assert(!pat.empty()); // an empty pattern is ill-defined
+
+      uint32_t n = 0;
+      const size_t sz = pat.size();
+      auto cur = cbegin();
+      auto end = cend();
+
+      // Because `std::equal` on contiguous iterators is specified to
+      // use `memcmp` when the iterators’ value type is trivially copyable
+      // (like `char`), the inner comparison is already the most
+      // efficient available on the platform (hand-written SIMD inside
+      // libc or the compiler’s builtin).
+      while (static_cast<size_t>(end - cur) >= sz && std::equal(cur, cur + sz, pat.begin())) {
+        ++n;
+        cur += sz;
+      }
+
+      return n;
+    }
+
+    constexpr uint32_t Consume(const char ch) noexcept {
+      uint32_t count = Count(ch);
+      Advance(count);
+      return count;
+    }
+
+    constexpr uint32_t Consume(const std::string_view pat) noexcept {
+      uint32_t count = Count(pat);
+      Advance(count * pat.size());
+      return count;
+    }
+
     constexpr std::string_view Capture(const std::string_view text) {
       if (!Check(text)) return std::string_view{cbegin(), cbegin()};
 
