@@ -40,6 +40,23 @@ const auto WHITESPACE_SET = []{
   return set;
 }();
 
+inline constexpr auto LENGTH_TABLE = []{
+  std::array<std::uint8_t, 256> table{};
+
+  // ASCII 0x00-0x7F
+  for (unsigned i = 0x00; i <= 0x7F; ++i) table[i] = 1;
+
+  // Continuation bytes 0x80-0xBF stay 0 ⇒ “invalid as lead”
+  // Two-byte lead 0xC0-0xDF
+  for (unsigned i = 0xC0; i <= 0xDF; ++i) table[i] = 2;
+  // Three-byte lead 0xE0-0xEF
+  for (unsigned i = 0xE0; i <= 0xEF; ++i) table[i] = 3;
+  // Four-byte lead 0xF0-0xF7   (0xF8-0xFF are out-of-range in UTF-8)
+  for (unsigned i = 0xF0; i <= 0xF7; ++i) table[i] = 4;
+
+  return table;
+}();
+
 export namespace lexical::Unicode {
   bool IsIdentifierStart(char32_t c) {
     return ID_START_SET.find(c) != ID_START_SET.end();
@@ -54,11 +71,7 @@ export namespace lexical::Unicode {
   }
 
   constexpr size_t GetCodePointLength(const char8_t lead_byte) {
-    if      ((lead_byte & 0x80) == 0   ) return 1; // Lead byte: 0xxxxxxx
-    else if ((lead_byte & 0xE0) == 0xC0) return 2; // Lead byte: 110xxxxx
-    else if ((lead_byte & 0xF0) == 0xE0) return 3; // Lead byte: 1110xxxx
-    else if ((lead_byte & 0xF8) == 0xF0) return 4; // Lead byte: 11110xxx
-    else return 0; // Error condition (invalid UTF-8 lead byte)
+    return LENGTH_TABLE[static_cast<uint8_t>(lead_byte)];
   }
 
   constexpr size_t GetCodePointLength(const char32_t code_point) {
@@ -102,16 +115,6 @@ export namespace lexical::Unicode {
       default: return 0;
     }
   }
-
-  // char32_t TakeCodePoint(std::string::const_iterator& data) {
-  //   switch (GetCodePointLength(static_cast<char8_t>(data[0]))) {
-  //     case 1: return data[0];
-  //     case 2: return ((data[0] & 0x1F) << 6 ) |  (data[1] & 0x3F);
-  //     case 3: return ((data[0] & 0x0F) << 12) | ((data[1] & 0x3F) << 6 ) |  (data[2] & 0x3F);
-  //     case 4: return ((data[0] & 0x07) << 18) | ((data[1] & 0x3F) << 12) | ((data[2] & 0x3F) << 6) | (data[3] & 0x3F);
-  //     default: return 0;
-  //   }
-  // }
 
   std::u32string ToU32(const std::string& string) {
     std::u32string output;
