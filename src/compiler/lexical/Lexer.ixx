@@ -22,624 +22,12 @@ import <utility>;
 namespace lexical {
   export class Lexer {
   private:
-    using Cursor = typename lexical::cursor::CodePoints;
-    using Iterator = typename Cursor::Iterator;
-
-    ir::context::Module& mod;
-    Cursor cursor;
-    Iterator furthest;
-  public:
-    constexpr bool Done() const { return cursor.Done(); }
-    constexpr bool Valid() const { return cursor.Valid(); }
-  private:
-    struct Position {
-      Iterator start; // The saved cursor position
-      size_t size; // The saved tokens length
-    };
-
-    constexpr void Advance(size_t n = 1) { cursor.Advance(n); }
-    constexpr void Retreat(size_t n = 1) { cursor.Retreat(n); }
-    constexpr void Retreat(Iterator iter) { cursor.Retreat(iter); }
-    constexpr decltype(auto) Peek() const { return cursor.Peek(); }
-    constexpr decltype(auto) Peek(size_t n) const { return cursor.Peek(n); }
-    constexpr bool Check(const char c) const { return cursor.Check(c); }
-    // constexpr bool Check(const char32_t c) const { return cursor.Check(c); }
-    constexpr bool Check(const std::string_view view) const { return cursor.Check(view); }
-    // constexpr bool Check(const std::u32string_view view) const { return cursor.Check(view); }
-    constexpr bool Match(const char c) { return cursor.Match(c); }
-    // constexpr bool Match(const char32_t c) { return cursor.Match(c); }
-    constexpr bool Match(const std::string_view view) { return cursor.Match(view); }
-    // constexpr bool Match(const std::u32string_view view) { return cursor.Match(view); }
-    constexpr bool Keyword(const std::string_view view) { return cursor.Keyword(view); }
-    // constexpr bool Keyword(const std::u32string_view view) { return cursor.Keyword(view); }
-    constexpr decltype(auto) cbegin() const { return cursor.cbegin(); }
-    constexpr decltype(auto) cend() const { return cursor.cend(); }
-    Position Start() const { return Position{cursor.cbegin(), mod.Tokens().size()}; }
-
-    void Save(lexical::Tokens type, uint32_t width) {
-      uint32_t index = static_cast<uint32_t>(std::distance(mod.Tokens().cbegin(), cbegin()));
-      // uint32_t index = mod.Characters().size();
-
-      while (converted < cbegin()) {
-        auto length = lexical::Unicode::GetCodePointLength(converted);
-        char32_t code_point = lexical::Unicode::GetCodePoint(converted, length);
-
-        converted += length;
-        mod.Append(code_point);
-      }
-
-      mod.Append(lexical::Token{type, static_cast<uint16_t>(width), index});
-    }
-  public:
-    Lexer(ir::context::Module& mod)
-      : mod{mod}, cursor{mod.Source()}
-    {
-      WS(); // Consume any leading white space
-    }
-
-    bool WhiteSpace() {
-      auto start = Start();
-      uint32_t width = 0;
-
-      while (Valid()) {
-        switch (Peek()) {
-          case U'\u2028': // Unicode line separator
-          case U'\u2029': // Unicode paragraph separator
-          case U'\n': {
-            if (width > 0) {
-              Save(lexical::Tokens::WHITESPACE, width);
-              width = 0;
-            }
-
-            Advance();
-            Save(lexical::Tokens::NEWLINE, 1);
-            break;
-          }
-          case U'\r':
-          case U'\t':
-          case U'\v':
-          case U'\f':
-          case U' ': {
-            Advance();
-            ++width;
-            break;
-          }
-          case U'/': {
-            if (width > 0) {
-              Save(lexical::Tokens::WHITESPACE, width);
-              width = 0;
-            }
-
-            if (Peek(1) == U'/') {
-              Advance(2);
-              Save(lexical::Tokens::COMMENT_OPEN, 2);
-
-              while (true) {
-                if (Done()) {
-                  if (width > 0) {
-                    Save(lexical::Tokens::COMMENT, width);
-                  }
-
-                  Save(lexical::Tokens::COMMENT_CLOSE, 0);
-                  return true;
-                } else if (cursor.IsBreak()) {
-                  if (width > 0) {
-                    Save(lexical::Tokens::COMMENT, width);
-                    width = 0;
-                  }
-
-                  Save(lexical::Tokens::COMMENT_CLOSE, 0);
-                  Advance();
-                  Save(lexical::Tokens::NEWLINE, 1);
-                  break;
-                }
-
-                Advance();
-                ++width;
-              }
-            } else if (Peek(1) == U'*') {
-              Advance(2);
-              Save(lexical::Tokens::MULTI_LINE_COMMENT_OPEN, 2);
-
-              while (Valid()) {
-                if (Peek() == U'*' && Peek(1) == U'/') {
-                  if (width > 0) {
-                    Save(lexical::Tokens::COMMENT, width);
-                    width = 0;
-                  }
-
-                  Advance(2);
-                  Save(lexical::Tokens::MULTI_LINE_COMMENT_CLOSE, 2);
-                  break;
-                }
-
-                Advance();
-                ++width;
-              }
-            } else {
-              return mod.Tokens().size() > start.size;
-            }
-
-            break;
-          }
-          default: {
-            if (static_cast<uint8_t>(Peek()) > 127) {
-              auto iter = cbegin();
-              auto code_point = CodePoint();
-
-              // Check for a line or paragraph separator
-              if (code_point == 0x2028 || code_point == 0x2029) {
-                if (width > 0) {
-                  Save(lexical::Tokens::WHITESPACE, width);
-                  width = 0;
-                }
-
-                Save(lexical::Tokens::NEWLINE, 3);
-              } else if (Unicode::IsWhiteSpace(code_point)) {
-                width += static_cast<uint32_t>(std::distance(iter, cbegin()));
-              } else {
-                Retreat(iter); // Undo the `CodePoint` because it wasn't whitespace
-
-                if (width > 0) {
-                  Save(lexical::Tokens::WHITESPACE, width);
-                }
-
-                return mod.Tokens().size() > start.size;
-              }
-            }
-          }
-        }
-      }
-
-      return mod.Tokens().size() > start.size;
-    }
-
-    bool WS() {
-      return cursor.IsPossibleSpaceStart() && WhiteSpace();
-    }
-
-    // Optional white space
-    bool OWS() { WS(); return true; }
-
-    // Keywords
-    bool Null() { return Keyword(lexical::Tokens::_NULL, "null"); }
-    bool Undefined() { return Keyword(lexical::Tokens::UNDEFINED, "undefined"); }
-    bool True() { return Keyword(lexical::Tokens::TRUE, "true"); }
-    bool False() { return Keyword(lexical::Tokens::FALSE, "false"); }
-    bool Import() { return Keyword(lexical::Tokens::IMPORT, "import"); }
-    bool Register() { return Keyword(lexical::Tokens::REGISTER, "register"); }
-    bool From() { return Keyword(lexical::Tokens::FROM, "from"); }
-    bool With() { return Keyword(lexical::Tokens::WITH, "with"); }
-    bool If() { return Keyword(lexical::Tokens::IF, "if"); }
-    bool Else() { return Keyword(lexical::Tokens::ELSE, "else"); }
-    bool Export() { return Keyword(lexical::Tokens::EXPORT, "export"); }
-    bool Do() { return Keyword(lexical::Tokens::DO, "do"); }
-    bool While() { return Keyword(lexical::Tokens::WHILE, "while"); }
-    bool Is() { return Keyword(lexical::Tokens::IS, "is"); }
-    bool Has() { return Keyword(lexical::Tokens::HAS, "has"); }
-    bool In() { return Keyword(lexical::Tokens::IN, "in"); }
-    bool For() { return Keyword(lexical::Tokens::FOR, "for"); }
-    bool As() { return Keyword(lexical::Tokens::AS, "as"); }
-    bool Use() { return Keyword(lexical::Tokens::USE, "use"); }
-    bool Default() { return Keyword(lexical::Tokens::DEFAULT, "default"); }
-    bool Auto() { return Keyword(lexical::Tokens::AUTO, "auto"); }
-    bool Void() { return Keyword(lexical::Tokens::VOID, "void"); }
-    bool Match() { return Keyword(lexical::Tokens::MATCH, "match"); }
-    // bool Cover() { return Keyword(lexical::Tokens::COVER, "cover"); }
-    bool Yield() { return Keyword(lexical::Tokens::YIELD, "yield"); }
-    bool Await() { return Keyword(lexical::Tokens::AWAIT, "await"); }
-    bool Async() { return Keyword(lexical::Tokens::ASYNC, "async"); }
-    bool Compiler() { return Keyword(lexical::Tokens::COMPILER, "compiler"); }
-    bool Comtime() { return Keyword(lexical::Tokens::COMTIME, "comtime"); }
-    bool Runtime() { return Keyword(lexical::Tokens::RUNTIME, "runtime"); }
-    bool Break() { return Keyword(lexical::Tokens::BREAK, "break"); }
-    bool Case() { return Keyword(lexical::Tokens::CASE, "case"); }
-    bool Continue() { return Keyword(lexical::Tokens::CONTINUE, "continue"); }
-    bool Return() { return Keyword(lexical::Tokens::RETURN, "return"); }
-    bool This() { return Keyword(lexical::Tokens::THIS, "this"); }
-    // bool Self() { return Keyword(lexical::Tokens::SELF, "self"); }
-    bool Super() { return Keyword(lexical::Tokens::SUPER, "super"); }
-    bool NotKeyword() { return Keyword(lexical::Tokens::NOT, "not"); }
-    bool AndKeyword() { return Keyword(lexical::Tokens::AND, "and"); }
-    bool OrKeyword() { return Keyword(lexical::Tokens::OR, "or"); }
-    bool Private() { return Keyword(lexical::Tokens::PRIVATE, "private"); }
-    bool Public() { return Keyword(lexical::Tokens::PUBLIC, "public"); }
-    bool Protected() { return Keyword(lexical::Tokens::PROTECTED, "protected"); }
-    bool Const() { return Keyword(lexical::Tokens::CONST, "const"); }
-    bool Let() { return Keyword(lexical::Tokens::LET, "let"); }
-    // bool Mutable() { return Keyword(lexical::Tokens::MUTABLE, "mutable"); }
-    // bool Immutable() { return Keyword(lexical::Tokens::IMMUTABLE, "immutable"); }
-    bool Static() { return Keyword(lexical::Tokens::STATIC, "static"); }
-    bool Expected() { return Keyword(lexical::Tokens::EXPECTED, "expected"); }
-    bool Unexpected() { return Keyword(lexical::Tokens::UNEXPECTED, "unexpected"); }
-
-    // Symbols
-    bool ParameterOpen() { return Test(lexical::Tokens::PARAMETER_OPEN, '('); }
-    bool ParameterClose() { return Test(lexical::Tokens::PARAMETER_CLOSE, ')'); }
-    bool CaptureOpen() { return Test(lexical::Tokens::CAPTURE_OPEN, '['); }
-    bool CaptureClose() { return Test(lexical::Tokens::CAPTURE_CLOSE, ']'); }
-    bool TupleOpen() { return Test(lexical::Tokens::TUPLE_OPEN, '('); }
-    bool TupleClose() { return Test(lexical::Tokens::TUPLE_CLOSE, ')'); }
-    bool ScopeOpen() { return Test(lexical::Tokens::SCOPE_OPEN, '{'); }
-    bool ScopeClose() { return Test(lexical::Tokens::SCOPE_CLOSE, '}'); }
-    bool ObjectOpen() { return Test(lexical::Tokens::OBJECT_OPEN, '{'); }
-    bool ObjectClose() { return Test(lexical::Tokens::OBJECT_CLOSE, '}'); }
-    bool ArrayOpen() { return Test(lexical::Tokens::ARRAY_OPEN, '['); }
-    bool ArrayClose() { return Test(lexical::Tokens::ARRAY_CLOSE, ']'); }
-    bool EnumOpen() { return Test(lexical::Tokens::ENUM_OPEN, '<'); }
-    bool EnumClose() { return Test(lexical::Tokens::ENUM_CLOSE, '>'); }
-    // bool ImportsOpen() { return Test(lexical::Tokens::IMPORTS_OPEN, '{'); }
-    // bool ImportsClose() { return Test(lexical::Tokens::IMPORTS_CLOSE, '}'); }
-    bool CharOpen() { return Test(lexical::Tokens::CHAR_OPEN, '\''); }
-    bool CharClose() { return Test(lexical::Tokens::CHAR_CLOSE, '\''); }
-    bool StringOpen() { return Test(lexical::Tokens::STRING_OPEN, '"'); }
-    bool StringClose() { return Test(lexical::Tokens::STRING_CLOSE, '"'); }
-    bool TemplateStringOpen() { return Test(lexical::Tokens::TEMPLATE_STRING_OPEN, '`'); }
-    bool TemplateStringClose() { return Test(lexical::Tokens::TEMPLATE_STRING_CLOSE, '`'); }
-    bool TemplateStringExpressionOpen() { return Test(lexical::Tokens::TEMPLATE_STRING_EXPRESSION_OPEN, '{'); }
-    bool TemplateStringExpressionClose() { return Test(lexical::Tokens::TEMPLATE_STRING_EXPRESSION_CLOSE, '}'); }
-    bool EnumPropertyOpen() { return Test(lexical::Tokens::ENUM_PROPERTY_OPEN, '<'); }
-    bool EnumPropertyClose() { return Test(lexical::Tokens::ENUM_PROPERTY_CLOSE, '>'); }
-    bool ConditionOpen() { return Test(lexical::Tokens::CONDITION_OPEN, '('); }
-    bool ConditionClose() { return Test(lexical::Tokens::CONDITION_CLOSE, ')'); }
-    bool Arrow() { return Test(lexical::Tokens::ARROW, "->"); }
-    bool FromShortcut() { return Test(lexical::Tokens::FROM_SHORTCUT, ':'); }
-    bool Wildcard() { return Test(lexical::Tokens::WILDCARD, '*'); }
-    bool Comma() { return Test(lexical::Tokens::COMMA, ','); }
-    bool Semicolon() { return Test(lexical::Tokens::SEMICOLON, ';'); }
-    bool CommentOpen() { return Test(lexical::Tokens::COMMENT_OPEN, "//"); }
-    bool CommentClose() { Save(lexical::Tokens::COMMENT_CLOSE, 0); return true; }
-    bool MultiLineCommentOpen() { return Test(lexical::Tokens::MULTI_LINE_COMMENT_OPEN, "/*"); }
-    bool MultiLineCommentClose() { return Test(lexical::Tokens::MULTI_LINE_COMMENT_CLOSE, "*/"); }
-    bool DestructuredArrayOpen() { return Test(lexical::Tokens::DESTRUCTURED_ARRAY_OPEN, '['); }
-    bool DestructuredArrayClose() { return Test(lexical::Tokens::DESTRUCTURED_ARRAY_CLOSE, ']'); }
-    bool DestructuredTupleOpen() { return Test(lexical::Tokens::DESTRUCTURED_TUPLE_OPEN, '('); }
-    bool DestructuredTupleClose() { return Test(lexical::Tokens::DESTRUCTURED_TUPLE_CLOSE, ')'); }
-    bool DestructuredObjectOpen() { return Test(lexical::Tokens::DESTRUCTURED_OBJECT_OPEN, '{'); }
-    bool DestructuredObjectClose() { return Test(lexical::Tokens::DESTRUCTURED_OBJECT_CLOSE, '}'); }
-    bool DestructuredEnumOpen() { return Test(lexical::Tokens::DESTRUCTURED_ENUM_OPEN, '<'); }
-    bool DestructuredEnumClose() { return Test(lexical::Tokens::DESTRUCTURED_ENUM_CLOSE, '>'); }
-
-    // Unary operators
-    bool Reference() { return Test(lexical::Tokens::REFERENCE, '&'); }
-    bool OptionalReference() { return Test(lexical::Tokens::OPTIONAL_REFERENCE, '^'); }
-    bool Symbol() { return Test(lexical::Tokens::SYMBOL, '$'); }
-    // bool Optional() { return Test(lexical::Tokens::OPTIONAL, '?'); }
-    bool Copy() { return Test(lexical::Tokens::COPY, '@'); }
-    // bool Borrow() { return Test(lexical::Tokens::BORROW, '#'); }
-    bool Positive() { return Test(lexical::Tokens::POSITIVE, '+'); }
-    bool Negative() { return Test(lexical::Tokens::NEGATIVE, '-'); }
-    bool Increment() { return Test(lexical::Tokens::INCREMENT, "++"); }
-    bool Decrement() { return Test(lexical::Tokens::DECREMENT, "--"); }
-    bool Not() { return Test(lexical::Tokens::NOT, '!'); }
-    bool Contract() { return Test(lexical::Tokens::CONTRACT, '!'); }
-    bool Spread() { return Test(lexical::Tokens::SPREAD, "..."); }
-    // bool Move() { return Test(lexical::Tokens::MOVE, '='); }
-    bool BitwiseNot() { return Test(lexical::Tokens::BITWISE_NOT, '~'); }
-
-    bool UnaryPrefixOperatorHelper() {
-      switch (Peek()) {
-        case '+': return Increment() || Positive();
-        case '-': return Decrement() || Negative();
-        case '&': return Reference();
-        case '^': return OptionalReference();
-        case '$': return Symbol();
-        case '@': return Copy();
-        case '!': return Not();
-        case '.': return Spread();
-        // case '=': return Move();
-        case '~': return BitwiseNot();
-        case 'a': return Await();
-        case 'n': return KeywordNot();
-        case 'e': return Expected();
-        case 'u': return Unexpected();
-        default: return false;
-      }
-    }
-
-    inline bool UnaryPrefixOperator() { return cursor.IsUnaryPrefixStart() && UnaryPrefixOperatorHelper(); }
-
-    // Binary operators
-    bool Assign() { return Test(lexical::Tokens::ASSIGN, '='); }
-    // bool Constructor() { return Test(lexical::Tokens::CONSTRUCTOR, "=>"); }
-    // bool Emplace() { return Test(lexical::Tokens::EMPLACE, "=?"); }
-    bool Equal() { return Test(lexical::Tokens::EQUAL, "=="); }
-    bool AssertEqual() { return Test(lexical::Tokens::ASSERT_EQUAL, "==="); }
-    bool NotEqual() { return Test(lexical::Tokens::NOT_EQUAL, "!="); }
-    bool AssertNotEqual() { return Test(lexical::Tokens::ASSERT_NOT_EQUAL, "!=="); }
-    bool Add() { return Test(lexical::Tokens::ADD, '+'); }
-    bool AssignAdd() { return Test(lexical::Tokens::ASSIGN_ADD, "+="); }
-    bool Subtract() { return Test(lexical::Tokens::SUBTRACT, '-'); }
-    bool AssignSubtract() { return Test(lexical::Tokens::ASSIGN_SUBTRACT, "-="); }
-    bool Multiply() { return Test(lexical::Tokens::MULTIPLY, '*'); }
-    bool AssignMultiply() { return Test(lexical::Tokens::ASSIGN_MULTIPLY, "*="); }
-    bool Exponent() { return Test(lexical::Tokens::EXPONENT, "**"); }
-    bool AssignExponent() { return Test(lexical::Tokens::ASSIGN_EXPONENT, "**="); }
-    bool Divide() { return Test(lexical::Tokens::DIVIDE, '/'); }
-    bool AssignDivide() { return Test(lexical::Tokens::ASSIGN_DIVIDE, "/="); }
-    bool Modulo() { return Test(lexical::Tokens::MODULO, '%'); }
-    bool AssignModulo() { return Test(lexical::Tokens::ASSIGN_MODULO, "%="); }
-    bool BitwiseXor() { return Test(lexical::Tokens::BITWISE_XOR, '^'); }
-    bool BitwiseAssignXor() { return Test(lexical::Tokens::BITWISE_ASSIGN_XOR, "^="); }
-    bool BitwiseOr() { return Test(lexical::Tokens::BITWISE_OR, '|'); }
-    bool BitwiseAssignOr() { return Test(lexical::Tokens::BITWISE_ASSIGN_OR, "|="); }
-    bool InclusiveRange() { return Test(lexical::Tokens::INCLUSIVE_RANGE, "..."); }
-    bool ExclusiveRange() { return Test(lexical::Tokens::EXCLUSIVE_RANGE, ".."); }
-    bool MemberAccess() { return Test(lexical::Tokens::MEMBER_ACCESS, '.'); }
-    // bool StaticMemberAccess() { return Test(lexical::Tokens::STATIC_MEMBER_ACCESS, ':'); }
-    bool ConditionalMemberAccess() { return Test(lexical::Tokens::CONDITIONAL_MEMBER_ACCESS, "?."); }
-    bool SymbolMemberAccess() { return Test(lexical::Tokens::SYMBOL_MEMBER_ACCESS, "$."); }
-    bool Lesser() { return Test(lexical::Tokens::LESSER, '<'); }
-    bool LesserOrEqual() { return Test(lexical::Tokens::LESSER_OR_EQUAL, "<="); }
-    bool AssertLesserOrEqual() { return Test(lexical::Tokens::ASSERT_LESSER_OR_EQUAL, "<=="); }
-    bool Greater() { return Test(lexical::Tokens::GREATER, '>'); }
-    bool GreaterOrEqual() { return Test(lexical::Tokens::GREATER_OR_EQUAL, ">="); }
-    bool AssertGreaterOrEqual() { return Test(lexical::Tokens::ASSERT_GREATER_OR_EQUAL, ">=="); }
-    bool TripleLeftShift() { return Test(lexical::Tokens::BITWISE_TRIPLE_LEFT_SHIFT, "<<<"); }
-    bool BitwiseLeftShift() { return Test(lexical::Tokens::BITWISE_LEFT_SHIFT, "<<"); }
-    bool BitwiseAssignLeftShift() { return Test(lexical::Tokens::BITWISE_ASSIGN_LEFT_SHIFT, "<<="); }
-    bool BitwiseTripleRightShift() { return Test(lexical::Tokens::BITWISE_TRIPLE_RIGHT_SHIFT, ">>>"); }
-    bool BitwiseRightShift() { return Test(lexical::Tokens::BITWISE_RIGHT_SHIFT, ">>"); }
-    bool BitwiseAssignRightShift() { return Test(lexical::Tokens::BITWISE_ASSIGN_RIGHT_SHIFT, ">>="); }
-    bool And() { return Test(lexical::Tokens::AND, "&&"); }
-    bool Or() { return Test(lexical::Tokens::OR, "||"); }
-    bool Unwrap() { return Test(lexical::Tokens::UNWRAP, "??"); }
-    // bool TypeStart() { return Test(lexical::Tokens::TYPE_START, ':'); }
-
-    bool BinaryOperatorHelper(bool in_enum = false) {
-      switch (Peek()) {
-        case '!': {
-          switch (Peek(1)) {
-            // case '!': {
-            //   switch (Peek(2)) {
-            //     case '=': return Skip(lexical::Tokens::ASSIGN_TRUTHY_AND, 3);
-            //     default: return Skip(lexical::Tokens::TRUTHY_AND, 2);
-            //   }
-            // }
-            case '=': {
-              switch (Peek(2)) {
-                case '=': return Skip(lexical::Tokens::ASSERT_NOT_EQUAL, 3);
-                default: return Skip(lexical::Tokens::NOT_EQUAL, 2);
-              }
-            }
-            default: return false;
-          }
-        }
-        case '=': {
-          switch (Peek(1)) {
-            // case '>': return Skip(lexical::Tokens::CONSTRUCTOR, 2);
-            // case '?': return Skip(lexical::Tokens::EMPLACE, 2);
-            case '=': {
-              switch (Peek(2)) {
-                case '=': return Skip(lexical::Tokens::ASSERT_EQUAL, 3);
-                default: return Skip(lexical::Tokens::EQUAL, 2);
-              }
-            }
-            default: return Skip(lexical::Tokens::ASSIGN, 1);
-          }
-        }
-        case '<': {
-          switch (Peek(1)) {
-            case '<': {
-              switch (Peek(2)) {
-                case '=': return Skip(lexical::Tokens::BITWISE_ASSIGN_LEFT_SHIFT, 3);
-                case '<': return Skip(lexical::Tokens::BITWISE_TRIPLE_LEFT_SHIFT, 3);
-                default: return Skip(lexical::Tokens::BITWISE_LEFT_SHIFT, 2);
-              }
-            }
-            case '=': {
-              switch (Peek(2)) {
-                case '=': return Skip(lexical::Tokens::ASSERT_LESSER_OR_EQUAL, 3);
-                default: return Skip(lexical::Tokens::LESSER_OR_EQUAL, 2);
-              }
-            }
-            default: return Skip(lexical::Tokens::LESSER, 1);
-          }
-        }
-        case '>': {
-          if (in_enum) return false;
-
-          switch (Peek(1)) {
-            case '>': {
-              switch (Peek(2)) {
-                case '=': return Skip(lexical::Tokens::BITWISE_ASSIGN_RIGHT_SHIFT, 3);
-                case '>': return Skip(lexical::Tokens::BITWISE_TRIPLE_RIGHT_SHIFT, 3);
-                default: return Skip(lexical::Tokens::BITWISE_RIGHT_SHIFT, 2);
-              }
-            }
-            case '=': {
-              switch (Peek(2)) {
-                case '=': return Skip(lexical::Tokens::ASSERT_GREATER_OR_EQUAL, 3);
-                default: return Skip(lexical::Tokens::GREATER_OR_EQUAL, 2);
-              }
-            }
-            default: return Skip(lexical::Tokens::GREATER, 1);
-          }
-        }
-        case '+': {
-          switch (Peek(1)) {
-            case '=': return Skip(lexical::Tokens::ASSIGN_ADD, 2);
-            default: return Skip(lexical::Tokens::ADD, 1);
-          }
-        }
-        case '-': {
-          switch (Peek(1)) {
-            case '=': return Skip(lexical::Tokens::ASSIGN_SUBTRACT, 2);
-            default: return Skip(lexical::Tokens::SUBTRACT, 1);
-          }
-        }
-        case '*': {
-          switch (Peek(1)) {
-            case '*': {
-              switch (Peek(2)) {
-                case '=': return Skip(lexical::Tokens::ASSIGN_EXPONENT, 3);
-                default: return Skip(lexical::Tokens::EXPONENT, 2);
-              }
-            }
-            case '=': return Skip(lexical::Tokens::ASSIGN_MULTIPLY, 2);
-            default: return Skip(lexical::Tokens::MULTIPLY, 1);
-          }
-        }
-        case '/': {
-          switch (Peek(1)) {
-            case '=': return Skip(lexical::Tokens::ASSIGN_DIVIDE, 2);
-            default: return Skip(lexical::Tokens::DIVIDE, 1);
-          }
-        }
-        case '%': {
-          switch (Peek(1)) {
-            case '=': return Skip(lexical::Tokens::ASSIGN_MODULO, 2);
-            default: return Skip(lexical::Tokens::MODULO, 1);
-          }
-        }
-        case '^': {
-          switch (Peek(1)) {
-            case '=': return Skip(lexical::Tokens::BITWISE_ASSIGN_XOR, 2);
-            default: return Skip(lexical::Tokens::BITWISE_XOR, 1);
-          }
-        }
-        case '?': {
-          switch (Peek(1)) {
-            case '.': return Skip(lexical::Tokens::CONDITIONAL_MEMBER_ACCESS, 2);
-            case '?': return Skip(lexical::Tokens::UNWRAP, 2);
-            // case '=': return Skip(lexical::Tokens::ASSIGN_OPTIONAL, 2);
-            // default: return Skip(lexical::Tokens::TERNARY_CONDITION, 1);
-            default: return false;
-          }
-        }
-        case '$': {
-          switch (Peek(1)) {
-            case '.': return Skip(lexical::Tokens::SYMBOL_MEMBER_ACCESS, 2);
-            default: return false;
-          }
-        }
-        case '&': {
-          switch (Peek(1)) {
-            case '&': {
-              switch (Peek(2)) {
-                case '=': return Skip(lexical::Tokens::ASSIGN_AND, 3);
-                default: return Skip(lexical::Tokens::AND, 2);
-              }
-            }
-            default: return Skip(lexical::Tokens::BITWISE_AND, 1);
-          }
-        }
-        case '|': {
-          switch (Peek(1)) {
-            case '|': {
-              switch (Peek(2)) {
-                case '=': return Skip(lexical::Tokens::ASSIGN_OR, 3);
-                default: return Skip(lexical::Tokens::OR, 2);
-              }
-            }
-            case '=': return Skip(lexical::Tokens::BITWISE_ASSIGN_OR, 2);
-            default: return Skip(lexical::Tokens::BITWISE_OR, 1);
-          }
-        }
-        case 'o': return OrKeyword();
-        case 'a': return AndKeyword();
-        case 'w': return With();
-        case 'u': return Use();
-        case '.': {
-          switch (Peek(1)) {
-            case '.': {
-              switch (Peek(2)) {
-                case '.': return Skip(lexical::Tokens::INCLUSIVE_RANGE, 3);
-                default: return Skip(lexical::Tokens::EXCLUSIVE_RANGE, 2);
-              }
-            }
-            default: return Skip(lexical::Tokens::MEMBER_ACCESS, 1);
-          }
-        }
-      }
-
-      return false;
-    }
-
-    inline bool BinaryOperator(bool in_enum = false) { return cursor.IsBinaryStart() && BinaryOperatorHelper(in_enum); }
-
-    bool Escape() {
-      if (Peek() != '\\') return false;
-
-      Advance(); // Consume '\\'
-      uint32_t width = 1;
-
-      // Unicode escape or code point
-      if (Peek() == 'u') {
-        Advance();
-        ++width;
-
-        // Unicode code point escape \u{XXXXX...}
-        if (Peek() == '{') {
-          Advance();
-          ++width;
-
-          while (Valid() && Peek() != '}') {
-            Advance(); // Consume characters within {}
-            ++width;
-          }
-
-          if (Peek() == '}') {
-            Advance();
-            ++width;
-          } else {
-            return Error("Escape sequence expected a closing '}' brace");
-          }
-
-          Save(lexical::Tokens::ESCAPE_UNICODE_CODEPOINT, width);
-        } else { // Unicode escape \uXXXX
-          for (int i = 0; i < 4; ++i) {
-            if (Done() || !cursor.IsHex()) {
-              return Error("Escape sequence expected 4 hexadecimal digits");
-            }
-
-            Advance(); // Consume hexadecimal digit
-            ++width;
-          }
-
-          Save(lexical::Tokens::ESCAPE_UNICODE_SHORT, width);
-        }
-      } else if (Peek() == 'x') { // Hexadecimal escape \xXX
-        Advance();
-        ++width;
-
-        for (int i = 0; i < 2; ++i) {
-          if (Done() || !cursor.IsHex()) {
-            return Error("Escape sequence expected 2 hexadecimal digits");
-          }
-
-          Advance(); // Consume hexadecimal digit
-          ++width;
-        }
-
-        Save(lexical::Tokens::ESCAPE_HEX_CODE, width);
-      } else if (Valid()) { // Single character escape
-        auto c = Peek();
-        Advance(); // Consume the character following '\'
-        ++width;
-
-        if      (c == '\n') Save(lexical::Tokens::ESCAPE_NEWLINE, width);
-        else if (c == '\t') Save(lexical::Tokens::ESCAPE_TAB, width);
-        else if (c == '\b') Save(lexical::Tokens::ESCAPE_BACKSPACE, width);
-        else if (c == '\r') Save(lexical::Tokens::ESCAPE_RETURN, width);
-        else if (c == '\f') Save(lexical::Tokens::ESCAPE_FORM_FEED, width);
-        else Save(lexical::Tokens::ESCAPE_LITERAL, width);
-      } else {
-        return Error("Unexpected end of content in escape sequence");
-      }
-
-      return true;
-    }
-  };
-
-  export class Lexer {
-  private:
     node::scope::context::Module& mod;
     lexical::Source& source;
     lexical::cursor::String cursor;
     // std::string_view stored;
     bool maybe_declaration = false;
-    // std::vector<char32_t> saved;
+    std::vector<char32_t> saved;
   public:
     constexpr bool Done() const { return cursor.Done(); }
     constexpr bool Valid() const { return cursor.Valid(); }
@@ -884,6 +272,167 @@ namespace lexical {
         return Error(type, expected);
       }
     }
+
+    bool Lexer::Spaces(uint32_t count) {
+      switch (count) {
+        case 0: return false;
+        case 1: return Emit(Tokens::SPACE1);
+        case 2: return Emit(Tokens::SPACE2);
+        case 3: return Emit(Tokens::SPACE3);
+        case 4: return Emit(Tokens::SPACE4);
+        case 5: return Emit(Tokens::SPACE5);
+        case 6: return Emit(Tokens::SPACE6);
+        case 7: return Emit(Tokens::SPACE7);
+        case 8: return Emit(Tokens::SPACE8);
+        case 9: return Emit(Tokens::SPACE8, Tokens::SPACE1);
+        case 10: return Emit(Tokens::SPACE8, Tokens::SPACE2);
+        case 11: return Emit(Tokens::SPACE8, Tokens::SPACE3);
+        case 12: return Emit(Tokens::SPACE8, Tokens::SPACE4);
+        case 13: return Emit(Tokens::SPACE8, Tokens::SPACE5);
+        case 14: return Emit(Tokens::SPACE8, Tokens::SPACE6);
+        case 15: return Emit(Tokens::SPACE8, Tokens::SPACE7);
+        case 16: return Emit(Tokens::SPACE16);
+        default: return Emit(Tokens::SPACE16) && Spaces(count - 16);
+      }
+    }
+
+    bool Lexer::Tabs(uint32_t count) {
+      switch (count) {
+        case 0: return false;
+        case 1: return Emit(Tokens::TAB1);
+        case 2: return Emit(Tokens::TAB2);
+        case 3: return Emit(Tokens::TAB3);
+        case 4: return Emit(Tokens::TAB4);
+        case 5: return Emit(Tokens::TAB5);
+        case 6: return Emit(Tokens::TAB6);
+        case 7: return Emit(Tokens::TAB7);
+        case 8: return Emit(Tokens::TAB8);
+        case 9: return Emit(Tokens::TAB8, Tokens::TAB1);
+        case 10: return Emit(Tokens::TAB8, Tokens::TAB2);
+        case 11: return Emit(Tokens::TAB8, Tokens::TAB3);
+        case 12: return Emit(Tokens::TAB8, Tokens::TAB4);
+        case 13: return Emit(Tokens::TAB8, Tokens::TAB5);
+        case 14: return Emit(Tokens::TAB8, Tokens::TAB6);
+        case 15: return Emit(Tokens::TAB8, Tokens::TAB7);
+        case 16: return Emit(Tokens::TAB16);
+        default: return Emit(Tokens::TAB16) && Tabs(count - 16);
+      }
+    }
+
+    bool Lexer::LFs(uint32_t count) {
+      switch (count) {
+        case 0: return false;
+        case 1: return Emit(Tokens::NEWLINE_LF1);
+        case 2: return Emit(Tokens::NEWLINE_LF2);
+        case 3: return Emit(Tokens::NEWLINE_LF3);
+        case 4: return Emit(Tokens::NEWLINE_LF4);
+        case 5: return Emit(Tokens::NEWLINE_LF5);
+        case 6: return Emit(Tokens::NEWLINE_LF6);
+        case 7: return Emit(Tokens::NEWLINE_LF7);
+        case 8: return Emit(Tokens::NEWLINE_LF8);
+        case 9: return Emit(Tokens::NEWLINE_LF8, Tokens::NEWLINE_LF1);
+        case 10: return Emit(Tokens::NEWLINE_LF8, Tokens::NEWLINE_LF2);
+        case 11: return Emit(Tokens::NEWLINE_LF8, Tokens::NEWLINE_LF3);
+        case 12: return Emit(Tokens::NEWLINE_LF8, Tokens::NEWLINE_LF4);
+        case 13: return Emit(Tokens::NEWLINE_LF8, Tokens::NEWLINE_LF5);
+        case 14: return Emit(Tokens::NEWLINE_LF8, Tokens::NEWLINE_LF6);
+        case 15: return Emit(Tokens::NEWLINE_LF8, Tokens::NEWLINE_LF7);
+        case 16: return Emit(Tokens::NEWLINE_LF16);
+        default: return Emit(Tokens::NEWLINE_LF16) && LFs(count - 16);
+      }
+    }
+
+    bool Lexer::CRLFs(uint32_t count) {
+      switch (count) {
+        case 0: return false;
+        case 1: return Emit(Tokens::NEWLINE_CRLF1);
+        case 2: return Emit(Tokens::NEWLINE_CRLF2);
+        case 3: return Emit(Tokens::NEWLINE_CRLF3);
+        case 4: return Emit(Tokens::NEWLINE_CRLF4);
+        case 5: return Emit(Tokens::NEWLINE_CRLF5);
+        case 6: return Emit(Tokens::NEWLINE_CRLF6);
+        case 7: return Emit(Tokens::NEWLINE_CRLF7);
+        case 8: return Emit(Tokens::NEWLINE_CRLF8);
+        case 9: return Emit(Tokens::NEWLINE_CRLF8, Tokens::NEWLINE_CRLF1);
+        case 10: return Emit(Tokens::NEWLINE_CRLF8, Tokens::NEWLINE_CRLF2);
+        case 11: return Emit(Tokens::NEWLINE_CRLF8, Tokens::NEWLINE_CRLF3);
+        case 12: return Emit(Tokens::NEWLINE_CRLF8, Tokens::NEWLINE_CRLF4);
+        case 13: return Emit(Tokens::NEWLINE_CRLF8, Tokens::NEWLINE_CRLF5);
+        case 14: return Emit(Tokens::NEWLINE_CRLF8, Tokens::NEWLINE_CRLF6);
+        case 15: return Emit(Tokens::NEWLINE_CRLF8, Tokens::NEWLINE_CRLF7);
+        case 16: return Emit(Tokens::NEWLINE_CRLF16);
+        default: return Emit(Tokens::NEWLINE_CRLF16) && CRLFs(count - 16);
+      }
+    }
+
+    bool Lexer::Chars(uint32_t count) {
+      switch (count) {
+        case 0: return false;
+        case 1: return Emit(Tokens::CHAR1);
+        case 2: return Emit(Tokens::CHAR1, Tokens::CHAR1);
+        case 3: return Emit(Tokens::CHAR3);
+        case 4: return Emit(Tokens::CHAR3, Tokens::CHAR1);
+        case 5: return Emit(Tokens::CHAR5);
+        case 6: return Emit(Tokens::CHAR5, Tokens::CHAR1);
+        case 7: return Emit(Tokens::CHAR7);
+        case 8: return Emit(Tokens::CHAR8);
+        case 9: return Emit(Tokens::CHAR8, Tokens::CHAR1);
+        case 10: return Emit(Tokens::CHAR7, Tokens::CHAR3);
+        case 11: return Emit(Tokens::CHAR8, Tokens::CHAR3);
+        case 12: return Emit(Tokens::CHAR7, Tokens::CHAR5);
+        case 13: return Emit(Tokens::CHAR8, Tokens::CHAR5);
+        case 14: return Emit(Tokens::CHAR7, Tokens::CHAR7);
+        case 15: return Emit(Tokens::CHAR8, Tokens::CHAR7);
+        case 16: return Emit(Tokens::CHAR16);
+        default: return Emit(Tokens::CHAR16) && Chars(count - 16);
+      }
+    }
+
+    bool Lexer::Digits(uint32_t count) {
+      switch (count) {
+        case 0: return false;
+        case 1: return Emit(Tokens::DIGIT1);
+        case 2: return Emit(Tokens::DIGIT1, Tokens::DIGIT1);
+        case 3: return Emit(Tokens::DIGIT3);
+        case 4: return Emit(Tokens::DIGIT3, Tokens::DIGIT1);
+        case 5: return Emit(Tokens::DIGIT5);
+        case 6: return Emit(Tokens::DIGIT5, Tokens::DIGIT1);
+        case 7: return Emit(Tokens::DIGIT7);
+        case 8: return Emit(Tokens::DIGIT8);
+        case 9: return Emit(Tokens::DIGIT8, Tokens::DIGIT1);
+        case 10: return Emit(Tokens::DIGIT7, Tokens::DIGIT3);
+        case 11: return Emit(Tokens::DIGIT8, Tokens::DIGIT3);
+        case 12: return Emit(Tokens::DIGIT7, Tokens::DIGIT5);
+        case 13: return Emit(Tokens::DIGIT8, Tokens::DIGIT5);
+        case 14: return Emit(Tokens::DIGIT7, Tokens::DIGIT7);
+        case 15: return Emit(Tokens::DIGIT8, Tokens::DIGIT7);
+        case 16: return Emit(Tokens::DIGIT16);
+        default: return Emit(Tokens::DIGIT16) && Digits(count - 16);
+      }
+    }
+
+    bool Lexer::Identifiers(uint32_t count) {
+      switch (count) {
+        case 0: return false;
+        case 1: return Emit(Tokens::IDENTIFIER1);
+        case 2: return Emit(Tokens::IDENTIFIER1, Tokens::IDENTIFIER1);
+        case 3: return Emit(Tokens::IDENTIFIER3);
+        case 4: return Emit(Tokens::IDENTIFIER3, Tokens::IDENTIFIER1);
+        case 5: return Emit(Tokens::IDENTIFIER5);
+        case 6: return Emit(Tokens::IDENTIFIER5, Tokens::IDENTIFIER1);
+        case 7: return Emit(Tokens::IDENTIFIER7);
+        case 8: return Emit(Tokens::IDENTIFIER8);
+        case 9: return Emit(Tokens::IDENTIFIER8, Tokens::IDENTIFIER1);
+        case 10: return Emit(Tokens::IDENTIFIER7, Tokens::IDENTIFIER3);
+        case 11: return Emit(Tokens::IDENTIFIER8, Tokens::IDENTIFIER3);
+        case 12: return Emit(Tokens::IDENTIFIER7, Tokens::IDENTIFIER5);
+        case 13: return Emit(Tokens::IDENTIFIER8, Tokens::IDENTIFIER5);
+        case 14: return Emit(Tokens::IDENTIFIER7, Tokens::IDENTIFIER7);
+        case 15: return Emit(Tokens::IDENTIFIER8, Tokens::IDENTIFIER7);
+        case 16: return Emit(Tokens::IDENTIFIER16);
+        default: return Emit(Tokens::IDENTIFIER16) && Identifiers(count - 16);
+      }
+    }
   public:
     Lexer(node::scope::context::Module& mod, lexical::Source& source)
       : mod{mod}, source{source}, cursor{source.Text()}
@@ -892,144 +441,106 @@ namespace lexical {
     }
 
     bool WhiteSpace() {
-      auto start = Start();
-      uint32_t width = 0;
-      uint32_t offset = 0;
-
-      while (Valid()) {
-        switch (Peek()) {
-          case '\n': {
-            if (width > 0) {
-              Save(lexical::Tokens::WHITESPACE, width, offset);
-              width = 0;
-              offset = 0;
-            }
-
-            Advance();
-            Save(lexical::Tokens::NEWLINE, 1);
-            break;
+      switch (Peek()) {
+        case ' ': return Spaces(Consume(' '));
+        case '\n': return LFs(Consume('\n'));
+        case '\t': return Tabs(Consume('\t'));
+        case '\v': {
+          Advance();
+          return Emit(lexical::Tokens::VERTICAL_TAB);
+        }
+        case '\f': {
+          Advance();
+          return Emit(lexical::Tokens::FORM_FEED);
+        }
+        case '\r': {
+          auto count = Count("\r\n");
+          if (count > 0) {
+            Advance(count * 2);
+            return CRLFs(count);
           }
-          case '\t':
-          case '\v':
-          case '\f':
-          case '\r': {
-            Advance();
 
-            if (Valid() && Peek() == '\n') {
-              if (width > 0) {
-                Save(lexical::Tokens::WHITESPACE, width, offset);
-                width = 0;
-                offset = 0;
-              }
-
-              Advance();
-              Save(lexical::Tokens::NEWLINE, 2);
-            }
-
-            break;
-          }
-          case ' ': {
-            Advance();
-            ++width;
-            break;
-          }
-          case '/': {
-            if (width > 0) {
-              Save(lexical::Tokens::WHITESPACE, width, offset);
-              width = 0;
-              offset = 0;
-            }
-
-            if (Peek(1) == '/') {
+          // If it wasn't a sequence of CRLFs then just emit a CR cause we don't have a compact form for that
+          Advance(1);
+          return Emit(lexical::Tokens::NEWLINE_CR);
+        }
+        case '/': {
+          switch (Peek(1)) {
+            case '/': {
               Advance(2);
-              Save(lexical::Tokens::COMMENT_OPEN, 2);
+              Emit(lexical::Tokens::COMMENT_OPEN);
 
+              uint32_t count = 0;
               while (true) {
                 if (Done()) {
-                  if (width > 0) {
-                    Save(lexical::Tokens::COMMENT, width, offset);
-                  }
-
-                  return true;
-                } else if (Peek() == '\n') {
-                  if (width > 0) {
-                    Save(lexical::Tokens::COMMENT, width, offset);
-                    width = 0;
-                    offset = 0;
-                  }
-
-                  Save(lexical::Tokens::COMMENT_CLOSE, 0);
-                  Advance();
-                  Save(lexical::Tokens::NEWLINE, 1);
-                  break;
+                  // Reached the end of the source
+                  return Characters(count);
+                } else if (cursor.IsBreak()) {
+                  Characters(count);
+                  return Emit(lexical::Tokens::COMMENT_CLOSE);
                 }
 
                 Advance();
-                ++width;
+                ++count;
               }
-            } else if (Peek(1) == '*') {
-              Advance(2);
-              Save(lexical::Tokens::MULTI_LINE_COMMENT_OPEN, 2);
+            }
+            case '*': {
+              Advance(2); // Consume the opening `'\*'`
+              Emit(lexical::Tokens::MULTI_LINE_COMMENT_OPEN);
 
+              uint32_t count = 0;
               while (Valid()) {
                 if (Peek() == '*' && Peek(1) == '/') {
-                  if (width > 0) {
-                    Save(lexical::Tokens::COMMENT, width, offset);
-                    width = 0;
-                    offset = 0;
-                  }
-
-                  Advance(2);
-                  Save(lexical::Tokens::MULTI_LINE_COMMENT_CLOSE, 2);
-                  break;
+                  // Reached the end of the source
+                  Characters(count);
+                  Advance(2); // Consume the closing `'*/'`
+                  return Emit(MULTI_LINE_COMMENT_CLOSE);
                 }
 
                 Advance();
-                ++width;
+                ++count;
               }
-            } else {
-              return source.Size() > start.size;
+
+              return Error("Expected to find a closing `*/` to end the multi-line comment.");
             }
-
-            break;
-          }
-          default: {
-            if (static_cast<uint8_t>(Peek()) > 127) {
-              auto iter = cbegin();
-              auto code_point = CodePoint();
-
-              // Check for a line or paragraph separator
-              if (code_point == 0x2028 || code_point == 0x2029) {
-                if (width > 0) {
-                  Save(lexical::Tokens::WHITESPACE, width, offset);
-                  width = 0;
-                  offset = 0;
-                }
-
-                Save(lexical::Tokens::NEWLINE, 3, 2);
-              } else if (Unicode::IsWhiteSpace(code_point)) {
-                uint32_t length = static_cast<uint32_t>(std::distance(iter, cbegin()));
-                width += length;
-                offset += length - 1;
-              } else {
-                Retreat(iter); // Undo the `CodePoint`
-              }
-            }
-
-            if (width > 0) {
-              Save(lexical::Tokens::WHITESPACE, width, offset);
-            }
-
-            return source.Size() > start.size;
+            default: return false; // Wasn't a comment
           }
         }
-      }
+        default: {
+          if (!cursor.IsASCII()) {
+            auto iter = cbegin();
+            auto code_point = CodePoint(); // This consumes the full code point automatically
 
-      return source.Size() > start.size;
+            // Check for a line or paragraph separator
+            if (code_point == 0x2028) {
+              code_point_offset += 2;
+              return Emit(lexical::Tokens::NEWLINE_LS);
+            } else if (code_point == 0x2029) {
+              code_point_offset += 2;
+              return Emit(lexical::Tokens::NEWLINE_PS);
+            } else if (Unicode::IsWhiteSpace(code_point)) {
+              uint32_t length = static_cast<uint32_t>(std::distance(iter, cbegin()));
+              code_point_offset += length - 1;
+              return Emit(lexical::Tokens::SPACE1);
+            } else {
+              Retreat(iter); // Undo the consumption of the code point
+              return false; // Wasn't whitespace
+            }
+          }
+
+          return false; // Wasn't unicode
+        }
+      }
     }
 
     bool WS() {
-      return cursor.IsPossibleSpaceStart() && WhiteSpace();
+      bool matched = false;
+      
+      while (cursor.IsPossibleSpaceStart() && WhiteSpace()) {
+        matched = true;
+      }
+
+      return matched;
     }
 
     // Optional white space
@@ -1040,55 +551,41 @@ namespace lexical {
     bool Undefined() { return Keyword(lexical::Tokens::UNDEFINED, "undefined"); }
     bool True() { return Keyword(lexical::Tokens::TRUE, "true"); }
     bool False() { return Keyword(lexical::Tokens::FALSE, "false"); }
+    bool This() { return Keyword(lexical::Tokens::THIS, "this"); }
     bool Import() { return Keyword(lexical::Tokens::IMPORT, "import"); }
+    bool Export() { return Keyword(lexical::Tokens::EXPORT, "export"); }
     bool Register() { return Keyword(lexical::Tokens::REGISTER, "register"); }
     bool From() { return Keyword(lexical::Tokens::FROM, "from"); }
     bool With() { return Keyword(lexical::Tokens::WITH, "with"); }
     bool If() { return Keyword(lexical::Tokens::IF, "if"); }
     bool Else() { return Keyword(lexical::Tokens::ELSE, "else"); }
-    bool Export() { return Keyword(lexical::Tokens::EXPORT, "export"); }
     bool Do() { return Keyword(lexical::Tokens::DO, "do"); }
     bool While() { return Keyword(lexical::Tokens::WHILE, "while"); }
+    bool Repeat() { return Keyword(lexical::Tokens::REPEAT, "repeat"); }
     bool Is() { return Keyword(lexical::Tokens::IS, "is"); }
     bool In() { return Keyword(lexical::Tokens::IN, "in"); }
     bool For() { return Keyword(lexical::Tokens::FOR, "for"); }
     bool As() { return Keyword(lexical::Tokens::AS, "as"); }
-    bool Use() { return Keyword(lexical::Tokens::USE, "use"); }
     bool Default() { return Keyword(lexical::Tokens::DEFAULT, "default"); }
     bool Auto() { return Keyword(lexical::Tokens::AUTO, "auto"); }
     bool Void() { return Keyword(lexical::Tokens::VOID, "void"); }
     bool Match() { return Keyword(lexical::Tokens::MATCH, "match"); }
-    bool Cover() { return Keyword(lexical::Tokens::COVER, "cover"); }
-    bool Yield() { return Keyword(lexical::Tokens::YIELD, "yield"); }
     bool Await() { return Keyword(lexical::Tokens::AWAIT, "await"); }
-    bool Async() { return Keyword(lexical::Tokens::ASYNC, "async"); }
     bool Compiler() { return Keyword(lexical::Tokens::COMPILER, "compiler"); }
-    bool Comtime() { return Keyword(lexical::Tokens::COMTIME, "comtime"); }
-    bool Runtime() { return Keyword(lexical::Tokens::RUNTIME, "runtime"); }
     bool Break() { return Keyword(lexical::Tokens::BREAK, "break"); }
-    bool Case() { return Keyword(lexical::Tokens::CASE, "case"); }
     bool Continue() { return Keyword(lexical::Tokens::CONTINUE, "continue"); }
     bool Return() { return Keyword(lexical::Tokens::RETURN, "return"); }
-    bool This() { return Keyword(lexical::Tokens::THIS, "this"); }
-    bool Self() { return Keyword(lexical::Tokens::SELF, "self"); }
-    bool Super() { return Keyword(lexical::Tokens::SUPER, "super"); }
-    bool NotKeyword() { return Keyword(lexical::Tokens::NOT, "not"); }
-    bool AndKeyword() { return Keyword(lexical::Tokens::AND, "and"); }
-    bool OrKeyword() { return Keyword(lexical::Tokens::OR, "or"); }
-    bool Private() { return Keyword(lexical::Tokens::PRIVATE, "private"); }
-    bool Public() { return Keyword(lexical::Tokens::PUBLIC, "public"); }
-    bool Protected() { return Keyword(lexical::Tokens::PROTECTED, "protected"); }
-    bool Const() { return Keyword(lexical::Tokens::CONST, "const"); }
+    bool Case() { return Keyword(lexical::Tokens::CASE, "case"); }
+    bool Yield() { return Keyword(lexical::Tokens::YIELD, "yield"); }
     bool Let() { return Keyword(lexical::Tokens::LET, "let"); }
-    bool Mutable() { return Keyword(lexical::Tokens::MUTABLE, "mutable"); }
-    bool Immutable() { return Keyword(lexical::Tokens::IMMUTABLE, "immutable"); }
-    bool Static() { return Keyword(lexical::Tokens::STATIC, "static"); }
 
     // Symbols
-    bool ParameterOpen() { return Test(lexical::Tokens::PARAMETER_OPEN, '('); }
-    bool ParameterClose() { return Test(lexical::Tokens::PARAMETER_CLOSE, ')'); }
+    bool TemplateOpen() { return Test(lexical::Tokens::TEMPLATE_OPEN, '<'); }
+    bool TemplateClose() { return Test(lexical::Tokens::TEMPLATE_CLOSE, '>'); }
     bool CaptureOpen() { return Test(lexical::Tokens::CAPTURE_OPEN, '['); }
     bool CaptureClose() { return Test(lexical::Tokens::CAPTURE_CLOSE, ']'); }
+    bool ParameterOpen() { return Test(lexical::Tokens::PARAMETER_OPEN, '('); }
+    bool ParameterClose() { return Test(lexical::Tokens::PARAMETER_CLOSE, ')'); }
     bool TupleOpen() { return Test(lexical::Tokens::TUPLE_OPEN, '('); }
     bool TupleClose() { return Test(lexical::Tokens::TUPLE_CLOSE, ')'); }
     bool ScopeOpen() { return Test(lexical::Tokens::SCOPE_OPEN, '{'); }
@@ -1109,11 +606,9 @@ namespace lexical {
     bool TemplateStringClose() { return Test(lexical::Tokens::TEMPLATE_STRING_CLOSE, '`'); }
     bool TemplateStringExpressionOpen() { return Test(lexical::Tokens::TEMPLATE_STRING_EXPRESSION_OPEN, '{'); }
     bool TemplateStringExpressionClose() { return Test(lexical::Tokens::TEMPLATE_STRING_EXPRESSION_CLOSE, '}'); }
-    bool ComputedPropertyOpen() { return Test(lexical::Tokens::COMPUTED_PROPERTY_OPEN, '<'); }
-    bool ComputedPropertyClose() { return Test(lexical::Tokens::COMPUTED_PROPERTY_CLOSE, '>'); }
     bool ConditionOpen() { return Test(lexical::Tokens::CONDITION_OPEN, '('); }
     bool ConditionClose() { return Test(lexical::Tokens::CONDITION_CLOSE, ')'); }
-    bool Arrow() { return Test(lexical::Tokens::ARROW, "->"); }
+    bool Call() { return Test(lexical::Tokens::CALL, "->"); }
     bool InlineScopeStart() { return Test(lexical::Tokens::INLINE_SCOPE_START, ':'); }
     bool Wildcard() { return Test(lexical::Tokens::WILDCARD, '*'); }
     bool Comma() { return Test(lexical::Tokens::COMMA, ','); }
@@ -1131,45 +626,19 @@ namespace lexical {
     bool DestructuredEnumOpen() { return Test(lexical::Tokens::DESTRUCTURED_ENUM_OPEN, '<'); }
     bool DestructuredEnumClose() { return Test(lexical::Tokens::DESTRUCTURED_ENUM_CLOSE, '>'); }
 
-    bool NewLine() {
-      switch (Peek()) {
-        case '\r': {
-          Advance();
-          if (Peek() == '\n') {
-            Advance();
-            Save(lexical::Tokens::NEWLINE, 2);
-            return true;
-          } else {
-            Retreat();
-            return false;
-          }
-        }
-        case '\n': {
-          Advance();
-          Save(lexical::Tokens::NEWLINE, 1);
-          return true;
-        }
-      }
-
-      return false;
-    }
-
     bool OptionalSemicolon() { return Semicolon() || true; }
 
     // Unary operators
-    bool Virtual() { return Test(lexical::Tokens::VIRTUAL, '*'); }
     bool Reference() { return Test(lexical::Tokens::REFERENCE, '&'); }
-    bool OptionalReference() { return Test(lexical::Tokens::OPTIONAL_REFERENCE, '^'); }
+    bool MutableReference() { return Test(lexical::Tokens::MUTABLE_REFERENCE, '*'); }
     bool Symbol() { return Test(lexical::Tokens::SYMBOL, '$'); }
-    bool Optional() { return Test(lexical::Tokens::OPTIONAL, '?'); }
     bool Copy() { return Test(lexical::Tokens::COPY, '@'); }
-    bool Borrow() { return Test(lexical::Tokens::BORROW, '#'); }
+    bool Counted() { return Test(lexical::Tokens::COUNTED, '#'); }
     bool Positive() { return Test(lexical::Tokens::POSITIVE, '+'); }
     bool Negative() { return Test(lexical::Tokens::NEGATIVE, '-'); }
     bool Increment() { return Test(lexical::Tokens::INCREMENT, "++"); }
     bool Decrement() { return Test(lexical::Tokens::DECREMENT, "--"); }
     bool Not() { return Test(lexical::Tokens::NOT, '!'); }
-    bool Contract() { return Test(lexical::Tokens::CONTRACT, '!'); }
     bool Spread() { return Test(lexical::Tokens::SPREAD, "..."); }
     bool Move() { return Test(lexical::Tokens::MOVE, '='); }
     bool BitwiseNot() { return Test(lexical::Tokens::BITWISE_NOT, '~'); }
@@ -1178,20 +647,16 @@ namespace lexical {
       switch (Peek()) {
         case '+': return Increment() || Positive();
         case '-': return Decrement() || Negative();
-        case '*': return Virtual();
+        case '*': return MutableReference();
         case '&': return Reference();
-        case '^': return OptionalReference();
         case '$': return Symbol();
-        case '#': return Borrow();
+        case '#': return Counted();
         case '@': return Copy();
         case '!': return Not();
         case '.': return Spread();
         case '=': return Move();
         case '~': return BitwiseNot();
-        case 'a': return Keyword(lexical::Tokens::AWAIT, "await");
-        case 'n': return Keyword(lexical::Tokens::NOT, "not");
-        case 'e': return Keyword(lexical::Tokens::EXPECTED, "expected");
-        case 'u': return Keyword(lexical::Tokens::UNEXPECTED, "unexpected");
+        case 'a': return Await();
         default: return false;
       }
     }
@@ -1542,7 +1007,7 @@ namespace lexical {
 
     bool ValueShortcut() {
       switch (Peek()) {
-        case '.':
+        case '-':
         case '+':
         case '0':
         case '1':
@@ -1561,11 +1026,10 @@ namespace lexical {
         case '\'': return Char();
         case '"': return String();
         case '`': return TemplateString();
-        case '-': return ArrowFunction() || Number();
         case '(': return ParameterFunction() || Tuple();
         case '[': return CaptureFunction() || Array();
+        case '<': return TemplateFunction() || Enum();
         case '{': return Object();
-        case '<': return Enum();
         default: return false;
       }
     }
@@ -1648,6 +1112,7 @@ namespace lexical {
         if (Peek() == '_') {
           Advance();
           ++width;
+          Emit(lexical::Tokens::UNDERSCORE);
           continue;
         } else if (!cursor.IsHex()) {
           break;
@@ -1857,7 +1322,7 @@ namespace lexical {
     bool Tuple() { return TupleOpen() && ExpressionList() && TupleClose(); }
     bool Object() { return ObjectOpen() && MemberDeclarationList() && ObjectClose(); }
     bool Enum() { return EnumOpen() && EnumExpressionList() && EnumClose(); }
-    bool ArrowFunction() { return Arrow() && InlineFunctionBody(); }
+    bool ArrowFunction() { return InlineFunctionArrow() && InlineFunctionBody(); }
     bool CaptureFunction() { return Try([&]{ return Captures() && (Parameters() || true) && FunctionBody() || ArrowFunction(); }); }
     bool ParameterFunction() { return Try([&]{ return Parameters() && (Captures() || true) && FunctionBody() || ArrowFunction(); }); }
 
@@ -1896,7 +1361,7 @@ namespace lexical {
         case '=': {
           auto c = Peek(1);
           if (c == ',' || c == ']' || cursor.IsSpace(c)) {
-            return Assign();
+            return Move();
           }
           break;
         }
@@ -2028,15 +1493,8 @@ namespace lexical {
 
     bool ModifierHelper() {
       switch (Peek()) {
-        case 'a': return Async();
-        case 'c': return Const() || Comtime();
         case 'e': return Export();
-        case 'i': return Immutable(); // Remove? I think 'let' takes its place
-        case 'm': return Mutable();
-        case 'p': return Private() || Public() || Protected();
-        case 's': return Static();
         case 'l': return Let();
-        case 'r': return Runtime();
         default: return false;
       }
     }
@@ -2160,61 +1618,7 @@ namespace lexical {
       return ConditionClose() || Error("Condition expected a closing ')'");
     }
 
-    // bool Condition() {
-    //   auto start = Start();
-    //   auto last = start;
-    //   auto last_successful = last; // This will store the size before the last attempt
-
-    //   while (UnaryPrefixOperator()) {}
-
-    //   if (Value()) {
-    //     while (Valid()) {
-    //       last = Start();
-
-    //       if (BinaryOperator()) {
-    //         while (UnaryPrefixOperator()) {}
-
-    //         if (!Value()) return false;
-    //       } else if (!CallablePostfixLiteral()) {
-    //         break; // No more operators or values
-    //       }
-
-    //       last_successful = last; // Since we successfully passed the conditions, update last_successful
-    //     }
-    //   }
-    //   else {
-    //     Rollback(start);
-    //     return false;
-    //   }
-
-    //   if (Done() || (Peek() != ':' && Peek() != '{')) {
-    //     lexical::Tokens type = Last();
-
-    //     // If the last thing was a `}` then it was actually suppose to be the scope block
-    //     if (type == lexical::Tokens::SCOPE_CLOSE) {
-    //       // Debug([]{ Print("Rolling back function literal match"); });
-
-    //       Rollback(last_successful);
-
-    //       // If specifically a SCOPE_CLOSE, then it was a function, so check for a tuple (parameters) and optionally an array (captures)
-    //       return Tuple() && (Array() || true);
-    //     }
-    //     else if (type == lexical::Tokens::OBJECT_CLOSE) {
-    //       // Debug([]{ Print("Rolling back object literal match"); });
-
-    //       Rollback(last_successful);
-
-    //       // If it was an OBJECT_CLOSE, then the scope block was wrongly parsed as an object literal, so just undo it and return true, allowing it to be parsed correctly
-    //       return true;
-    //     }
-    //   }
-
-    //   return true;
-    // }
-
     bool IdentifierHelper() {
-      // return false;
-
       if (Done()) return false;
 
       auto start = cbegin();
@@ -2227,7 +1631,7 @@ namespace lexical {
         } else {
           Advance(); // Consume the starting character
         }
-      } else if (static_cast<uint8_t>(Peek()) > 127) {
+      } else if (!cursor.IsASCII()) {
         auto code_point = cursor.CodePoint();
 
         if (Unicode::IsIdentifierStart(code_point)) {
@@ -2244,7 +1648,7 @@ namespace lexical {
       while (Valid()) {
         if (cursor.IsIdent()) {
           Advance();
-        } else if (static_cast<uint8_t>(Peek()) > 127) {
+        } else if (!cursor.IsASCII()) {
           auto start = cbegin();
           auto code_point = cursor.CodePoint();
 
@@ -2366,15 +1770,27 @@ namespace lexical {
       if (!ScopeStatement()) return Error("Do statement expected a scope after the 'do' keyword");
 
       if (While()) {
+        return Error("Warble does not use a traditional `do ... while` loop, use `repeat ... while` instead.");
+      }
+
+      return OptionalSemicolon();
+    }
+
+    bool RepeatStatement() {
+      if (!Repeat()) return false;
+
+      if (!ScopeStatement()) return Error("Repeat statement expected a scope after the 'repeat' keyword");
+
+      if (While()) {
         if (Condition()) {
-          return Semicolon() || Error("The semicolon is mandatory after a condition in a 'do' loop");
+          return Semicolon() || Error("The semicolon is mandatory after a condition in a 'repeat ... while' loop");
         }
         else {
           return OptionalSemicolon();
         }
       }
       else {
-        return true;
+        return true; // The `while (condition)` portion is optional
       }
     }
 
@@ -2633,7 +2049,6 @@ namespace lexical {
     }
 
     bool BreakStatement() { return OneOrMore([this]{ return Break(); }) && (Semicolon() || Error("Break statement expected a semicolon")); }
-    // bool YieldStatement() { return Yield() && (Expression() || true) && (Semicolon() || Error("Yield statement expected a semicolon")); }
 
     bool YieldStatement() {
       if (!Yield()) return false;
@@ -2666,13 +2081,6 @@ namespace lexical {
           && OptionalSemicolon();
     }
 
-    bool CoverStatement() {
-      return Cover()
-          && (Condition() || Error("Cover statement expected a condition"))
-          && (ScopeStatement() || Error("Cover statement expected a scope block"))
-          && OptionalSemicolon();
-    }
-
     bool IsStatement() {
       return Is()
           && (Condition() || Error("Is statement expected a condition"))
@@ -2688,13 +2096,13 @@ namespace lexical {
     bool StatementShortcut() {
       switch (Peek()) {
         case 'b': return BreakStatement();
-        case 'c': return ContinueStatement() || CaseStatement() || CoverStatement();
+        case 'c': return ContinueStatement() || CaseStatement();
         case 'd': return DoStatement() || DefaultStatement();
         case 'e': return ExportStatement();
         case 'f': return ForStatement();
         case 'i': return IfStatement() || ImportStatement() || IsStatement();
         case 'm': return MatchStatement();
-        case 'r': return ReturnStatement() || RegisterStatement();
+        case 'r': return ReturnStatement() || RepeatStatement() || RegisterStatement();
         case 'w': return WhileStatement();
         case 'y': return YieldStatement();
         default: return false;
