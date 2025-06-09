@@ -146,10 +146,12 @@ namespace lexical {
     YIELD, // yield
     AWAIT, // await
     COPY, // @
+    COUNTED, // #
     SYMBOL, // $
     REFERENCE, // &
-    SPREAD, // ...
     MUTABLE_REFERENCE, // *
+    MOVE, // `=` - Unary prefix, distinct from `ASSIGN`, used in shorthand
+    SPREAD, // ...
     DECREMENT, // --
     INCREMENT, // ++
     NEGATIVE, // -
