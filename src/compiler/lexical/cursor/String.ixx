@@ -254,7 +254,33 @@ namespace lexical::cursor {
       return true;
     }
 
-    constexpr bool IsBreak() const { return IsBreak(Super::Peek()); }
+    constexpr unsigned char PeekU8() const {
+      return static_cast<unsigned char>(Super::Peek());
+    }
+
+    constexpr unsigned char PeekU8(size_t n) const {
+      return static_cast<unsigned char>(Super::Peek(n));
+    }
+
+    constexpr bool IsBreak() const {
+      switch (Super::Peek()) {
+        case '\n': return true;
+        case '\r': return true;
+        default: {
+          // Quick test for LS or PS first two bytes: E2 80 xx
+          if (PeekU8() == 0xE2 && PeekU8(1) == 0x80) {
+            switch (PeekU8(2)) {
+              case 0xA8: return true; // LS
+              case 0xA9: return true; // PS
+            }
+          }
+
+          return false;
+        }
+      }
+    }
+
+    constexpr bool IsASCII() const { return IsASCII(Super::Peek()); }
     constexpr bool IsSpace() const { return IsSpace(Super::Peek()); }
     constexpr bool IsAlpha() const { return IsAlpha(Super::Peek()); }
     constexpr bool IsAlNum() const { return IsAlNum(Super::Peek()); }
@@ -287,7 +313,8 @@ namespace lexical::cursor {
     constexpr bool IsURLAuthority() const { return IsURLAuthority(Super::Peek()); }
     constexpr bool IsFilePath() const { return IsFilePath(Super::Peek()); }
 
-    constexpr bool IsBreak(size_t i) const { return IsBreak(Super::Peek(i)); }
+    // constexpr bool IsBreak(size_t i) const { return IsBreak(Super::Peek(i)); }
+    constexpr bool IsASCII(size_t i) const { return IsASCII(Super::Peek(i)); }
     constexpr bool IsSpace(size_t i) const { return IsSpace(Super::Peek(i)); }
     constexpr bool IsAlpha(size_t i) const { return IsAlpha(Super::Peek(i)); }
     constexpr bool IsAlNum(size_t i) const { return IsAlNum(Super::Peek(i)); }
