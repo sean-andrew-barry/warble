@@ -874,8 +874,6 @@ namespace lexical {
             default: return Skip(lexical::Tokens::BITWISE_OR, 1);
           }
         }
-        case 'o': return Keyword(lexical::Tokens::OR, "or");
-        case 'a': return Keyword(lexical::Tokens::AND, "and");
         case 'w': return With();
         case '.': {
           switch (Peek(1)) {
