@@ -83,8 +83,10 @@ namespace lexical {
     ESCAPE_BACKSPACE, // (\b) - A backspace
     ESCAPE_RETURN, // (\r) - A carriage return
     ESCAPE_FORM_FEED, // (\f) - A form feed
-    ESCAPE_LITERAL, // (\X) - A literal character
-    ESCAPE_UNICODE_CODEPOINT_START, // `\u{` - A variable length Unicode code point like `\u{XXXXX...}`
+    ESCAPE_NULL, // (\0) - The null character
+    ESCAPE_CHARACTER, // (\cX) - An escaped alphabetic character
+    ESCAPE_SYNTAX, // (\S) - Here `S` is one of `^, $, \, ., *, +, ?, (, ), [, ], {, }, |, \/`
+    ESCAPE_UNICODE_CODEPOINT_START, // `\u{` - A variable length Unicode code point of 1 to 6 hexadecimal digits like `\u{HHHHHH}`
     ESCAPE_UNICODE_CODEPOINT_END, // `}` - The end marker
     ESCAPE_UNICODE_SHORT, // (\uXXXX) - A Unicode character using exactly four hexadecimal digits
     ESCAPE_HEX_CODE, // (\xXX) - A character specified by a hexadecimal value of exactly two digits
