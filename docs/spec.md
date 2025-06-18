@@ -1559,7 +1559,9 @@ This columnar design allows Warble symbols to scale linearly with the number of 
 
 Symbols thus form the backbone of Warble’s powerful and expressive type system, providing efficient representation, strong type guarantees, flexible reflection capabilities, and performance-oriented internal design.
 
-##### Flags
+##### Symbol Columns
+
+###### Flags
 
 One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific meaning and describes how the symbol should be used.
 
@@ -1587,8 +1589,12 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - RETURN: Is the return of a function. This is always first in the function's `children`.
 - PARAMETER: Is a parameter of a function. Parameters always immediately follow the `RETURN` in a function's `children`.
 - CAPTURE: Is a capture of a function. Can be anywhere after the parameters in a function's `children`.
+- PACK: Is a parameter pack, created like `...name`. Can only appear as the last `PARAMETER` in a function. This flag will be set in addition to the `PARAMETER` flag, it doesn't replace it.
 - IMPURE: Indicates that this can cause side effects or contains something that can.
 - LOOP: If this block forms a loop. Used by keywords like `break` and `continue` to find the nearest loop.
+- ENTRY: If this block is the *first* block of a lexical scope.
+- EXIT: If this block is the *last* block of a lexical scope.
+- FIRST: If this is the first child. Its `link` will go to the parent symbol.
 - SIGNED: If this numeric type is signed or not.
 - INTERPOLATED: Marks an expression embedded in a template string literal. This allows it to distinguish between normal string portions of the template string and expressions that resolve to string literals.
 - INTERNAL: Has been statically proven to never escape its stack frame, enabling many optimizations.
@@ -1600,6 +1606,10 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - INLINE_AVOIDED: Marks a function as NOT wanting to be inlined. This is only a hint, the compiler is not obligated to comply.
 - COMTIME: Fully defined at compile-time.
 - RUNTIME: Unknown at compile-time.
+- ERROR: Used to indicate a symbol should cause a hard compiler error.
+- REJECT: Used to indicate a symbol rejected an overload specialization. This is neutral and does not necessarily lead to an error, unless all other candidate functions also reject.
+- PROMISE: Marks a `VARIANT` type symbol as being treated as a promise, so its type tag should be atomic. This allows it to work with the `await` unary prefix operator.
+- EXPECTATION: Marks a `VARIANT` type symbol as being treated as an expectation, so it can work with the `expect` unary prefix operator.
 
 Each of the following types are stored as an 8 bit enumeration value in the low byte of the flags field.
 
@@ -1609,6 +1619,8 @@ Each of the following types are stored as an 8 bit enumeration value in the low 
 - CHARACTER: A UTF-32 character literal. Defaults to `SIZE32`.
 - REFERENCE: An address or alias. Always `SIZE64`. Compile-time constant references use their `value` fields to encode either one or two symbol indexes. Two are used to represent member access, where the first is the object and the second is the property. A reference marked as `IMPORT` uses slightly different lookup rules, because its first half will be a local symbol, but its second half will index into a different module's symbol table.
 - VOID: The zero size type of the keyword literal `null`.
+- AUTO: Special placeholder type, used to represent a generic.
+- UNDEFINED: Special placeholder value, used to represent an incomplete declaration's value.
 - SYMBOL: Indicates a 32 bit unsigned index that is used to access the various columns that make up a symbol. So it's important to distinguish that this is just the access, not the symbol itself.
 - ARRAY: An indexed collection of a uniform type. The first value always determines the type.
 - STRING: Array of UTF-32 characters. Has no `children`. (NOTE: May be renamed to distinguish it from a standard library dynamic string type.)
@@ -1618,11 +1630,36 @@ Each of the following types are stored as an 8 bit enumeration value in the low 
 - OBJECT: A collection of unrelated types, accessible via names.
 - VARIANT: A union of unrelated types, always sized to its largest member. Also has a type tag, usually a `uint8_t` that the compiler manages separately. The tag may or may not be encoded with the variant's runtime value.
 - RANGE: A start and end point for iteration. Always has exactly two `children`. (NOTE: For optimization reasons I may change this to embed the two symbol indexes into the `value` field instead of `children`, similar to how references do it.)
+- PHI: Represents a phi node. Its `children` will be all the symbols it joins.
 - FUNCTION: A function literal. Its first symbol in `children` is always its `RETURN`, followed by any `PARAMETER` symbols. A child not marked as `RETURN`, `PARAMETER`, or `CAPTURE` is a local.
-- MODULE: Represents a source file. Its `children` will be everything it imports from other modules and then `BLOCK`s.
-- BLOCK: Represents a CFG block. Its `children` will be all the symbols declared in the block. This does not necessarily mean their lifetime begins in the block, that is determined by their constructor and destructor instructions. It is possible for the constructor instruction to be deferred into a different block. Blocks are used as operands for jump instructions.
-- AUTO: Special placeholder type, used to represent a generic.
-- UNDEFINED: Special placeholder value, used to represent an incomplete declaration's value.
+- MODULE: Represents a source file. Its `children` will be everything it imports from other modules and then various CFG blocks.
+- DO: Represents a `do` CFG block.
+- IF: Represents an `if` CFG block.
+- ELSE_IF: Represents an `else if` CFG block.
+- ELSE: Represents an `else` CFG block.
+- MATCH: Represents a `match` CFG block.
+- FOR: Represents a `for` CFG block.
+- REPEAT: Represents a `repeat` CFG block.
+- WHILE: Represents a `while` CFG block.
+- REPEAT_WHILE: Represents a `repeat ... while` CFG block.
+
+The CFG block types are mostly treated as the same. Their `children` will be all the symbols declared in the block. This does not necessarily mean their lifetime begins in the block, that is determined by their constructor and destructor instructions. It is possible for the constructor instruction to be deferred into a different block. Blocks are used as operands for jump instructions.
+
+###### Values
+
+Symbols have a `value` column, which is a 64 bit piece of data. The exact interpretation of the data depends on the symbol's type, and sometimes other flags. Many of these, such as the immediates, can only be read if the symbol is flagged as `COMTIME`. Here is each type and how they encode their `value`, listed in terms of C++ types.
+
+- BOOLEAN: Writes the true/false state as a `bool`.
+- CHARACTER: Writes the UTF-32 value as a `char32_t`.
+- INTEGER: Writes the value as a `uint64_t` or an `int64_t` depending on if the `SIGNED` flag is set.
+- DECIMAL: Writes the value as a `double`.
+- SYMBOL: Writes the target index as a `uint32_t`.
+- REFERENCE: Packs up to two symbol indexes as a `std::pair<uint32_t, uint32_t>`, interpretation depends on additional flags. If flagged as `IMPORT` it means the first half will be a module symbol and the second half will be an index into that imported module, rather than into the current module.
+- RANGE: Packs the two symbol indexes as a `std::pair<uint32_t, uint32_t>`
+- STRING: Packs the character index start and length as a `std::pair<uint32_t, uint32_t>`.
+- ENUM: Packs the enum index start and length as a `std::pair<uint32_t, uint32_t>`.
+- BLOCK: Packs the TAC index start and length as a `std::pair<uint32_t, uint32_t>`.
+- ARRAY/TUPLE/OBJECT/TEMPLATE/VARIANT/FUNCTION/MODULE: Packs the computed size in bytes and  the index to the children enum in a `std::pair<uint32_t, uint32_t>`.
 
 #### 4.2.5 Block
 A control flow graph block.
@@ -1740,6 +1777,25 @@ let str = data ?? "default";
 
 This operator simplifies conditional extraction, eliminating boilerplate associated with explicit type checks or pattern matching. It provides a clean way to safely access a variant's underlying data based on runtime type.
 
+### 4.3.6 Expectations
+
+An **expectation** is simply a two-arm variant tagged with the flag `EXPECTATION`.
+Formally it is an alias of `variant<Expected, Unexpected>`, but the flag allows
+the compiler to recognize and optimize the high-frequency pattern “success vs.
+rare failure”.
+
+```
+type expectation<Expected, Unexpected> = variant<Expected, Unexpected>;
+```
+
+* By convention the first arm (`Expected`) represents the *normal* value and
+  is statistically dominant; the second arm (`Unexpected`) represents an
+  error or abnormal condition.
+* The flag enables two unary prefix operators (`expect`, `assume`) that give
+  ergonomic control-flow sugar for handling expectations (see §5.2.1).
+* No additional runtime data is required beyond the variant’s tag; tag size
+  rules from §4.3.3 apply unchanged.
+
 ### 4.4 Type Inference & Compatibility
 
 ### 4.5 Conversions & Coercions
@@ -1749,6 +1805,37 @@ This operator simplifies conditional extraction, eliminating boilerplate associa
 ### 5.1 Evaluation Order & Short-Circuiting
 
 ### 5.2 Built-in Operators
+
+### 5.2.1 Control-flow Unary Operators `await`, `expect`, `assume`
+
+| Operator     | Operand requirement | Fast path                                            | Slow path                                                 | Result type |
+| ------------ | ------------------- | ---------------------------------------------------- | --------------------------------------------------------- | ----------- |
+| `await`      | `promise<T>`        | Waits until the promise’s tag changes, then unwraps. | -                                                         | `T`         |
+| **`expect`** | `expectation<T,E>`  | Unwraps the *expected* arm.                          | `return <unexpected-value>`                               | `T`         |
+| **`assume`** | `expectation<T,E>`  | Unwraps the *expected* arm.                          | **Debug:** `panic`<br>**Release:** `trap` (`unreachable`) | `T`         |
+
+* All three are **prefix** verbs with the same precedence (just above unary
+  `&` and `@`).
+
+* Each may skip the remainder of the current statement: `await` can suspend,
+  `expect` can early-return, `assume` can abort.
+
+* The compiler lowers `expect`/`assume` to:
+
+  ```warble
+  let __tmp = expr;
+  if (compiler.is_unexpected(__tmp)) {
+      // expect → return compiler.unwrap_unexpected(__tmp);
+      // assume → compiler.panic(...) or compiler.trap();
+  }
+  let value = compiler.unwrap_expected(__tmp);
+  ```
+
+* `assume` inserts an `unreachable` IR node, enabling additional optimisation
+  while guaranteeing a hard stop if the assumption is violated.
+
+> **Guideline:** Default to `expect`.  Reach for `assume` only when recovery is
+> impossible or not worthwhile (e.g. out-of-memory on a desktop program).
 
 ### 5.3 Operator Overloading via Symbols
 
@@ -2472,6 +2559,22 @@ Warble’s approach ensures no hidden surprises, fostering a safer and more resp
 
 ### 12.3 Assertion Facilities
 
+### 12.4 Expectation-based Error Propagation
+
+Warble’s primary structured error flow is the **expectation** pair plus the
+`expect` operator:
+
+* A function that may fail returns `expectation<Value, Error>`.
+* Call-sites use `let v = expect may_fail();` to propagate errors
+  transparently; the enclosing function’s return type automatically becomes
+  the same expectation.
+* Higher layers eventually *match* on the expectation or convert it to a
+  panic via `assume`.
+
+`assume` should be treated like `assert`: it documents an invariant and aborts
+if reality disagrees.  In debug builds a full stack-trace is produced; in
+optimized builds the compiler emits a single `trap` instruction.
+
 ## 13 Concurrency & Parallelism
 
 Warble programs are inherently concurrent. A pool of worker threads executes
@@ -2779,6 +2882,8 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`do`** — Introduces a scoped block.
 * **`repeat`** — Begins a loop, which can optionally end with a `while (condition)` portion.
 * **`await`** — Unary prefix operator that suspends the current thread until a promise resolves, repeatedly returning to the work queue between checks.
+* **`expect`** — Unary prefix operator that unwraps an expectation or unwraps and returns its unexpected arm.
+* **`assume`** — Unary prefix operator that unwraps an expectation or aborts if it is unexpected.
 
 #### Pattern Matching and Constraints
 
