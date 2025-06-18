@@ -404,7 +404,7 @@ To clearly differentiate scopes from object literals:
 
   ```warble
   do {
-    // This is an empty scope block; no declarations here
+    // This is an empty scope block
   }
   ```
 
