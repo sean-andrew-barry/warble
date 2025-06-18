@@ -3,7 +3,7 @@ export module ir.codes;
 namespace ir {
   export enum class Codes : uint8_t {
     Extension, // A pseudo-instruction, whose operands apply to the **previous** instruction as a way to have more than 3 operands
-    Phi, // The representation of a phi node - can be extended to represent any number of operands
+    Anchor, // A CFG block's anchor point, marking where the block begins
     NoOperation,
     Unreachable,
     Abort, // Abort();
