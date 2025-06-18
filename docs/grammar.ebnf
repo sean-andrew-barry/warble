@@ -1,5 +1,6 @@
 EOF         ::= ? end of input ?;
-NewLine     ::= '\n' | '\u2028' | '\u2029';
+SourceCharacter ::= ? any Unicode code unit ?;
+NewLine     ::= '\n' | '\r' | '\u2028' | '\u2029';
 WhiteSpace  ::= ' ' | '\t' | '\r' | '\v' | '\f' | NewLine;
 BinaryDigit ::= '0' | '1';
 OctalDigit  ::= BinaryDigit | '2' | '3' | '4' | '5' | '6' | '7';
@@ -31,7 +32,7 @@ MultiLineComment
   ::= '/*' { SourceCharacter } '*/';
 
 SingleLineComment
-  ::= '//' { SourceCharacter - NewLine } NewLine | EOF;
+  ::= '//' { SourceCharacter - NewLine } ( NewLine | EOF );
 
 (*─────────────────────────────*)
 (* individual keyword tokens   *)
@@ -128,7 +129,7 @@ Keyword
 (*───────────────────────────────*)
 (* identifier excluding keywords *)
 (*───────────────────────────────*)
-IdentifierStart ::= Letter | Underscore;
+IdentifierStart ::= AsciiLetter | Underscore;
 IdentifierPart  ::= IdentifierStart | Digit;
 Identifier      ::= IdentifierStart { IdentifierPart } - Keyword;
 
@@ -147,13 +148,14 @@ DecrementOperator ::= '--';
 LogicalNotOperator ::= '!';
 BitwiseNotOperator ::= '~';
 SpreadOperator ::= '...';
+ArrowOperator   ::= '=>';
 
 AddOperator             ::= '+'  ;
 SubtractOperator        ::= '-'  ;
 MultiplyOperator        ::= '*'  ;
 DivideOperator          ::= '/'  ;
 ModuloOperator          ::= '%'  ;
-ExponentOperator        ::= '**'  ;
+ExponentOperator        ::= '**' ;
 
 LeftShiftOperator       ::= '<<' ;
 RightShiftOperator      ::= '>>' ;
@@ -210,13 +212,13 @@ UnaryPrefixOperator
     | BitwiseNotOperator;
 
 MultiplicativeOperator
-  ::= AsteriskOperator
-    | SlashOperator
-    | PercentOperator;
+  ::= MultiplyOperator
+    | DivideOperator
+    | ModuloOperator;
 
 AdditiveOperator
-  ::= PlusOperator
-    | MinusOperator;
+  ::= AddOperator
+    | SubtractOperator;
 
 ShiftOperator
   ::= LeftShiftOperator
@@ -232,23 +234,13 @@ EqualityOperator
   ::= EqualOperator
     | NotEqualOperator;
 
-BitwiseAndOperatorGrp
-  ::= BitwiseAndOperator;
+BitwiseAndOperatorGrp   ::= BitwiseAndOperator;
+BitwiseXorOperatorGrp   ::= BitwiseXorOperator;
+BitwiseOrOperatorGrp    ::= BitwiseOrOperator;
+LogicalAndOperatorGrp   ::= LogicalAndOperator;
+LogicalOrOperatorGrp    ::= LogicalOrOperator;
 
-BitwiseXorOperatorGrp
-  ::= BitwiseXorOperator;
-
-BitwiseOrOperatorGrp
-  ::= BitwiseOrOperator;
-
-LogicalAndOperatorGrp
-  ::= LogicalAndOperator;
-
-LogicalOrOperatorGrp
-  ::= LogicalOrOperator;
-
-ConditionalOperator
-  ::= QuestionOperator;
+ConditionalOperator ::= OptionalOperator; (* '?' when used in conditional context *)
 
 AssignmentOperator
   ::= AssignOperator
@@ -268,41 +260,98 @@ AssignmentOperator
 (* Literals *)
 (*──────────────────────────────────────────*)
 
-NullLiteral ::= NullKeyword;
+NullLiteral      ::= NullKeyword;
 UndefinedLiteral ::= UndefinedKeyword;
-BooleanLiteral ::= TrueKeyword | FalseKeyword;
+BooleanLiteral   ::= TrueKeyword | FalseKeyword;
 
-(*──────────────────────────────────────────*)
-(*  integer-literal flavours                *)
-(*──────────────────────────────────────────*)
-BinaryIntegerLiteral
-  ::= [ SignOperator ] BinaryPrefix BinaryDigits ;
+(*──── numeric literals ────*)
+BinaryIntegerLiteral ::= [ SignOperator ] BinaryPrefix BinaryDigits ;
+OctalIntegerLiteral  ::= [ SignOperator ] OctalPrefix  OctalDigits ;
+HexIntegerLiteral    ::= [ SignOperator ] HexPrefix    HexDigits ;
+PlainIntegerLiteral  ::= [ SignOperator ] DecimalDigits ;
 
-OctalIntegerLiteral
-  ::= [ SignOperator ] OctalPrefix  OctalDigits ;
+IntegerLiteral ::= BinaryIntegerLiteral
+                 | OctalIntegerLiteral
+                 | HexIntegerLiteral
+                 | PlainIntegerLiteral;
 
-HexIntegerLiteral
-  ::= [ SignOperator ] HexPrefix    HexDigits ;
-
-PlainIntegerLiteral
-  ::= [ SignOperator ] DecimalDigits ;
-
-IntegerLiteral
-  ::= BinaryIntegerLiteral
-    | OctalIntegerLiteral
-    | HexIntegerLiteral
-    | PlainIntegerLiteral;
-
-DecimalLiteral
-  ::= [ SignOperator ] DecimalDigits
-      ( FractionPart [ ExponentPart ] | ExponentPart ) ;
+DecimalLiteral ::= [ SignOperator ] DecimalDigits
+                   ( FractionPart [ ExponentPart ] | ExponentPart ) ;
 
 NumericLiteral ::= IntegerLiteral | DecimalLiteral;
 
-KeywordLiteralExpression
-  ::= BooleanLiteral
-    | NullLiteral
-    | UndefinedLiteral;
+(*──── escape sequences ────*)
+HexDigitNoSep   ::= HexDigit;  (* helper without '_' *)
+TwoHexDigits    ::= HexDigitNoSep HexDigitNoSep;
+FourHexDigits   ::= TwoHexDigits TwoHexDigits;
+
+UnicodeCodePoint ::= HexDigitNoSep { HexDigitNoSep } ;  (* at least one hex digit *)
+
+EscapeSequence
+  ::= '\0'
+    | '\'''
+    | '\`'
+    | '\"'
+    | '\\'
+    | '\n'
+    | '\r'
+    | '\v'
+    | '\t'
+    | '\b'
+    | '\f'
+    | '\{'
+    | '\}'
+    | '\x' TwoHexDigits
+    | '\u' FourHexDigits
+    | '\u{' UnicodeCodePoint '}' ;
+
+CharacterWithoutEscape ::= SourceCharacter - ( '\\' | '\'' | NewLine );
+CharacterLiteral       ::= '\'' ( EscapeSequence | CharacterWithoutEscape ) '\'';
+
+StringCharacter
+  ::= EscapeSequence
+    | SourceCharacter - ( '\\' | '"' | NewLine );
+StringLiteral         ::= '"' { StringCharacter } '"';
+
+(*──── template literals ────*)
+TemplateCharacter
+  ::= EscapeSequence
+    | SourceCharacter - ( '\\' | '`' | '{' | '}' | NewLine );
+TemplateStringChunk   ::= TemplateCharacter { TemplateCharacter };
+TemplateExpression    ::= '{' Expression '}';
+TemplatePart          ::= TemplateStringChunk | TemplateExpression;
+TemplateLiteral       ::= '`' { TemplatePart } '`';
+
+(*──── collection literals ────*)
+ExpressionList        ::= Expression { ',' Expression } [ ',' ] ;
+
+ArrayLiteral          ::= '[' [ ExpressionList ] ']' ;
+EnumLiteral           ::= '<' [ ExpressionList ] '>' ;
+TupleLiteral          ::= '(' [ ExpressionList ] ')' ;
+
+(*──── object literal ────*)
+ObjectDeclarationList ::= ObjectDeclaration { ',' ObjectDeclaration } [ ',' ] ;
+ObjectLiteral         ::= '{' [ ObjectDeclarationList ] '}' ;
+
+(*──── function literals ────*)
+TemplateList          ::= '<' TemplateDeclaration { ',' TemplateDeclaration } [ ',' ] '>' ;
+CaptureList           ::= '[' CaptureDeclaration  { ',' CaptureDeclaration  } [ ',' ] ']' ;
+ParameterList         ::= '(' ParameterDeclaration { ',' ParameterDeclaration } [ ',' ] ')' ;
+
+FunctionBody          ::= '{' { Statement } '}' ;
+ArrowFunctionBody     ::= ArrowOperator Expression ;
+
+FunctionSignature
+  ::= TemplateList [ CaptureList ] [ ParameterList ]
+  | CaptureList [ ParameterList ]
+  | ParameterList ;
+
+FunctionLiteral
+  ::= FunctionSignature ( FunctionBody | ArrowFunctionBody )
+  | ArrowFunctionBody ;
+
+(*──── higher‑level literal expressions ────*)
+KeywordLiteralExpression ::= BooleanLiteral | NullLiteral | UndefinedLiteral;
 
 CallableLiteralExpression
   ::= CharacterLiteral
@@ -315,11 +364,6 @@ CallableLiteralExpression
     | ObjectLiteral
     | FunctionLiteral;
 
-LiteralExpression
-  ::= KeywordLiteralExpression
-    | CallableLiteralExpression;
+LiteralExpression ::= KeywordLiteralExpression | CallableLiteralExpression;
 
-Expression
-  ::= LiteralExpression
-    | UnaryPrefixExpression
-    | BinaryExpression;
+Expression ::= LiteralExpression | UnaryPrefixExpression | BinaryExpression;
