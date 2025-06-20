@@ -317,15 +317,57 @@ let total = 1 +
 
 ### 3.1 Declarations
 
-Any binding may begin with the keyword `let`, but it is **required** only for scope-level declarations where the compiler must be told that the statement is a declaration rather than an expression.  In contexts that already expect declarations—such as object literals, capture lists, parameter lists, and `for` loop headers—the `let` keyword can be omitted without changing semantics.  The keyword itself does not express mutability; every declaration is immutable unless its type symbol has the `MUTABLE` flag enabled. This flag can be toggled using helper functions such as `mut`.
+Declarations introduce new bindings into a scope. At **scope level**—such as modules, function bodies, or explicit `do` blocks—the keyword `let` is **required** to distinguish a declaration from an expression. In contexts where declarations are inherently expected—such as **object literals**, **capture lists**, **parameter lists**, and **`for`-loop headers**—the `let` keyword is syntactically **optional**.
 
-Example:
+In most contexts, including or omitting `let` makes no semantic difference. However, in **object literals** and **capture lists**, the presence or absence of `let` determines the specific declaration mode, each with distinct behavior:
+
+* **Normal Declaration Mode** *(using `let`)*
+  This behaves identically to top-level declarations:
+
+  * The name **must** be a simple identifier.
+  * Destructuring is permitted:
+
+    ```warble
+    let [a, b] = [A, B];
+    ```
+  * If no initializer is provided, it defaults to `undefined`:
+
+    ```warble
+    let value;  // ⇢ let value = undefined;
+    ```
+  * Shorthand notation is **not** permitted.
+
+* **Object/Capture Declaration Mode** *(omitting `let`)*
+  Offers more flexible syntax tailored to objects and captures:
+
+  * The name can be an identifier **or** a literal key (enum or string literal).
+  * Destructuring is **not** permitted; `[a, b]` is interpreted as a single literal key.
+  * Shorthand notation is permitted, automatically using the identifier's existing value:
+
+    ```warble
+    value,  // ⇢ value = value;
+    ```
+
+The `let` keyword itself does **not** determine mutability. All bindings are immutable by default; mutability must be explicitly declared using decorators such as `mut`.
+
+**Example:**
 
 ```warble
-let pi = 3.14159;           // immutable by default
-let count: mut(auto) = 0;   // mutable binding
-count += 10;                // Allowed reassignment
+// Scope-level declarations require `let`
+let pi = 3.14159;            // immutable by default
+let count: mut(auto) = 0;    // explicitly mutable
+count += 10;                 // mutation allowed
+
+// Object literal illustrating both declaration modes
+let obj = {
+  value,                     // shorthand, object-mode
+  "greeting" = "hi",         // literal key, object-mode
+  let temp,                  // normal-mode, defaults to undefined
+  let [x, y] = [X, Y],       // normal-mode destructuring
+};
 ```
+
+This distinction ensures clear and intuitive syntax, simplifies parsing, and maintains flexibility in declarations.
 
 #### Shadowing
 
@@ -897,19 +939,35 @@ Object literals use curly braces `{ }` to enclose their declarations, with each 
 let point = { x = 10, y = 20 };
 ```
 
-Declarations inside object literals follow nearly identical rules as scope-level declarations:
+Declarations inside object literals are parsed in one of two declaration modes:
 
-* Each property is a declaration. Because the compiler already expects a declaration here, the `let` keyword is optional.
-* Mutability is controlled via decorators like `mut` on the property's type.
-* Visibility is controlled via decorators such as `private()` or `protected()`, with `public()` restoring the default public state.
+* **Object mode** (default)
+  * Begins with an identifier, enum literal, or string literal and does **not** use the `let` keyword.
+  * Allows shorthand declarations (`foo` ⇢ `foo = foo`).
+  * Allows a number of prefixes to augment shorthand declarations, such as `{ @value }` being `{ value = @value }`.
+  * **Forbids destructuring**—tokens such as `<a, b>` are taken as a single literal name.
+
+* **Normal mode**
+  * Begins with the keyword `let`.
+  * Behaves exactly like a scope-level declaration: identifier keys only, destructuring allowed, no shorthand (omitting the RHS defaults to `undefined`).
+
+In either mode visibility is controlled via decorators such as `private()` or `protected()`, with `public()` restoring the default public state.
 
 For example:
 
 ```warble
+let name = "Sean";
+
 let user = {
-  name = "Sean",
+  name, // object-mode shorthand
   age: mut(auto) = 32,          // mutable
   email: private(auto) = "...", // visibility modifier
+
+  <compiler.constructor> = (){}, // object-mode enum key
+  "label" = "OK", // object-mode string key
+
+  let counter = 0,         // normal-mode
+  let <lhs, rhs> = <A, B>, // normal-mode destructuring
 };
 ```
 
@@ -939,22 +997,6 @@ let mathOps = {
 
 During lookup, Warble initially hits the most recent definition (the last listed). If the immediate match is not compatible (such as due to differing function parameters), the compiler continues searching backward for a suitable overload.
 
-##### Special Property Names and Lookup Syntax
-
-In addition to standard identifiers, properties can be named using string literals or even enum literals. These allow names that wouldn't otherwise be valid identifiers:
-
-```warble
-let obj = {
-  "some-key" = 42,
-  <Red, Green> = "ColorPair",
-};
-
-obj."some-key";    // accesses the property named "some-key"
-obj.<Red, Green>;  // accesses the property named by enum <Red, Green>
-```
-
-These alternate naming syntaxes are particularly useful in advanced design patterns and object-oriented modeling (discussed in later sections).
-
 ##### Spreading Objects
 
 Warble emphasizes composition over inheritance, making object spreading an essential feature. You can spread one object literal's properties into another using the spread syntax (`...`):
@@ -976,48 +1018,64 @@ Spreading can include visibility decorators as well:
 
 ```warble
 let obj = {
-  ...private(secretProperties),
-  ...public(publicProperties),
+  ...secretProperties: private(auto),
+  ...publicProperties: public(auto),
 };
 ```
 
 Note: Only object literals can be spread into object literals; other containers (arrays, enums, tuples) cannot, due to their lack of named properties.
 
-##### Auto-Incrementing Enum-like Properties
+Spreading is actually just shorthand for `{ obj = ...obj }`, just like how `{ @value }` is shorthand for `{ value = @value }`.
 
-Warble provides a convenient shorthand to replicate traditional enum class behavior (common in languages like C++). By prefixing property names with the hash character (`#`) and omitting explicit assignments, you instruct the compiler to assign sequential numeric values automatically, beginning at zero:
+##### Enum-like Properties via Range Destructuring
 
-```warble
-let Colors = { #Red, #Green, #Blue };
-```
-
-This shorthand expands to:
+Warble offers a concise and flexible alternative to traditional enum-class style auto-incremented properties through destructuring of range literals. Instead of using special prefix notation, you can simply destructure a compile-time constant range:
 
 ```warble
-let Colors = { Red = 0, Green = 1, Blue = 2 };
-```
-
-Auto-incrementing properties may be mixed freely with explicitly defined properties, including methods and other values:
-
-```warble
-let Example = {
-  #Start,          // implicitly 0
-  #Middle,         // implicitly 1
-  description = "Example enum-like structure",
-  #End,            // implicitly 2
-  method = (){ /*...*/ },
+let Colors = {
+  let [Red, Green, Blue] = 0..3,
 };
+```
+
+This expands equivalently to:
+
+```warble
+let Colors = {
+  Red = 0,
+  Green = 1,
+  Blue = 2,
+};
+```
+
+The range literal used for destructuring must have a compile-time known start and end. Attempting to destructure more elements than the range contains, or using a range with runtime-dependent bounds, results in a compile-time error:
+
+```warble
+// Error: Range has only one value to destructure but two are required
+let [a, b] = 0..1;
+
+// Error: Range bounds are not compile-time constants
+let dynamicEnd = getDynamicEnd();
+let [x, y] = 0..dynamicEnd;
+```
+
+This design intentionally does not allow skipping elements within a single destructuring, but you can easily achieve similar results by using multiple ranges:
+
+```warble
+let Indices = {
+  let [First, Second] = 0..2,
+  let [Fourth] = 3..4,
+};
+// Results in First=0, Second=1, Fourth=3
 ```
 
 ##### Summary of Object Literal Features:
 
 * Defined using curly braces `{ }`.
-* Consist of named declarations. The `let` keyword is optional in this context. Properties are immutable unless their type is decorated with `mut`.
+* Consist of named declarations with two different syntax modes, depending on if the `let` keyword is used or not. Properties are immutable unless their type is decorated with `mut`.
 * Support visibility decorators (`public`, `private`, `protected`).
 * Allow shadowing and overloads via backward lookup.
 * Allow property names defined as strings or enums.
 * Enable composition via object spreading (`...`).
-* Provide special syntax for auto-incrementing numeric declarations (`#`).
 
 #### 4.1.12 Range
 
@@ -1706,7 +1764,7 @@ This operator provides precise control over variant creation, especially useful 
 Inside functions, the `return case` syntax explicitly indicates variant returns. If different code paths return distinct types using `return case`, Warble merges these into a single variant type:
 
 ```warble
-let checkValue = (x: compiler.integer, compiler.boolean) {
+let checkValue = (x: compiler.integer || compiler.boolean) {
   if (x from compiler.integer) {
     return case x;
   } else {
@@ -2158,7 +2216,7 @@ Currently, Warble requires `match` statements to be **exhaustive**, meaning ever
 
 ```warble
 match (variant) {
-  is (int) { print("Integer"); }
+  is (i32) { print("Integer"); }
   default  { print("Something else"); }
 }
 ```
@@ -2611,7 +2669,6 @@ The standard library provides atomic counters and flags that are implicitly
 with explicit memory ordering. Only atomic or otherwise `THREADSAFE` values may
 be shared mutably between threads.
 
-
 ## 14 Standard Library (overview)
 
 ## 15 Tooling & Ecosystem
@@ -2628,226 +2685,11 @@ be shared mutably between threads.
 
 ## 18 Appendices
 
-### 18.1 Grammar (EBNF)
-
-#### Notation
-
-This appendix provides the complete normative grammar specification for Warble in Extended Backus-Naur Form (EBNF). All grammar examples elsewhere in the specification are informative; in case of any disagreement, the grammar defined here takes precedence.
-
-**Character Set:** All grammar rules and literal symbols refer to Unicode code-points. Terminals defined in quotes `'...'` represent literal characters.
-
-**EBNF Conventions:**
-
-| Symbol    | Meaning                   |             |
-| --------- | ------------------------- | ----------- |
-| `::=`     | Production separator      |             |
-| \`        | \`                        | Alternative |
-| `[...]`   | Optional (zero or one)    |             |
-| `{...}`   | Repetition (zero or more) |             |
-| `( ... )` | Grouping                  |             |
-| *italic*  | Non-terminal              |             |
-| `'...'`   | Literal terminal symbol   |             |
-
-Whitespace and comments are ignored except as necessary to separate tokens; see §2.3 for details.
-
-Lexical elements (identifiers, literals, etc.) are defined separately in the lexical grammar (§2.2).
-
----
-
-#### Top-level Grammar Structure
-
-The following non-terminals are entry points into Warble's grammar:
-
-```ebnf
-CompilationUnit       ::= Module;
-Module                ::= { ImportDeclaration } { TopLevelDeclaration };
-TopLevelDeclaration   ::= FunctionDeclaration | Declaration | Statement | TypeDeclaration | ...;
-```
-
-#### Common Building Blocks
-
-```ebnf
-IdentifierBinding
-  ::= Identifier [ TypeAnnotation ];
-
-TypeAnnotation
-  ::= ':' TypeExpression;
-
-(* literal forms that may omit '=' in a scope declaration *)
-ImplicitInitLiteral
-  ::= CharacterLiteral
-   |  StringLiteral
-   |  ArrayLiteral
-   |  EnumLiteral
-   |  TupleLiteral
-   |  TemplateLiteral
-   |  ObjectLiteral
-   |  FunctionLiteral;
-
-ExplicitInitializer
-  ::= '=' Expression;
-
-Initializer
-  ::= ExplicitInitializer
-   |  ImplicitInitLiteral; (* allowed only where grammar references it *)
-```
-
----
-
-#### Module and Imports
-
-```ebnf
-ImportDeclaration     ::= 'import' ImportSpecifier ';';
-ImportSpecifier       ::= StringLiteral | QualifiedIdentifier | ...;
-```
-
----
-
-#### Declarations
-
-```ebnf
-Binding
-  ::= Identifier [':' TypeSpecifier] ['=' Expression];
-
-DeclarationStmt
-  ::= LetBindingStmt
-   | ConstBindingStmt
-   | ObjectDeclaration
-   | FunctionDeclaration;
-
-LetBindingStmt
-  ::= 'let' Binding ';';
-
-ConstBindingStmt
-  ::= 'const' Binding ';';
-
-EmbeddedBinding                
-  ::= [ 'const' ] Binding; (* used where a declaration is expected *)
-
-ObjectDeclaration
-  ::= 'object' Identifier ObjectLiteral;
-
-FunctionDeclaration
-  ::= 'fn' Identifier FunctionSignature FunctionBody;
-```
-
----
-
-#### Types and Literals
-
-```ebnf
-TypeSpecifier         ::= SimpleType | CompositeType | FunctionType | VariantType | ...
-SimpleType            ::= Identifier
-CompositeType         ::= TupleType | ObjectType | ArrayType
-TupleType             ::= '(' [TypeSpecifier {',' TypeSpecifier}] ')'
-ObjectType            ::= '{' [PropertyTypeList] '}'
-ArrayType             ::= '[' TypeSpecifier ']'
-FunctionType          ::= ParameterTypeList '->' TypeSpecifier
-VariantType           ::= 'case' '{' VariantList '}'
-
-Literal               ::= IntegerLiteral | StringLiteral | BooleanLiteral | TupleLiteral | ObjectLiteral | ...
-```
-
----
-
-#### Expressions
-
-```ebnf
-Expression            ::= AssignmentExpression
-
-AssignmentExpression  ::= ConditionalExpression
-                       | LeftHandSideExpression AssignmentOperator AssignmentExpression
-
-ConditionalExpression ::= LogicalOrExpression
-                       | LogicalOrExpression '?' Expression ':' ConditionalExpression
-
-LogicalOrExpression   ::= LogicalAndExpression { '||' LogicalAndExpression }
-LogicalAndExpression  ::= EqualityExpression { '&&' EqualityExpression }
-EqualityExpression    ::= RelationalExpression { ('==' | '!=') RelationalExpression }
-RelationalExpression  ::= AdditiveExpression { ('<' | '>' | '<=' | '>=') AdditiveExpression }
-
-AdditiveExpression    ::= MultiplicativeExpression { ('+' | '-') MultiplicativeExpression }
-MultiplicativeExpression ::= UnaryExpression { ('*' | '/' | '%') UnaryExpression }
-
-UnaryExpression       ::= ('!' | '-' | '&' | '@') UnaryExpression
-                       | PrimaryExpression
-
-PrimaryExpression     ::= Literal
-                       | Identifier
-                       | TupleLiteral
-                       | ObjectLiteral
-                       | FunctionLiteral
-                       | '(' Expression ')'
-```
-
----
-
-#### Statements and Control Flow
-
-```ebnf
-Statement             ::= Declaration
-                       | ExpressionStatement
-                       | ControlFlowStatement
-                       | BlockStatement
-                       | ...
-
-ExpressionStatement   ::= Expression ';'
-
-ControlFlowStatement  ::= IfStatement | WhileStatement | ForStatement | MatchStatement | ReturnStatement | ...
-
-IfStatement           ::= 'if' '(' Expression ')' Statement ['else' Statement]
-WhileStatement        ::= 'while' '(' Expression ')' Statement
-ForStatement          ::= 'for' '(' [ForInit] ';' [Expression] ';' [Expression] ')' Statement
-MatchStatement        ::= 'match' '(' Expression ')' '{' MatchCaseList '}'
-ReturnStatement       ::= 'return' ['case'] [Expression] ';'
-
-BlockStatement        ::= 'do' '{' { Statement } '}'
-```
-
----
-
-#### Function Literals and Calls
-
-```ebnf
-FunctionLiteral       ::= [TemplateList] CaptureList ParameterList FunctionBody
-CaptureList           ::= '[' [CaptureSpecifier {',' CaptureSpecifier}] ']'
-ParameterList         ::= '(' [Parameter {',' Parameter}] ')'
-FunctionBody          ::= BlockStatement | '=>' Expression
-
-FunctionCall          ::= LeftHandSideExpression ArgumentList
-ArgumentList          ::= '(' [Expression {',' Expression}] ')'
-```
-
----
-
-#### Object and Tuple Literals
-
-```ebnf
-ObjectLiteral           ::= '{' [PropertyDeclarationList] '}'
-PropertyDeclarationList ::= PropertyDeclaration {',' PropertyDeclaration}
-PropertyDeclaration     ::= Identifier ':' Expression
-
-TupleLiteral            ::= '(' [Expression {',' Expression}] ')'
-```
-
----
-
-#### Miscellaneous Constructs
-
-```ebnf
-Decorator             ::= '#' Identifier [DecoratorArgumentList]
-DecoratorArgumentList ::= '(' [Expression {',' Expression}] ')'
-```
-
----
-
 #### Operator Precedence
 
 > TODO: Include a small table or paragraph cross-referencing the earlier operator precedence definition.
 
 See §4.3 for operator precedence and associativity rules.
-
----
 
 #### Semantics Cross-References
 
