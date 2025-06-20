@@ -551,9 +551,7 @@ Invalid example (multiple code points):
 
 ##### Integer Literals
 
-Integer literals represent whole numbers and are stored as unsigned 64-bit values (`uint64_t`). Numeric literals without a decimal point are classified as integers. Integers use the `NEGATIVE` flag to indicate negative values.
-
-Integer literals may be prefixed with `+` (which is purely symbolic and has no effect) or `-` (which sets the negative flag).
+Integer literals represent whole numbers and are stored as unsigned 64-bit values (`uint64_t`). Numeric literals without a decimal point are classified as integers.
 
 Warble supports multiple integer forms:
 
@@ -569,7 +567,7 @@ Decimal literals represent floating-point numbers and are always encoded in doub
 
 Decimals also support exponential notation (`0.255e3`). Case is irrelevant for the exponent marker (`e`).
 
-Currently, decimal literals must begin with a digit (`0.0` rather than `.0`).
+Decimal literals must begin and end with a digit (`0.0` rather than `.0` or `0.`). Similarly, exponential notation must be surrounded by digits (`1.0e2` rather than `.1e2` or `1.e2`).
 
 ##### Numeric Literal Separators
 
@@ -584,6 +582,13 @@ let hexLiteral = 0xDE_AD_BE_EF;
 let decimalValue = 123_456.789_012;
 let scientificDecimal = 1.23e4;
 ```
+
+##### Summary of Syntax Rules:
+
+* Decimals must begin and end with digits (no `.5` or `5.`; use `0.5` or `5.0`).
+* Exponential notation (`e`) must be between digits (e.g., `1.0e2`).
+* Numeric separators (`_`) must not lead or trail literals.
+* Integers can end in valid hex digits, including alphabetic characters for hexadecimal literals.
 
 #### 4.1.6 String
 
