@@ -2347,15 +2347,9 @@ for (declaration in iterable [by step]) {
 
 This flexible `for` loop design makes Warble iterations expressive, concise, and efficient, covering most common iteration patterns without the complexity of a traditional `for` loop syntax.
 
-Here's your clearly structured **Jump Statements** section based on the details you've provided:
-
----
-
 ### 7.5 Jump Statements (`break`, `continue`, `return`)
 
 Jump statements alter the normal execution flow by abruptly transferring control to a different part of your program. Warble provides three types of jump statements: `break`, `continue`, and `return`. These statements behave similarly to those in many traditional languages but include some useful and distinctive features.
-
----
 
 #### 7.5.1 Break & Continue (`break`, `continue`)
 
@@ -2394,8 +2388,6 @@ This is convenient, avoiding cumbersome solutions like flag variables to communi
 **No Expressions Allowed:**
 
 In Warble, neither `break` nor `continue` allows expressions (unlike some languages that permit a value to be returned from these keywords). They are simple, expressionless jump statements.
-
----
 
 #### 7.5.2 Return (`return`)
 
