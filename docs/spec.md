@@ -1673,6 +1673,7 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - REJECT: Used to indicate a symbol rejected an overload specialization. This is neutral and does not necessarily lead to an error, unless all other candidate functions also reject.
 - PROMISE: Marks a `VARIANT` type symbol as being treated as a promise, so its type tag should be atomic. This allows it to work with the `await` unary prefix operator.
 - EXPECTATION: Marks a `VARIANT` type symbol as being treated as an expectation, so it can work with the `expect` unary prefix operator.
+- NON_ZERO: Specifies that a value will never hold `0` at runtime. This is an optimization hint, allowing things like optionals to avoid having a type tag.
 
 Each of the following types are stored as an 8 bit enumeration value in the low byte of the flags field.
 
