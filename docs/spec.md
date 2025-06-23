@@ -288,29 +288,39 @@ Warble treats whitespace characters (spaces, tabs, and newlines) as token separa
 
 Whitespace and comments do not affect the logic or execution of the program. They are purely for developer clarity and code organization.
 
-### 2.4 Line Terminators & Semicolons
+### 2.4 Statement Terminators (Semicolons)
 
-Warble employs explicit statement termination using semicolons (`;`). Each top-level statement must conclude with a semicolon, clearly marking its end and avoiding ambiguity.
+Warble uses **explicit semicolons** to mark the end of most statements, but the rule is purposely simple:
 
-Unlike some languages that allow implicit semicolons, Warble explicitly requires semicolons to separate individual statements. This ensures clarity and predictability in code parsing:
+| construct                                                                                                             | last syntactic token     | semicolon required?                   | rationale                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Declaration statements** (`let`, `import`, `register`, `export`, etc.)                                              | *initializer/expression* | **yes**                               | Needed to separate consecutive declarations and to disambiguate from an expression that might follow.                     |
+| **Scope-level expression statements** (assignment, function literal, object literal, call, etc.)                      | *expression*             | **yes**                               | The parser cannot know whether another operator or statement will follow; the semicolon closes the expression.            |
+| **Compound control-flow statements whose body ends with `}`**<br>(`if…`, `for…`, `while…`, bare `repeat`, `do { } …`) | `}`                      | *optional* (allowed but not required) | The closing brace is an unambiguous terminator; adding a semicolon is accepted for stylistic consistency.                 |
+| **`repeat { … } while (condition)` loop**                                                                             | `)`                      | *optional*                            | The closing parenthesis after the condition is the unambiguous terminator; a trailing semicolon is legal but unnecessary. |
+| **Empty statement**                                                                                                   | **`;`**                  | —                                     | A lone semicolon is always legal and is occasionally useful as a no-op placeholder (e.g., after a label).                 |
 
-```warble
-let x = 1; // valid statement termination
-let y = 2; // another valid termination
-```
+> **Summary rule** – *A semicolon is mandatory after any statement whose final token **could** begin another statement or expression; it is optional when the grammar already supplies an unambiguous closing token (`}` or the final `)` of `repeat … while`).* This covers every case without relying on newline heuristics.
 
-At the top level, object literals and similar structured literals used as expressions must also end with a semicolon to form a valid standalone statement:
-
-```warble
-let obj = { x = 1, y = 2 }; // semicolon required here
-```
-
-**Line terminators** (newlines, carriage returns, and other Unicode line-ending characters) serve only as whitespace. They do not implicitly terminate statements. Statements may span multiple lines, provided they end with a semicolon:
+#### Examples
 
 ```warble
-let total = 1 +
-              2 +
-              3; // valid across multiple lines
+// 1. Declarations & expressions – semicolon required
+let count = 0;
+count += 1;
+let fn = () { return count; };      // function literal is an expression ⇒ needs ;
+
+import fs from "filesystem" in "std";
+register "pkg" from "../pkg";
+
+// 2. Compound statements – semicolon *optional*
+if (cond) {
+  do {                                // 'do' block terminates on }
+    print("inside");
+  }
+};   // stylistically tolerated, but unnecessary
+
+repeat { work(); } while (needMore()) // final ) already closes the loop
 ```
 
 ## 3 Fundamentals
