@@ -1684,9 +1684,11 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - PROMISE: Marks a `VARIANT` type symbol as being treated as a promise, so its type tag should be atomic. This allows it to work with the `await` unary prefix operator.
 - EXPECTATION: Marks a `VARIANT` type symbol as being treated as an expectation, so it can work with the `expect` unary prefix operator.
 - NON_ZERO: Specifies that a value will never hold `0` at runtime. This is an optimization hint, allowing things like optionals to avoid having a type tag.
+- NON_MAX: Specifies that a value will never hold its maximum value, all `1`s, at runtime. This is an optimization hint, allowing things like optionals to avoid having a type tag.
 
 Each of the following types are stored as an 8 bit enumeration value in the low byte of the flags field.
 
+- BYTES: A special type that represents raw data. It implements most operators, but unlike other types it works by just copying and comparing raw bytes. This makes it inherently quite dangerous, as it can easily lead to undefined behavior. Its purpose is to be a foundational type for libraries to use internally. It is considered "unsafe".
 - DECIMAL: A numeric literal that contains a decimal point. Defaults to `SIZE64`. (NOTE: I am unsure about this, but I feel like it's a safer default for floating points than `SIZE32`.)
 - INTEGER: All non-`DECIMAL` numeric literals. The size defaults to the smallest that can fully contain the `value` field. This depends on if it's `SIGNED` or not. For example, if unsigned and the `value` is below 256, it will be `SIZE8`.
 - BOOLEAN: A `true`/`false` value. Defaults to `SIZE8`.
