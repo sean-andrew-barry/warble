@@ -1744,13 +1744,13 @@ A control flow graph block.
 
 ### 4.3 Variant Mechanics
 
-This section provides a detailed explanation of how variants are created, manipulated, and represented in memory. While variants are conceptually straightforward as tagged unions, Warble provides several powerful and ergonomic operators for working with them, ensuring both expressive power and performance efficiency.
+This section provides a detailed explanation of how variants are created, manipulated, and represented in memory. Variants in Warble are conceptually straightforward as tagged unions, and Warble provides several powerful and ergonomic operators for working with them, ensuring both expressive power and performance efficiency.
 
-#### 4.3.1 Creation (`||`, `&&`, `!!`, `return case`)
+#### 4.3.1 Creation (`||`, `&&`, `return case`)
 
 Variants in Warble are created implicitly through certain expressions rather than explicit type annotations. The main ways variants arise are:
 
-##### Logical Operators (`||`, `&&`)
+**Logical Operators (`||`, `&&`):**
 
 * `a || b` evaluates the truthiness of `a`. If `a` is truthy, the variant holds `a`; otherwise, it holds `b`.
 * `a && b` evaluates the truthiness of `a`. If `a` is falsy, the variant holds `a`; otherwise, it holds `b`.
@@ -1762,44 +1762,29 @@ let result = 0 || "hello"; // variant holds "hello"
 let another = 42 && false; // variant holds false
 ```
 
-These operators always yield a variant containing exactly the operand chosen based on runtime conditions.
+These operators yield a variant containing exactly the operand chosen based on runtime conditions.
 
-##### Explicit Variant Creation (`!!`)
-
-The `!!` operator explicitly creates a variant without evaluating the truthiness of its operands. The first operand always becomes the initial value, while subsequent operands define additional possible types.
-
-Example:
-
-```warble
-let explicitVariant = 0 !! "Hello" !! true;
-// explicitVariant holds 0, with possible types: integer, string, boolean
-```
-
-This operator provides precise control over variant creation, especially useful for cases when the initial value may be falsy.
-
-##### Variant Returns (`return case`)
+**Variant Returns (`return case`):**
 
 Inside functions, the `return case` syntax explicitly indicates variant returns. If different code paths return distinct types using `return case`, Warble merges these into a single variant type:
 
 ```warble
-let checkValue = (x: compiler.integer || compiler.boolean) {
-  if (x from compiler.integer) {
-    return case x;
+let parse = (input: string) {
+  if (input.is_number()) {
+    return case input.to_int();
   } else {
-    return case "bool";
+    return case error("Not a number");
   }
 }
-
-// Function returns a variant of <compiler.integer, compiler.string>
 ```
 
-The compiler automatically infers the return variant type from these `return case` statements.
+Here, the compiler determines that `parse` returns the variant `<compiler.integer, compiler.error>`.
 
 #### 4.3.2 Flattening
 
 Warble automatically flattens nested variants, simplifying variant handling and preventing overly complex type trees.
 
-For example:
+Example:
 
 ```warble
 let nested = 1 || false || "Hello";
@@ -1819,58 +1804,56 @@ The total size of a variant is determined as:
 
 The compiler ensures tags are consistently ordered and deterministic, enabling efficient ABI and runtime optimizations. Tag lookup, type checking, and narrowing operations are highly performant as a result.
 
+Variants are sorted by their symbol indexes. This means that a `void` will always be first, since it has the lowest symbol index. This is a nice performance benefit, since often testing for zero is more efficient than any other number.
+
+The sorting also means that `variant<Fish, Cat, Dog>` and `variant<Cat, Dog, Fish>` are identical and are compatible without a remapping step.
+
 #### 4.3.4 Narrowing (`?.`)
 
-The narrowing operator (`?.`) safely refines a variant to a specific type by verifying method or property presence. It removes incompatible types at compile-time, short-circuiting if runtime checks fail.
-
-Example:
+The narrowing operator (`?.`) safely refines a variant by verifying the presence of a property or method. It produces a new variant whose candidate types include only those that define the requested property, plus an implicit `void` arm to represent failure at runtime.
 
 ```warble
-let variant = getAnimal(); // returns variant of <Cat, Dog, Fish>
-
-variant?.bark()?.toUpperCase();
+let animal = getAnimal(); // variant<Cat, Dog, Fish>
+let sound = animal?.bark(); // variant<void, Dog.bark> then resolves to variant<void, string>
 ```
 
-* First, Warble checks which types support `.bark()`. (Only `Dog` does.)
-* If at runtime the variant isn't a `Dog`, the expression short-circuits.
-* If it is a `Dog`, narrowing succeeds, and `.bark()` is safely invoked.
-* Further methods, like `.toUpperCase()`, apply only to types remaining after narrowing.
+At compile-time:
 
-This operator supports chaining, progressively narrowing the variant through multiple operations.
+* The compiler prunes variant arms that don't define the accessed property.
+* If no arms remain, the resulting variant type is simply `void`.
+* If some arms remain, the compiler generates a small readonly mapping table to translate the original variant’s type tag to the new narrowed variant’s type tag. Filtered-out types map to the `void` state.
+
+At runtime:
+
+* The current variant’s tag is used to index this compact mapping table.
+* If the original variant's current type doesn't match the filter criteria, the result immediately short-circuits to the `void` arm.
+* If it matches, the tag is updated to reflect the new variant, with the payload simply aliased rather than copied, ensuring optimal performance.
+
+Variant payload copying is only triggered if a filtered variant arm is mutated while the original variant remains alive. This is rare in practice, ensuring most operations remain zero-copy and performant.
 
 #### 4.3.5 Unpacking (`??`)
 
-The unpacking operator (`??`) extracts a variant's contained value if its runtime type matches that of the fallback provided. If types don't match, the fallback value is used instead:
-
-Example:
+The unpacking operator (`??`) extracts a variant's contained value if its runtime type matches the provided fallback. If types don't match, the fallback value is used:
 
 ```warble
 let data = 1 || "hello"; // variant <compiler.integer, compiler.string>
-
-let str = data ?? "default";
-// If data holds a string then it's unpacked. If not, `str` is "default"
+let str = data ?? "default"; // Unpacks "hello" or defaults to "default"
 ```
 
-This operator simplifies conditional extraction, eliminating boilerplate associated with explicit type checks or pattern matching. It provides a clean way to safely access a variant's underlying data based on runtime type.
+This operator simplifies conditional extraction, eliminating explicit type checks or pattern matching.
 
-### 4.3.6 Expectations
+#### 4.3.6 Expectations
 
-An **expectation** is simply a two-arm variant tagged with the flag `EXPECTATION`.
-Formally it is an alias of `variant<Expected, Unexpected>`, but the flag allows
-the compiler to recognize and optimize the high-frequency pattern “success vs.
-rare failure”.
+An **expectation** is simply a two-arm variant tagged with the flag `EXPECTATION`. Formally, it is an alias of `variant<Expected, Unexpected>`, optimized for the high-frequency pattern "success vs. rare failure":
 
-```
+```warble
 type expectation<Expected, Unexpected> = variant<Expected, Unexpected>;
 ```
 
-* By convention the first arm (`Expected`) represents the *normal* value and
-  is statistically dominant; the second arm (`Unexpected`) represents an
-  error or abnormal condition.
-* The flag enables two unary prefix operators (`expect`, `assume`) that give
-  ergonomic control-flow sugar for handling expectations (see §5.2.1).
-* No additional runtime data is required beyond the variant’s tag; tag size
-  rules from §4.3.3 apply unchanged.
+* By convention, the first arm (`Expected`) represents normal values.
+* The second arm (`Unexpected`) represents errors or abnormal conditions.
+* Special operators (`expect`, `assume`) handle expectations ergonomically.
+* No additional runtime data is required beyond the variant’s tag, and standard tag size rules apply.
 
 ### 4.4 Type Inference & Compatibility
 
