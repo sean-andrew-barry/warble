@@ -1688,16 +1688,16 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 
 Each of the following types are stored as an 8 bit enumeration value in the low byte of the flags field.
 
-- BYTES: A special type that represents raw data. It implements most operators, but unlike other types it works by just copying and comparing raw bytes. This makes it inherently quite dangerous, as it can easily lead to undefined behavior. Its purpose is to be a foundational type for libraries to use internally. It is considered "unsafe".
+- UNDEFINED: Special placeholder value, used to represent an incomplete declaration's value. This is the zero type, making it the default.
+- AUTO: Special placeholder type, used to represent a generic.
+- VOID: The zero size type of the keyword literal `null`.
+- BOOLEAN: A `true`/`false` value. Defaults to `SIZE8`.
+- RAW: A special type that represents raw data. It implements most operators, but unlike other types it works by just copying and comparing raw bytes. This makes it inherently quite dangerous, as it can easily lead to undefined behavior. Its purpose is to be a foundational type for libraries to use internally. It is considered "unsafe".
+- CHARACTER: A UTF-32 character literal. Defaults to `SIZE32`.
+- SYMBOL: Indicates a 32 bit unsigned index that is used to access the various columns that make up a symbol. So it's important to distinguish that this is just the access, not the symbol itself.
 - DECIMAL: A numeric literal that contains a decimal point. Defaults to `SIZE64`. (NOTE: I am unsure about this, but I feel like it's a safer default for floating points than `SIZE32`.)
 - INTEGER: All non-`DECIMAL` numeric literals. The size defaults to the smallest that can fully contain the `value` field. This depends on if it's `SIGNED` or not. For example, if unsigned and the `value` is below 256, it will be `SIZE8`.
-- BOOLEAN: A `true`/`false` value. Defaults to `SIZE8`.
-- CHARACTER: A UTF-32 character literal. Defaults to `SIZE32`.
 - REFERENCE: An address or alias. Always `SIZE64`. Compile-time constant references use their `value` fields to encode either one or two symbol indexes. Two are used to represent member access, where the first is the object and the second is the property. A reference marked as `IMPORT` uses slightly different lookup rules, because its first half will be a local symbol, but its second half will index into a different module's symbol table.
-- VOID: The zero size type of the keyword literal `null`.
-- AUTO: Special placeholder type, used to represent a generic.
-- UNDEFINED: Special placeholder value, used to represent an incomplete declaration's value.
-- SYMBOL: Indicates a 32 bit unsigned index that is used to access the various columns that make up a symbol. So it's important to distinguish that this is just the access, not the symbol itself.
 - ARRAY: An indexed collection of a uniform type. The first value always determines the type.
 - STRING: Array of UTF-32 characters. Has no `children`. (NOTE: May be renamed to distinguish it from a standard library dynamic string type.)
 - ENUM: Array of 32 bit symbol indexes.
