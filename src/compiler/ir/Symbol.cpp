@@ -1,21 +1,32 @@
-import ir.symbol;
-import ir._module;
+import compiler.ir.Symbol;
+import compiler.ir.Symbols;
+import compiler.program.Module;
 
-namespace ir {
-  uint8_t Symbol::Register() { return r; }
-  const std::bitset<64>& Symbol::Registers() { return mod.GetRegister(s); }
-  const std::bitset<64>& Symbol::Flags() { return mod.GetFlag(s); }
-  uint64_t Symbol::Value() { return mod.GetValue(s); }
-  int32_t Symbol::Displacement() { return mod.GetDisplacement(s); }
-  uint32_t Symbol::Size() { return mod.GetSize(s); }
-  ir::Symbol Symbol::Parent() { return mod.GetParent(s);}
-  ir::Symbol Symbol::Name() { return mod.GetName(s); }
-  ir::Symbol Symbol::Children() { return mod.GetChildren(s);  }
-  ir::Symbol Symbol::Prev() { return mod.GetPrev(s); }
-  ir::Index Symbol::ParentIndex() { return mod.GetParentIndex(s);}
-  ir::Index Symbol::NameIndex() { return mod.GetNameIndex(s); }
-  ir::Index Symbol::ChildrenIndex() { return mod.GetChildrenIndex(s);  }
-  ir::Index Symbol::PrevIndex() { return mod.GetPrevIndex(s); }
+namespace compiler::ir {
+  const std::bitset<64>& Symbol::Register() { return mod.Symbols().Register(index); }
+  const std::bitset<64>& Symbol::Flag() { return mod.Symbols().Flag(index); }
+  uint64_t Symbol::Value() { return mod.Symbols().Value(index); }
+  int32_t Symbol::Displacement() { return mod.Symbols().Displacement(index); }
+  uint32_t Symbol::Size() { return mod.Symbols().Size(index); }
+  ir::Symbol Symbol::Parent() { return mod.Symbols().Parent(index);}
+  ir::Symbol Symbol::Name() { return mod.Symbols().Name(index); }
+  ir::Symbol Symbol::Children() { return mod.Symbols().Children(index);  }
+  ir::Symbol Symbol::Prev() { return mod.Symbols().Prev(index); }
+  ir::Index Symbol::ParentIndex() { return mod.Symbols().ParentIndex(index);}
+  ir::Index Symbol::NameIndex() { return mod.Symbols().NameIndex(index); }
+  ir::Index Symbol::ChildrenIndex() { return mod.Symbols().ChildrenIndex(index);  }
+  ir::Index Symbol::PrevIndex() { return mod.Symbols().PrevIndex(index); }
+
+  void Symbol::Register(std::bitset<64> v) { mod.Symbols().Register(index, v); }
+  void Symbol::Flag(std::bitset<64> v) { mod.Symbols().Flag(index, v); }
+  void Symbol::Value(uint64_t v) { mod.Symbols().Value(index, v); }
+  void Symbol::Value(uint32_t a, uint32_t b) { Value((static_cast<uint64_t>(a) << 32) | b); }
+  void Symbol::Displacement(int32_t v) { mod.Symbols().Displacement(index, v); }
+  void Symbol::Size(uint32_t v) { mod.Symbols().Size(index, v); }
+  void Symbol::Parent(ir::Index v) { mod.Symbols().Parent(index, v); }
+  void Symbol::Name(ir::Index v) { mod.Symbols().Name(index, v); }
+  void Symbol::Children(ir::Index v) { mod.Symbols().Children(index, v); }
+  void Symbol::Prev(ir::Index v) { mod.Symbols().Prev(index, v); }
 
   bool Symbol::IsLocal(int32_t& displacement) {
     if (IsFunction()) {
@@ -38,9 +49,8 @@ namespace ir {
   }
 
   bool Symbol::IsResolved()  { return mod.IsResolved();             }
-  bool Symbol::IsEmpty()     { return s == ir::Symbol::NO_SLOT;     }
-  bool Symbol::IsValid()     { return s != ir::Symbol::NO_SLOT;     }
-  bool Symbol::IsAllocated() { return r != ir::Symbol::NO_REGISTER; }
+  bool Symbol::IsEmpty()     { return index == ir::Symbol::NO_INDEX;     }
+  bool Symbol::IsValid()     { return index != ir::Symbol::NO_INDEX;     }
   bool Symbol::Is8Bit()      { return Size() == 1;   }
   bool Symbol::Is16Bit()     { return Size() == 2;   }
   bool Symbol::Is32Bit()     { return Size() == 4;   }

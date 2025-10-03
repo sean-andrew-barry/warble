@@ -1,14 +1,14 @@
-export module ir.symbols;
+export module compiler.ir.Symbols;
 
 import <cstdint>;
 import <bitset>;
 import <vector>;
-import ir.index;
+import compiler.ir.Index;
 
 // ────────────────────────────────────────────────────────────────
 //  Symbols table: columnar (SoA) style representation of Symbol data
 // ────────────────────────────────────────────────────────────────
-namespace ir {
+namespace compiler::ir {
   export class Symbols {
   private:
     std::vector<std::bitset<64>> registers; // Live-range bitset
@@ -29,31 +29,31 @@ namespace ir {
     std::vector<uint32_t> character_start;
   public:
     // -------- raw fields --------
-    const std::bitset<64>& Registers(size_t i) const { return registers[i]; }
-    const std::bitset<64>& Flags(size_t i) const { return flags[i]; }
-    uint64_t Value(size_t i) const { return values[i]; }
-    int32_t Displacement(size_t i) const { return displacements[i]; }
-    uint32_t Size(size_t i) const { return sizes[i]; }
-    ir::Index Parent(size_t i) const { return parents[i];}
-    ir::Index Name(size_t i) const { return names[i]; }
-    ir::Index Children(size_t i) const { return children[i];  }
-    ir::Index Prev(size_t i) const { return prevs[i]; }
+    const std::bitset<64>& Registers(ir::Index i) const { return registers[i.Value()]; }
+    const std::bitset<64>& Flags(ir::Index i) const { return flags[i.Value()]; }
+    uint64_t Value(ir::Index i) const { return values[i.Value()]; }
+    int32_t Displacement(ir::Index i) const { return displacements[i.Value()]; }
+    uint32_t Size(ir::Index i) const { return sizes[i.Value()]; }
+    ir::Index Parent(ir::Index i) const { return parents[i.Value()]; }
+    ir::Index Name(ir::Index i) const { return names[i.Value()]; }
+    ir::Index Children(ir::Index i) const { return children[i.Value()]; }
+    ir::Index Prev(ir::Index i) const { return prevs[i.Value()]; }
 
-    void Registers(size_t i, std::bitset<64> v) { registers[i] = v; }
-    void Flags(size_t i, std::bitset<64> v) { flags[i] = v; }
-    void Value(size_t i, uint64_t v) { values[i] = v; }
-    void Displacement(size_t i, int32_t v) { displacements[i] = v; }
-    void Size(size_t i, uint32_t v) { sizes[i] = v; }
-    void Parent(size_t i, ir::Index v) { parents[i] = v;}
-    void Name(size_t i, ir::Index v) { names[i] = v; }
-    void Children(size_t i, ir::Index v) { children[i] = v; }
-    void Prev(size_t i, ir::Index v) { prevs[i] = v; }
+    void Registers(ir::Index i, std::bitset<64> v) { registers[i.Value()] = v; }
+    void Flags(ir::Index i, std::bitset<64> v) { flags[i.Value()] = v; }
+    void Value(ir::Index i, uint64_t v) { values[i.Value()] = v; }
+    void Displacement(ir::Index i, int32_t v) { displacements[i.Value()] = v; }
+    void Size(ir::Index i, uint32_t v) { sizes[i.Value()] = v; }
+    void Parent(ir::Index i, ir::Index v) { parents[i.Value()] = v; }
+    void Name(ir::Index i, ir::Index v) { names[i.Value()] = v; }
+    void Children(ir::Index i, ir::Index v) { children[i.Value()] = v; }
+    void Prev(ir::Index i, ir::Index v) { prevs[i.Value()] = v; }
 
-    uint32_t Emplace() {
-      const uint32_t slot = static_cast<uint32_t>(registers.size());
+    ir::Index Add(ir::symbol::Type type) {
+      ir::Index index = static_cast<uint32_t>(registers.size()); // Take the size of any column, they should all be the same
 
       registers.emplace_back();
-      flags.emplace_back();
+      flags.emplace_back(static_cast<uint64_t>(type));
       values.push_back(0);
       displacements.push_back(0);
       sizes.push_back(0);
@@ -65,7 +65,7 @@ namespace ir {
       token_end.push_back(0);
       character_start.push_back(0);
 
-      return slot;
+      return index;
     }
   };
 };

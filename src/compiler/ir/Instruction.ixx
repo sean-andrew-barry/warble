@@ -1,8 +1,9 @@
-export module ir.instruction;
+export module compiler.ir.Instruction;
 
-import ir.codes;
-import ir.index;
-import ir._register;
+import compiler.ir.Code;
+import compiler.ir.Index;
+import compiler.ir.Register;
+
 import <array>;
 import <cstdint>;
 
@@ -16,39 +17,39 @@ import <cstdint>;
 //  encoder and optimizer.
 // ──────────────────────────────────────────────────────────────
 
-namespace ir {
+namespace compiler::ir {
   export class Instruction {
   private:
-    ir::Codes code;
+    ir::Code code;
     std::array<ir::Register, 3> registers;
     std::array<ir::Index, 3> operands;
   public:
     constexpr bool IsJump() const noexcept {
-      return code >= Codes::Jump
-          && code <= Codes::JumpIfLessOrEqual;
+      return code >= ir::Code::Jump
+          && code <= ir::Code::JumpIfLessOrEqual;
     }
 
     constexpr bool IsBranch() const noexcept {
       return IsJump()
-          || code == Codes::Call
-          || code == Codes::Return;
+          || code == ir::Code::Call
+          || code == ir::Code::Return;
     }
 
     constexpr bool IsTerminator() const noexcept {
-      return code == Codes::Return
-          || code == Codes::Jump
-          || code == Codes::Break
-          || code == Codes::Continue;
+      return code == ir::Code::Return
+          || code == ir::Code::Jump
+          || code == ir::Code::Break
+          || code == ir::Code::Continue;
     }
 
     constexpr bool IsMove() const noexcept {
-      return code == Codes::Move
-          || (code >= Codes::MoveIfTrue && code <= Codes::MoveIfLessOrEqual);
+      return code == ir::Code::Move
+          || (code >= ir::Code::MoveIfTrue && code <= ir::Code::MoveIfLessOrEqual);
     }
 
     constexpr bool IsMath() const noexcept {
-      return code >= Codes::Increment
-          && code <= Codes::Negate;
+      return code >= ir::Code::Increment
+          && code <= ir::Code::Negate;
     }
 
     constexpr ir::Index Dest() const noexcept { return operands[0]; }
@@ -57,4 +58,4 @@ namespace ir {
   };
 };
 
-static_assert(sizeof(ir::Instruction) == 16, "ir::Instruction must remain 16 bytes");
+static_assert(sizeof(compiler::ir::Instruction) == 16, "ir::Instruction must remain 16 bytes");

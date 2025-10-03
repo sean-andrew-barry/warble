@@ -1,11 +1,11 @@
-export module ir._register;
+export module compiler.ir.Register;
 
 import <cstdint>;
 
-namespace ir {
+namespace compiler::ir {
   export struct Register {
     uint8_t value;
   };
 };
 
-static_assert(sizeof(ir::Register) == 1, "ir::Register must remain 1 byte");
+static_assert(sizeof(compiler::ir::Register) == 1, "ir::Register must remain 1 byte");
