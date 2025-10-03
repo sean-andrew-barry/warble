@@ -1,4 +1,4 @@
-export module fs.url;
+export module compiler.fs.URL;
 
 import lexical.cursor.string;
 
@@ -8,7 +8,7 @@ import <stdexcept>;
 import <vector>;
 import <utility>;
 
-namespace fs {
+namespace compiler::fs {
   export class Path;
 
   export class URL {

@@ -1,12 +1,12 @@
-import fs.url;
-import fs.path;
-import utility.print;
-import utility.os;
+import compiler.fs.Url;
+import compiler.fs.Path;
+import compiler.utility.Print;
+import compiler.utility.OS;
 
 import <string>;
 import <stdexcept>;
 
-namespace fs {
+namespace compiler::fs {
   std::string URL::ToPathString() const {
     if (!IsFile()) {
       throw std::invalid_argument("Only file URLs can be converted to file paths");

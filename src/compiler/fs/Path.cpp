@@ -1,11 +1,11 @@
-import fs.path;
-import fs.url;
-import utility.print;
-import utility.os;
+import compiler.fs.Path;
+import compiler.fs.URL;
+import compiler.utility.Print;
+import compiler.utility.OS;
 
 import <string>;
 
-namespace fs {
+namespace compiler::fs {
   std::string Path::ToURLString() const {
     std::string url;
     url += "file://";
