@@ -1,6 +1,6 @@
-export module lexical.unicode;
+export module lexical.Unicode;
 
-import lexical.code_points;
+import lexical.CodePoints;
 
 import <cstdint>;
 import <uchar.h>;

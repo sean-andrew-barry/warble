@@ -1,8 +1,8 @@
-export module lexical.cursor.code_points;
+export module lexical.cursor.CodePoints;
 
-import lexical.cursor;
-// import lexical.token;
-import lexical.unicode;
+import lexical.Cursor;
+// import lexical.Token;
+import lexical.Unicode;
 import <string>;
 import <string_view>;
 import <bitset>;

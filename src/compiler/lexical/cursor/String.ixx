@@ -1,8 +1,7 @@
-export module lexical.cursor.string;
+export module lexical.cursor.String;
 
-import lexical.cursor;
-// import lexical.token;
-import lexical.unicode;
+import lexical.Cursor;
+import lexical.Unicode;
 import <string>;
 import <string_view>;
 import <bitset>;

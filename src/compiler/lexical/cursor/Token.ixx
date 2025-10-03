@@ -1,8 +1,8 @@
-export module lexical.cursor.token;
+export module lexical.cursor.Token;
 
-import lexical.cursor;
-import lexical.token;
-import lexical.tokens;
+import lexical.Cursor;
+import lexical.Token;
+import lexical.Tokens;
 import utility.print;
 import <vector>;
 import <bitset>;

@@ -1,4 +1,4 @@
-export module lexical.cursor;
+export module lexical.Cursor;
 
 import <ranges>;
 import <span>;
@@ -12,9 +12,6 @@ namespace lexical {
     using Value = typename T::value_type;
     using Iterator = typename T::const_iterator;
   private:
-    // Iterator begin;
-    // Iterator current;
-    // Iterator end;
     std::ranges::subrange<Iterator> range;
   public:
     constexpr Cursor(const T& t) : range{t.cbegin(), t.cend()} {}
