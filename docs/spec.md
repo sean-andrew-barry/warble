@@ -1547,7 +1547,7 @@ Because a symbol is just an index, each property lives in its own column and is 
 * `registersof(sym)` – a bitset of CPU register indexes where the symbol’s runtime value might reside.
 * `flagsof(sym)` – a bitset of modifiers. Common flags include `MUTABLE`, visibility markers (`EXPORT`, `PROTECTED`, `PRIVATE`), `SPREAD`, and `REPEAT`.
 * `typeof(sym)` – an 8‑bit type ID. This stores the basic category of every symbol. This isn't a distinct column and is actually embedded as part of the `flags` column.
-* `valueof(sym)` – a typeless field interpreted according to the symbol’s type: an immediate value, pointer, or index.
+* `valueof(sym)` – a 64 bit typeless field interpreted according to the symbol’s type: an immediate value or index.
 * `sizeof(sym)` – a 32‑bit size field representing byte footprint or element count for strings and enums.
 * `displacementof(sym)` – a 32‑bit offset from the parent symbol for efficient address calculation.
 * `nameof(sym)` – a reference to a string literal symbol containing the identifier’s name, or `null` for anonymous symbols.
@@ -1638,13 +1638,16 @@ Symbols thus form the backbone of Warble’s powerful and expressive type system
 
 One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific meaning and describes how the symbol should be used.
 
+- SIZE1:
+- SIZE2:
+- SIZE4:
 - SIZE8:
 - SIZE16:
 - SIZE32:
 - SIZE64:
 - SIZE128:
 - SIZE256:
-- SIZE512: Each of the size flags marks a potential size in bits for the symbol. Many symbols can have multiple size flags, indicating they are comfortable in a variety of memory slots.
+- SIZE512: Each of the size flags marks a potential size in bits (maybe change to bytes?) for the symbol. Many symbols can have multiple size flags, indicating they are comfortable in a variety of memory slots.
 - EXTENDED: Is an extended property in an object literal. This makes it act transparently, causing lookups to pass through it to recursively match its children.
 - SPREAD: Marks a symbol spread into another using the `...` operator. Similar to `EXTENDED` this also makes it behave transparently.
 - REPEAT: Marks an array as being created via the repeat syntax, such as `[0; 10]`.
