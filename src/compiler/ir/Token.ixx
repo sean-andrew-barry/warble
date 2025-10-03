@@ -53,8 +53,8 @@ namespace compiler::ir {
     EscapeNull, // (\0) - The null character
     EscapeCharacter, // (\cX) - An escaped alphabetic character
     EscapeSyntax, // (\S) - Here `S` is one of `^, $, \, ., *, +, ?, (, ), [, ], {, }, |, \/`
-    EscapeUnicodeCodepointStart, // `\u{` - The start of a variable length Unicode code point of 1 to 6 hexadecimal digits like `\u{HHHHHH}`
-    EscapeUnicodeCodepointEnd, // `}` - The end marker
+    EscapeUnicodeCodePointStart, // `\u{` - The start of a variable length Unicode code point of 1 to 6 hexadecimal digits like `\u{HHHHHH}`
+    EscapeUnicodeCodePointEnd, // `}` - The end marker
     EscapeUnicodeShort, // (\uXXXX) - A Unicode character using exactly four hexadecimal digits
     EscapeHexCode, // (\xXX) - A character specified by a hexadecimal value of exactly two digits
     Add, // +

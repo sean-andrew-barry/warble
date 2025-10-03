@@ -1,6 +1,7 @@
 export module compiler.text.Unicode;
 
 import compiler.text.UnicodeTables;
+import compiler.ir.Error;
 
 import <cstdint>;
 import <uchar.h>;
@@ -9,6 +10,7 @@ import <stdexcept>;
 import <cstddef>;
 import <array>;
 import <charconv>;
+import <expected>;
 
 inline constexpr auto LENGTH_TABLE = []{
   std::array<std::uint8_t, 256> table{};
@@ -198,21 +200,21 @@ export namespace compiler::text::Unicode {
     return FromU32(charCode);
   }
 
-  char32_t HexToCodePoint(std::string_view hex_digits) {
+  std::expected<char32_t, ir::Error> HexStringToCodePoint(std::string_view hex_digits) {
     uint32_t temp = 0;
     auto [ptr, ec] = std::from_chars(hex_digits.data(), hex_digits.data() + hex_digits.size(), temp, 16);
 
     // Check for any error in conversion.
     if (ec == std::errc::invalid_argument || ec == std::errc::result_out_of_range) {
-      throw std::runtime_error("Invalid Unicode codepoint escape sequence");
+      return std::unexpected(ir::Error::UnicodeCodePointInvalid);
     }
 
     // Ensure the value is a valid Unicode scalar value.
     if (temp > 0x10FFFFu) {
-      throw std::runtime_error("Unicode codepoint out of valid range");
+      return std::unexpected(ir::Error::UnicodeCodePointOutOfRange);
     }
     if (temp >= 0xD800u && temp <= 0xDFFFu) {
-      throw std::runtime_error("Unicode surrogate codepoint is not a valid scalar value");
+      return std::unexpected(ir::Error::UnicodeSurrogateCodePointIsNotAValidScalarValue);
     }
 
     return static_cast<char32_t>(temp);

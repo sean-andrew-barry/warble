@@ -557,123 +557,102 @@ namespace compiler::input {
       if (cursor.Match('u')) {
         // Unicode code point escape \u{XXXXX...}
         if (cursor.Match('{')) {
-          Emit(ir::Token::EscapeUnicodeCodepointStart);
-          auto start = cursor.cbegin();
+          Emit(ir::Token::EscapeUnicodeCodePointStart); // Represents the `\u{` part
+          auto begin = cursor.cbegin();
 
-          while (!cursor.Done() && IsHex()) {
+          while (true) {
+            if (cursor.Done()) return Error(ir::Error::EscapeSequenceUnexpectedEndOfInput);
+            if (!IsHex()) break;
+
             cursor.Advance(); // Consume characters within {}
           }
 
           auto end = cursor.cbegin();
+          uint32_t width = static_cast<uint32_t>(std::distance(begin, end));
+
+          if (width == 0) return Error(ir::Error::EscapeSequenceExpectedAtLeastOneHexDigit);
+          else if (width > 6) return Error(ir::Error::EscapeSequenceExpectedSixOrFewerHexDigits);
+          else EmitRepeated(ir::Token::Characters, width); // Record the UTF-8 width of the codepoint
+
+          // If we aren't backtracked then capture the code point
+          if (furthest > cursor.cbegin()) {
+            auto result = text::Unicode::HexStringToCodePoint(std::string_view{begin, end});
+            if (!result) {
+              Error(result.error());
+            } else {
+              mod.AddCharacter(result.value());
+            }
+          }
 
           if (cursor.Match('}')) {
-            return Emit(ir::Token::EscapeUnicodeCodepointEnd);
+            return Emit(ir::Token::EscapeUnicodeCodePointEnd);
           } else {
-            return Error("Escape sequence expected a closing '}' brace");
+            return Error(ir::Error::EscapeSequenceExpectedClosingBrace);
           }
         } else { // Unicode escape \uXXXX
+          auto begin = cursor.cbegin();
           for (int i = 0; i < 4; ++i) {
-            if (cursor.Done() || !IsHex()) {
-              return Error("Escape sequence expected 4 hexadecimal digits");
-            }
+            if (cursor.Done()) return Error(ir::Error::EscapeSequenceUnexpectedEndOfInput);
+            if (!IsHex()) return Error(ir::Error::EscapeSequenceExpectedFourHexDigits);
 
             cursor.Advance(); // Consume hexadecimal digit
-            ++width;
           }
 
-          Save(lexical::Tokens::ESCAPE_UNICODE_SHORT, width);
+          // If we aren't backtracked then capture the code point
+          if (furthest > cursor.cbegin()) {
+            auto result = text::Unicode::HexStringToCodePoint(std::string_view{begin, cursor.cbegin()});
+            if (!result) {
+              Error(result.error());
+            } else {
+              mod.AddCharacter(result.value());
+            }
+          }
+
+          return Emit(ir::Token::EscapeUnicodeShort);
         }
       } else if (cursor.Peek() == 'x') { // Hexadecimal escape \xXX
         cursor.Advance();
-        ++width;
+        auto begin = cursor.cbegin();
 
         for (int i = 0; i < 2; ++i) {
-          if (cursor.Done() || !IsHex()) {
-            return Error("Escape sequence expected 2 hexadecimal digits");
-          }
+          if (cursor.Done()) return Error(ir::Error::EscapeSequenceUnexpectedEndOfInput);
+          if (!IsHex()) return Error(ir::Error::EscapeSequenceExpectedTwoHexDigits);
 
           cursor.Advance(); // Consume hexadecimal digit
-          ++width;
         }
 
-        Save(lexical::Tokens::ESCAPE_HEX_CODE, width);
-      } else if (!cursor.Done()) { // Single character escape
+        // If we aren't backtracked then capture the code point
+        if (furthest > cursor.cbegin()) {
+          auto result = text::Unicode::HexStringToCodePoint(std::string_view{begin, cursor.cbegin()});
+          if (!result) {
+            Error(result.error());
+          } else {
+            mod.AddCharacter(result.value());
+          }
+        }
+
+        return Emit(ir::Token::EscapeHexCode);
+      } else { // Single character escape
         auto c = cursor.Peek();
+
+        if (furthest > cursor.cbegin()) {
+          // TODO: What if this isn't ASCII?
+          mod.AddCharacter(static_cast<char32_t>(c)); // Just add the character as-is
+        }
+
         cursor.Advance(); // Consume the character following '\'
-        ++width;
 
         switch (c) {
-          case '\n': Emit(ir::Token::EscapeNewline); break;
-          case '\t': Emit(ir::Token::EscapeTab); break;
-          case '\b': Emit(ir::Token::EscapeBackspace); break;
-          case '\r': Emit(ir::Token::EscapeReturn); break;
-          case '\f': Emit(ir::Token::EscapeFormFeed); break;
-          default: Emit(ir::Token::EscapeCharacter); break;
+          case 'n': return Emit(ir::Token::EscapeNewline);
+          case 't': return Emit(ir::Token::EscapeTab);
+          case 'b': return Emit(ir::Token::EscapeBackspace);
+          case 'r': return Emit(ir::Token::EscapeReturn);
+          case 'f': return Emit(ir::Token::EscapeFormFeed);
+          default: return Emit(ir::Token::EscapeCharacter);
         }
-      } else {
-        return Error("Unexpected end of content in escape sequence");
       }
 
       return true;
-    }
-
-    // Escape sequences inside strings/char/template text. Ported/adapted from lexical::Lexer
-    bool Escape() {
-      if (cursor.Peek() != '\\') return false;
-
-      cursor.Advance(); // consume '\\'
-      size_t width = 1;
-
-      if (cursor.Peek() == 'u') {
-        cursor.Advance(); ++width;
-
-        if (cursor.Peek() == '{') {
-          // variable length codepoint
-          cursor.Advance(); ++width;
-          while (!cursor.Done() && cursor.Peek() != '}') { cursor.Advance(); ++width; }
-          if (cursor.Peek() == '}') { cursor.Advance(); ++width; }
-          else return Error("Escape sequence expected a closing '}' brace");
-
-          // mark as unicode codepoint escape
-          Emit(ir::Token::EscapeUnicodeCodepointStart);
-          return true;
-        } else {
-          // \uXXXX
-          for (int i = 0; i < 4; ++i) {
-            if (cursor.Done() || !IsHex()) return Error("Escape sequence expected 4 hexadecimal digits");
-            cursor.Advance(); ++width;
-          }
-
-          Emit(ir::Token::EscapeUnicodeShort);
-          return true;
-        }
-      } else if (cursor.Peek() == 'x') {
-        // \xXX
-        cursor.Advance(); ++width;
-        for (int i = 0; i < 2; ++i) {
-          if (cursor.Done() || !IsHex()) return Error("Escape sequence expected 2 hexadecimal digits");
-          cursor.Advance(); ++width;
-        }
-
-        Emit(ir::Token::EscapeHexCode);
-        return true;
-      } else if (!cursor.Done()) {
-        auto c = cursor.Peek();
-        cursor.Advance(); ++width;
-
-        switch (c) {
-          case '\n': Emit(ir::Token::EscapeNewline); break;
-          case '\t': Emit(ir::Token::EscapeTab); break;
-          case '\b': Emit(ir::Token::EscapeBackspace); break;
-          case '\r': Emit(ir::Token::EscapeReturn); break;
-          case '\f': Emit(ir::Token::EscapeFormFeed); break;
-          default: Emit(ir::Token::EscapeCharacter); break;
-        }
-
-        return true;
-      }
-
-      return Error("Unexpected end of content in escape sequence");
     }
 
     // Consume and emit TEXT-like tokens between quotes. Simpler port: emit Characters token ranges.
