@@ -1,5 +1,7 @@
 export module node;
 
+// NOTE: This is all deprecated and will be removed once all relevant code has been extracted
+
 import lexical.source.span;
 import <vector>;
 import <string_view>;

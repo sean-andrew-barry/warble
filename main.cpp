@@ -176,7 +176,7 @@ int main(int argc, char* argv[]) {
   // return 0;
 
   try {
-    Engine engine{std::move(commands)};
+    Engine engine{};
 
     // Set up the standard library package, which serves as the root for all packages
     node::Package std{engine, nullptr, "library", "std", {}};

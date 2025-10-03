@@ -8,8 +8,7 @@ import utility.print;
 
 Engine* Engine::instance{nullptr};
 
-Engine::Engine(std::vector<std::string>&& commands)
-  : commands{std::move(commands)}
+Engine::Engine()
 {
   instance = this;
   // library = Register(nullptr, "library", "library", {}, true);
@@ -43,6 +42,6 @@ Engine::Engine(std::vector<std::string>&& commands)
 
 // node::Compiler* Engine::Library() { return library; }
 
-bool Engine::Queue(Node* node) {
-  return thread_pool.Push(node);
-}
+// bool Engine::Queue(Node* node) {
+//   return thread_pool.Push(node);
+// }
