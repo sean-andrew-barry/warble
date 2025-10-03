@@ -197,6 +197,16 @@ namespace compiler::input {
 
     bool Lexer::Emit(ir::Token token) { mod.AddToken(token); return true; }
 
+    bool Lexer::EmitRepeated(ir::Token token, uint32_t count) {
+      if (count == 0) return false;
+      while (count > 255) {
+        mod.AddToken(token, static_cast<uint8_t>(255));
+        count -= 255;
+      }
+      mod.AddToken(token, static_cast<uint8_t>(count));
+      return true;
+    }
+
     bool Lexer::EmitAndAdvance(ir::Token token, size_t count = 1) {
       cursor.Advance(count);
       return Emit(token);
@@ -209,75 +219,6 @@ namespace compiler::input {
       cursor.Advance(text.size());
 
       return true;
-    }
-
-    bool Lexer::Spaces(uint32_t count) {
-      switch (count) {
-        case 0:  return false;
-        case 1:  return Emit(ir::Token::Space1);
-        case 2:  return Emit(ir::Token::Space2);
-        case 3:  return Emit(ir::Token::Space2) && Emit(ir::Token::Space1);
-        case 4:  return Emit(ir::Token::Space4);
-        case 5:  return Emit(ir::Token::Space4) && Emit(ir::Token::Space1);
-        case 6:  return Emit(ir::Token::Space6);
-        case 7:  return Emit(ir::Token::Space7);
-        case 8:  return Emit(ir::Token::Space8);
-        case 9:  return Emit(ir::Token::Space8) && Emit(ir::Token::Space1);
-        case 10: return Emit(ir::Token::Space8) && Emit(ir::Token::Space2);
-        case 11: return Emit(ir::Token::Space7) && Emit(ir::Token::Space4);
-        case 12: return Emit(ir::Token::Space8) && Emit(ir::Token::Space4);
-        case 13: return Emit(ir::Token::Space7) && Emit(ir::Token::Space6);
-        case 14: return Emit(ir::Token::Space8) && Emit(ir::Token::Space6);
-        case 15: return Emit(ir::Token::Space8) && Emit(ir::Token::Space7);
-        case 16: return Emit(ir::Token::Space16);
-        default: return Emit(ir::Token::Space16) && Spaces(count - 16);
-      }
-    }
-
-    bool Lexer::Tabs(uint32_t count) {
-      switch (count) {
-        case 0:  return false;
-        case 1:  return Emit(ir::Token::Tab1);
-        case 2:  return Emit(ir::Token::Tab2);
-        case 3:  return Emit(ir::Token::Tab2) && Emit(ir::Token::Tab1);
-        case 4:  return Emit(ir::Token::Tab4);
-        case 5:  return Emit(ir::Token::Tab4) && Emit(ir::Token::Tab1);
-        case 6:  return Emit(ir::Token::Tab6);
-        case 7:  return Emit(ir::Token::Tab7);
-        case 8:  return Emit(ir::Token::Tab8);
-        case 9:  return Emit(ir::Token::Tab8) && Emit(ir::Token::Tab1);
-        case 10: return Emit(ir::Token::Tab8) && Emit(ir::Token::Tab2);
-        case 11: return Emit(ir::Token::Tab7) && Emit(ir::Token::Tab4);
-        case 12: return Emit(ir::Token::Tab8) && Emit(ir::Token::Tab4);
-        case 13: return Emit(ir::Token::Tab7) && Emit(ir::Token::Tab6);
-        case 14: return Emit(ir::Token::Tab8) && Emit(ir::Token::Tab6);
-        case 15: return Emit(ir::Token::Tab8) && Emit(ir::Token::Tab7);
-        case 16: return Emit(ir::Token::Tab16);
-        default: return Emit(ir::Token::Tab16) && Tabs(count - 16);
-      }
-    }
-
-    bool Lexer::Digits(uint32_t count) {
-      switch (count) {
-        case 0:  return false;
-        case 1:  return Emit(ir::Token::Digit1);
-        case 2:  return Emit(ir::Token::Digit1) && Emit(ir::Token::Digit1);
-        case 3:  return Emit(ir::Token::Digit3);
-        case 4:  return Emit(ir::Token::Digit3) && Emit(ir::Token::Digit1);
-        case 5:  return Emit(ir::Token::Digit5);
-        case 6:  return Emit(ir::Token::Digit5) && Emit(ir::Token::Digit1);
-        case 7:  return Emit(ir::Token::Digit7);
-        case 8:  return Emit(ir::Token::Digit8);
-        case 9:  return Emit(ir::Token::Digit8) && Emit(ir::Token::Digit1);
-        case 10: return Emit(ir::Token::Digit7) && Emit(ir::Token::Digit3);
-        case 11: return Emit(ir::Token::Digit8) && Emit(ir::Token::Digit3);
-        case 12: return Emit(ir::Token::Digit7) && Emit(ir::Token::Digit5);
-        case 13: return Emit(ir::Token::Digit8) && Emit(ir::Token::Digit5);
-        case 14: return Emit(ir::Token::Digit7) && Emit(ir::Token::Digit7);
-        case 15: return Emit(ir::Token::Digit8) && Emit(ir::Token::Digit7);
-        case 16: return Emit(ir::Token::Digit8) && Emit(ir::Token::Digit8);
-        default: return Emit(ir::Token::Digit8) && Emit(ir::Token::Digit8) && Digits(count - 16);
-      }
     }
 
     bool Try(const auto& fn) {
@@ -352,27 +293,19 @@ namespace compiler::input {
 
     bool WhiteSpace() {
       switch (cursor.Peek()) {
-        case ' ': return Spaces(cursor.Consume(' '));
-        case '\t': return Tabs(cursor.Consume('\t'));
-        case '\n': return NewlinesLF(cursor.Consume('\n'));
         case '\v': return EmitAndAdvance(ir::Token::VerticalTab, 1);
         case '\f': return EmitAndAdvance(ir::Token::FormFeed, 1);
+        case ' ' : return EmitRepeated(ir::Token::Spaces, cursor.Consume(' '));
+        case '\t': return EmitRepeated(ir::Token::Tabs, cursor.Consume('\t'));
+        case '\n': return EmitRepeated(ir::Token::NewlinesLF, cursor.Consume('\n'));
         case '\r': {
           auto count = Count("\r\n");
           if (count > 0) {
             cursor.Advance(count * 2);
-            return NewlinesCRLF(count);
+            return EmitRepeated(ir::Token::NewlinesCRLF, count);
           }
 
-          return NewlinesCR(cursor.Consume('\r'));
-
-          // if (cursor.Peek(1) == '\n') {
-          //   cursor.Advance(2);
-          //   return Line(ir::Token::NewlineCRLF);
-          // } else {
-          //   cursor.Advance(1);
-          //   return Line(ir::Token::NewlineCR);
-          // }
+          return EmitRepeated(ir::Token::NewlinesCR, cursor.Consume('\r'));
         }
         case '/': {
           switch (cursor.Peek(1)) {
