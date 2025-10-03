@@ -9,6 +9,7 @@ import <stdexcept>;
 import compiler.program.Module;
 import compiler.ir.Symbols;
 import compiler.ir.Symbol;
+import compiler.ir.Error;
 import compiler.ir.symbol.Type;
 import compiler.text.cursor.String;
 import compiler.text.Convert;
@@ -207,6 +208,21 @@ namespace compiler::input {
       return true;
     }
 
+    bool Lexer::EmitRepeated(ir::Token token, std::string::const_iterator begin) {
+      return EmitRepeated(token, static_cast<uint32_t>(std::distance(begin, cursor.cbegin())));
+    }
+
+    bool Lexer::EmitStringSymbol(ir::Token token, size_t start) {
+      Emit(token); // Marks that a symbol is found here
+
+      // Do not create the symbol when backtracked, it was already created
+      if (furthest > cursor.cbegin()) return false;
+
+      ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
+      sym.Value(static_cast<uint32_t>(start), static_cast<uint32_t>(mod.Characters().size() - start));
+      return true;
+    }
+
     bool Lexer::EmitAndAdvance(ir::Token token, size_t count = 1) {
       cursor.Advance(count);
       return Emit(token);
@@ -313,64 +329,71 @@ namespace compiler::input {
               cursor.Advance(2); // Consume the opening `'//'`
               Emit(ir::Token::CommentOpen);
 
-              uint32_t count = 0;
+              auto begin = cursor.cbegin();
+              auto start = mod.Characters().size();
+              
               while (true) {
                 if (cursor.Done() || IsBreak()) {
-                  CaptureComment(count);
-                  return Emit(ir::Token::CommentClose);
+                  EmitStringSymbol(ir::Token::Comment, start); // Create the symbol
+                  EmitRepeated(ir::Token::Characters, begin); // Record the UTF-8 width of the comment
+
+                  return Emit(ir::Token::CommentClose); // Special zero width end marker
                 }
 
-                cursor.Advance(1);
-                ++count;
+                // Don't capture characters when backtracked
+                if (furthest > cursor.cbegin()) {
+                  cursor.Advance(1);
+                } else {
+                  mod.AddCharacter(cursor.CodePoint());
+                }
               }
             }
             case '*': {
               cursor.Advance(2); // Consume the opening `'\*'`
               Emit(ir::Token::MultiLineCommentOpen);
 
+              auto begin = cursor.cbegin();
               auto start = mod.Characters().size();
 
               while (!cursor.Done()) {
                 if (cursor.Peek() == '*' && cursor.Peek(1) == '/') 
                   cursor.Advance(2); // Consume the closing `'*/'`
 
-                  Emit(ir::Token::Characters); // Marks that a symbol was created here
-
-                  ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
-                  sym.Value(static_cast<uint32_t>(start), static_cast<uint32_t>(mod.Characters().size() - start));
+                  EmitStringSymbol(ir::Token::MultiLineComment, start);
+                  EmitRepeated(ir::Token::Characters, begin); // Record the UTF-8 width of the comment
 
                   return Emit(ir::Token::MultiLineCommentClose);
                 }
 
-                if (cursor.cbegin() > furthest) {
+                // Don't capture characters when backtracked
+                if (furthest > cursor.cbegin()) {
                   cursor.Advance(1);
-                  continue; // No need to handle the rest if we've already recorded this
-                }
+                } else {
+                  auto cp = cursor.CodePoint();
+                  mod.AddCharacter(cp);
 
-                auto cp = cursor.CodePoint();
-                mod.AddCharacter(cp);
-
-                switch (cp) {
-                  case U'\u2028':
-                  case U'\u2029':
-                  case U'\n': {
-                    mod.AddLine(cursor.cbegin());
-                    break;
-                  }
-                  case U'\r': {
-                    if (cursor.Peek() == '\n') {
-                      cursor.Advance(1); // Consume the LF as part of the CRLF
-                      mod.AddCharacter(U'\n'); // No need to call `CodePoint`, we already know what it is
+                  switch (cp) {
+                    case U'\u2028':
+                    case U'\u2029':
+                    case U'\n': {
                       mod.AddLine(cursor.cbegin());
-                    } else {
-                      mod.AddLine(cursor.cbegin()); // A lone CR is still a newline
+                      break;
                     }
-                    break;
+                    case U'\r': {
+                      if (cursor.Peek() == '\n') {
+                        cursor.Advance(1); // Consume the LF as part of the CRLF
+                        mod.AddCharacter(U'\n'); // No need to call `CodePoint`, we already know what it is
+                        mod.AddLine(cursor.cbegin());
+                      } else {
+                        mod.AddLine(cursor.cbegin()); // A lone CR is still a newline
+                      }
+                      break;
+                    }
                   }
                 }
               }
 
-              return Error("Expected to find a closing `*/` to end the multi-line comment.");
+              return Error(ir::Error::MultiLineCommentExpectedClosingAsteriskSlash);
             }
             default: return false; // Wasn't a comment
           }
@@ -382,11 +405,13 @@ namespace compiler::input {
 
             // Check for a line or paragraph separator
             if (code_point == 0x2028) {
-              return Line(ir::Token::NewlineLS);
+              mod.AddLine(cursor.cbegin());
+              return Emit(ir::Token::NewlineLS);
             } else if (code_point == 0x2029) {
-              return Line(ir::Token::NewlinePS);
+              mod.AddLine(cursor.cbegin());
+              return Emit(ir::Token::NewlinePS);
             } else if (Unicode::IsWhiteSpace(code_point)) {
-              return Emit(ir::Token::Space1);
+              return Emit(ir::Token::Spaces, 1);
             } else {
               cursor.Retreat(iter); // Undo the consumption of the code point
               return false; // Wasn't whitespace
