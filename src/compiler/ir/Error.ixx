@@ -16,5 +16,6 @@ namespace compiler::ir {
     TemplateStringLiteralExpectedClosingBacktick,
     UnaryPrefixOperatorExpectedValue,
     BinaryOperatorExpectedLHS,
+    MultiLineCommentExpectedClosingAsteriskSlash, // Expected to find a closing `*/` to end the multi-line comment.
   };
 };
