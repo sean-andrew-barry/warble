@@ -5,6 +5,7 @@ import <bitset>;
 import <vector>;
 import <string>;
 import <stdexcept>;
+import <expected>;
 
 import compiler.program.Module;
 import compiler.ir.Symbols;
@@ -550,134 +551,190 @@ namespace compiler::input {
     inline bool UnaryPrefixOperator() { return cursor.IsUnaryPrefixStart() && UnaryPrefixOperatorHelper(); }
     inline bool UnaryPostfixOperator() { return cursor.IsUnaryPostfixStart() && UnaryPostfixOperatorHelper(); }
 
-    bool Escape() {
-      if (!cursor.Match('\\')) return false;
+    // Generic escape sequence parser.
+    //  - Consumes an escape sequence beginning with '\\'
+    //  - Emits escape-related tokens (e.g., EscapeUnicodeShort, EscapeHexCode, etc.)
+    //  - Emits an ir::Token::Characters with the UTF-8 width of the resulting single code point
+    //  - Returns the decoded UTF-32 code point as std::expected<char32_t, ir::Error>
+    // Responsibilities of callers:
+    //  - If building a string-like buffer, append the returned code point to mod.Characters() only when not backtracked
+    //  - Do not emit an additional Characters token for this code point (Escape already recorded its width)
+    // Error policy:
+    //  - No errors are reported here beyond returning the specific ir::Error; callers may additionally report context-specific errors
+    std::expected<char32_t, ir::Error> Escape() {
+      if (!cursor.Match('\\')) return std::unexpected(ir::Error::EscapeSequenceUnexpectedEndOfInput);
 
       // Unicode escape or code point
       if (cursor.Match('u')) {
         // Unicode code point escape \u{XXXXX...}
         if (cursor.Match('{')) {
           Emit(ir::Token::EscapeUnicodeCodePointStart); // Represents the `\u{` part
-          auto begin = cursor.cbegin();
+          auto begin_hex = cursor.cbegin();
 
           while (true) {
-            if (cursor.Done()) return Error(ir::Error::EscapeSequenceUnexpectedEndOfInput);
+            if (cursor.Done()) {
+              return std::unexpected(ir::Error::EscapeSequenceUnexpectedEndOfInput);
+            }
             if (!IsHex()) break;
-
-            cursor.Advance(); // Consume characters within {}
+            cursor.Advance();
           }
 
-          auto end = cursor.cbegin();
-          uint32_t width = static_cast<uint32_t>(std::distance(begin, end));
+          auto end_hex = cursor.cbegin();
+          uint32_t width = static_cast<uint32_t>(std::distance(begin_hex, end_hex));
+          if (width == 0) {
+            return std::unexpected(ir::Error::EscapeSequenceExpectedAtLeastOneHexDigit);
+          } else if (width > 6) {
+            return std::unexpected(ir::Error::EscapeSequenceExpectedSixOrFewerHexDigits);
+          } else {
+            EmitRepeated(ir::Token::Characters, width); // Record the UTF-8 width of the codepoint digits
+          }
 
-          if (width == 0) return Error(ir::Error::EscapeSequenceExpectedAtLeastOneHexDigit);
-          else if (width > 6) return Error(ir::Error::EscapeSequenceExpectedSixOrFewerHexDigits);
-          else EmitRepeated(ir::Token::Characters, width); // Record the UTF-8 width of the codepoint
-
-          // If we aren't backtracked then capture the code point
-          if (furthest > cursor.cbegin()) {
-            auto result = text::Unicode::HexStringToCodePoint(std::string_view{begin, end});
-            if (!result) {
-              Error(result.error());
-            } else {
-              mod.AddCharacter(result.value());
-            }
+          auto converted = text::Unicode::HexStringToCodePoint(std::string_view{begin_hex, end_hex});
+          if (!converted) {
+            return std::unexpected(converted.error());
           }
 
           if (cursor.Match('}')) {
-            return Emit(ir::Token::EscapeUnicodeCodePointEnd);
+            Emit(ir::Token::EscapeUnicodeCodePointEnd);
+            return converted.value();
           } else {
-            return Error(ir::Error::EscapeSequenceExpectedClosingBrace);
+            return std::unexpected(ir::Error::EscapeSequenceExpectedClosingBrace);
           }
         } else { // Unicode escape \uXXXX
-          auto begin = cursor.cbegin();
+          auto begin_hex = cursor.cbegin();
           for (int i = 0; i < 4; ++i) {
-            if (cursor.Done()) return Error(ir::Error::EscapeSequenceUnexpectedEndOfInput);
-            if (!IsHex()) return Error(ir::Error::EscapeSequenceExpectedFourHexDigits);
-
-            cursor.Advance(); // Consume hexadecimal digit
+            if (cursor.Done()) return std::unexpected(ir::Error::EscapeSequenceUnexpectedEndOfInput);
+            if (!IsHex()) return std::unexpected(ir::Error::EscapeSequenceExpectedFourHexDigits);
+            cursor.Advance();
           }
 
-          // If we aren't backtracked then capture the code point
-          if (furthest > cursor.cbegin()) {
-            auto result = text::Unicode::HexStringToCodePoint(std::string_view{begin, cursor.cbegin()});
-            if (!result) {
-              Error(result.error());
-            } else {
-              mod.AddCharacter(result.value());
-            }
-          }
+          auto converted = text::Unicode::HexStringToCodePoint(std::string_view{begin_hex, cursor.cbegin()});
+          if (!converted) return std::unexpected(converted.error());
 
-          return Emit(ir::Token::EscapeUnicodeShort);
+          Emit(ir::Token::EscapeUnicodeShort);
+          return converted.value();
         }
       } else if (cursor.Peek() == 'x') { // Hexadecimal escape \xXX
         cursor.Advance();
-        auto begin = cursor.cbegin();
-
+        auto begin_hex = cursor.cbegin();
         for (int i = 0; i < 2; ++i) {
-          if (cursor.Done()) return Error(ir::Error::EscapeSequenceUnexpectedEndOfInput);
-          if (!IsHex()) return Error(ir::Error::EscapeSequenceExpectedTwoHexDigits);
-
-          cursor.Advance(); // Consume hexadecimal digit
-        }
-
-        // If we aren't backtracked then capture the code point
-        if (furthest > cursor.cbegin()) {
-          auto result = text::Unicode::HexStringToCodePoint(std::string_view{begin, cursor.cbegin()});
-          if (!result) {
-            Error(result.error());
-          } else {
-            mod.AddCharacter(result.value());
+          if (cursor.Done()) {
+            return std::unexpected(ir::Error::EscapeSequenceUnexpectedEndOfInput);
           }
+          if (!IsHex()) {
+            return std::unexpected(ir::Error::EscapeSequenceExpectedTwoHexDigits);
+          }
+          cursor.Advance();
         }
 
-        return Emit(ir::Token::EscapeHexCode);
+        auto converted = text::Unicode::HexStringToCodePoint(std::string_view{begin_hex, cursor.cbegin()});
+        if (!converted) {
+          return std::unexpected(converted.error());
+        }
+
+        Emit(ir::Token::EscapeHexCode);
+        return converted.value();
       } else { // Single character escape
         auto c = cursor.Peek();
-
-        if (furthest > cursor.cbegin()) {
-          // TODO: What if this isn't ASCII?
-          mod.AddCharacter(static_cast<char32_t>(c)); // Just add the character as-is
-        }
-
-        cursor.Advance(); // Consume the character following '\'
+        cursor.Advance();
 
         switch (c) {
-          case 'n': return Emit(ir::Token::EscapeNewline);
-          case 't': return Emit(ir::Token::EscapeTab);
-          case 'b': return Emit(ir::Token::EscapeBackspace);
-          case 'r': return Emit(ir::Token::EscapeReturn);
-          case 'f': return Emit(ir::Token::EscapeFormFeed);
-          default: return Emit(ir::Token::EscapeCharacter);
+          case 'n': Emit(ir::Token::EscapeNewline); return U'\n';
+          case 't': Emit(ir::Token::EscapeTab); return U'\t';
+          case 'b': Emit(ir::Token::EscapeBackspace); return U'\b';
+          case 'r': Emit(ir::Token::EscapeReturn); return U'\r';
+          case 'f': Emit(ir::Token::EscapeFormFeed); return U'\f';
+          default:  Emit(ir::Token::EscapeCharacter); return static_cast<unsigned char>(c); // TODO: What if it isn't ASCII?
         }
       }
-
-      return true;
     }
 
-    // Consume and emit TEXT-like tokens between quotes. Simpler port: emit Characters token ranges.
-    bool Text(const char end = '\0') {
-      size_t width = 0;
+    bool Char() {
+      if (!CharOpen()) return false;
 
-      while (!cursor.Done()) {
-        if (end != '\0' && cursor.Peek() == end) {
-          // Emit accumulated characters as Characters token if any
-          if (width > 0) Emit(ir::Token::Characters);
-          return true;
+      bool backtracked = furthest > cursor.cbegin();
+      char32_t cp = 0;
+
+      if (cursor.Peek() == '\\') {
+        auto esc = Escape();
+        if (!esc) {
+          Error(esc.error());
+          // For character literals we standardize on this specific error, regardless of underlying escape issue
+          return Error(ir::Error::CharacterLiteralExpectedEscapeAfterBackslash);
         }
 
+        cp = esc.value();
+        Emit(ir::Token::Character); // Always emit token (tokens are rolled back, symbols are not)
+
+        if (!backtracked) {
+          ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::Character);
+          sym.Value(static_cast<uint64_t>(cp));
+        }
+      } else if (cursor.Peek() == '\'') {
+        return Error(ir::Error::CharacterLiteralExpectedContent);
+      } else {
+        auto begin = cursor.cbegin();
+
+        cp = cursor.CodePoint(); // Consume raw code point from source
+        Emit(ir::Token::Character); // Mark symbol location
+        if (!backtracked) {
+          ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::Character);
+          sym.Value(static_cast<uint64_t>(cp));
+        }
+
+        EmitRepeated(ir::Token::Characters, begin); // Record the UTF-8 width of the character
+      }
+
+      if (!CharClose()) return Error(ir::Error::CharacterLiteralExpectedClosingSingleQuote);
+      return OWS();
+    }
+
+    bool String() {
+      if (!StringOpen()) return false;
+
+      auto begin = cursor.cbegin();
+      auto start = mod.Characters().size();
+
+      while (true) {
+        if (cursor.Done()) return Error(ir::Error::StringLiteralExpectedClosingDoubleQuote);
+        if (IsBreak()) return Error(ir::Error::StringLiteralUnexpectedLineBreak);
+        if (cursor.Peek() == '"') break; // End of string
+
         if (cursor.Peek() == '\\') {
-          // flush accumulated
-          if (width > 0) Emit(ir::Token::Characters);
-          if (!Escape()) return Error("Text sequence expected an escape sequence after the backslash '\\' character");
-          width = 0; // reset after escape
+          // Record width for the plain chunk preceding the escape
+          EmitRepeated(ir::Token::Characters, begin);
+
+          auto esc = Escape();
+          if (!esc) return Error(esc.error());
+
+          // Append resulting code point unless backtracked
+          if (!(furthest > cursor.cbegin())) {
+            mod.AddCharacter(esc.value());
+          }
+
+          begin = cursor.cbegin(); // start a new chunk after the escape
           continue;
         }
 
-        cursor.Advance(); ++width;
+        // Don't capture characters when backtracked
+        if (furthest > cursor.cbegin()) {
+          cursor.Advance(1);
+        } else {
+          mod.AddCharacter(cursor.CodePoint());
+        }
       }
 
-      return Error("Unexpected end of content in text sequence");
+      EmitRepeated(ir::Token::Characters, begin); // Record the UTF-8 width of the string
+
+      Emit(ir::Token::Character); // Mark that a symbol is found here
+
+      if (mod.Characters().size() > start) {
+        ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
+        sym.Value(static_cast<uint32_t>(start), static_cast<uint32_t>(mod.Characters().size() - start));
+      }
+
+      if (!StringClose()) return Error(ir::Error::StringLiteralExpectedClosingDoubleQuote);
+      return OWS();
     }
 
     // Numeric literal helpers (Hex/Octal/Binary and general Number) adapted from lexical lexer
@@ -781,26 +838,13 @@ namespace compiler::input {
 
     inline bool Number() { return cursor.IsNumberStart() && NumberHelper(); }
 
-    bool Char() {
-      if (!CharOpen()) return false;
-      if (!Text('\'')) return Error("Unexpected end of input within character literal.");
-      if (!CharClose()) return Error("Unexpected end of input within character literal.");
-      return OWS();
-    }
-
-    bool String() {
-      if (!StringOpen()) return false;
-      if (!Text('"')) return Error("Unexpected end of input within string literal.");
-      if (!StringClose()) return Error("Unexpected end of input within string literal.");
-      return OWS();
-    }
-
     // Identifier parsing: supports escapes in identifiers and unicode code points.
     bool IdentifierHelper() {
       auto start = cursor.cbegin();
       // First character must be identifier start (including '\\' for escapes)
       if (cursor.Peek() == '\\') {
-        if (!Escape()) return false;
+        auto esc = Escape();
+        if (!esc) return false; // propagate failure; a later pass may produce a diagnostic
       } else if (!IsIdentStart()) {
         return false;
       } else {
@@ -810,7 +854,8 @@ namespace compiler::input {
       // Subsequent characters may be identifier continue characters
       while (!cursor.Done()) {
         if (cursor.Peek() == '\\') {
-          if (!Escape()) break; // allow escape inside identifier
+          auto esc = Escape();
+          if (!esc) break; // allow escape inside identifier; stop if malformed
         } else if (IsIdent()) {
           cursor.Advance();
         } else {
