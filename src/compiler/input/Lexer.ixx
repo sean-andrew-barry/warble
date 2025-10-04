@@ -719,7 +719,7 @@ namespace compiler::input {
           if (!esc) return Error(esc.error());
 
           // Append resulting code point unless backtracked
-          if (!(furthest > cursor.cbegin())) {
+          if (furthest <= cursor.cbegin()) {
             mod.AddCharacter(esc.value());
           }
 
