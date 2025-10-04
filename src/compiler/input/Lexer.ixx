@@ -224,6 +224,17 @@ namespace compiler::input {
       return true;
     }
 
+    bool Lexer::Error(ir::Error error) {
+      Emit(ir::Token::Error); // Marks that an error symbol is found here
+
+      // TODO: Do we create error symbols when backtracked? I'm not sure.
+      // For now, we do create them even when backtracked.
+
+      ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::Error);
+      sym.Value(static_cast<uint64_t>(error)); // Store the error code
+      return true;
+    }
+
     bool Lexer::EmitAndAdvance(ir::Token token, size_t count = 1) {
       cursor.Advance(count);
       return Emit(token);
