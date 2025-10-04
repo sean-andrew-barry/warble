@@ -21,11 +21,11 @@ namespace compiler::ir {
     Tabs, // One or more tab characters
     Digits, // One or more digit characters (including hex, octal, and binary)
     Characters, // Marks a variable number of arbitrary characters
-    NewlinesLF, // `\n` - Line feed character
-    NewlinesCRLF, // `\r\n` - Combination carriage return and line feed
-    NewlinesCR, // `\r` - Carriage return character
-    NewlinesLS, // `'\u2028'` - Unicode line separator
-    NewlinesPS, // `\u2029` - Unicode paragraph separator
+    LineFeeds, // `\n` - One or more line feed characters
+    CarriageReturnLineFeeds, // `\r\n` - One or more combination carriage return and line feed
+    CarriageReturns, // `\r` - One or more carriage return characters
+    LineSeparators, // `'\u2028'` - One or more Unicode line separator characters
+    ParagraphSeparators, // `'\u2029'` - One or more Unicode paragraph separator characters
 
     // Fixed width tokens represent a fixed sequence of characters
     VerticalTab, // `\v`
