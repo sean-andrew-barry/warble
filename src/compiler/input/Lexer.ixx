@@ -8,12 +8,9 @@ import <stdexcept>;
 import <expected>;
 
 import compiler.program.Module;
-import compiler.ir.Symbols;
-import compiler.ir.Symbol;
 import compiler.ir.Error;
 import compiler.ir.symbol.Type;
 import compiler.text.cursor.String;
-import compiler.text.Convert;
 
 namespace compiler::input {
   consteval std::bitset<256> MakeBitset(auto fn) {
@@ -252,10 +249,7 @@ namespace compiler::input {
       return true;
     }
   public:
-    Lexer(program::Module& mod, const std::string_view source)
-      : mod{mod}, cursor{source}, furthest{cursor.cbegin()} {
-      mod.AddLine(cursor.cbegin()); // Start with the first line
-    }
+    Lexer(program::Module& mod, const std::string_view source);
 
     virtual ~Lexer() = default;
 

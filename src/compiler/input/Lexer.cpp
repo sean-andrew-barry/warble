@@ -5,7 +5,7 @@ import compiler.ir.Symbol;
 import compiler.ir.Error;
 import compiler.ir.symbol.Type;
 import compiler.text.cursor.String;
-import compiler.text.Convert;
+import compiler.text.Unicode;
 
 namespace compiler::input {
   Lexer::Position Lexer::Start() {
@@ -78,6 +78,11 @@ namespace compiler::input {
     }
 
     return Emit(t);
+  }
+
+  Lexer::Lexer(program::Module& mod, const std::string_view source)
+    : mod{mod}, cursor{source}, furthest{cursor.cbegin()} {
+    mod.AddLine(cursor.cbegin()); // Start with the first line
   }
 
   bool Lexer::WhiteSpace() {
