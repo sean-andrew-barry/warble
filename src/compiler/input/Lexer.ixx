@@ -325,15 +325,40 @@ namespace compiler::input {
         case '\f': return EmitAndAdvance(ir::Token::FormFeed, 1);
         case ' ' : return EmitRepeated(ir::Token::Spaces, cursor.Consume(' '));
         case '\t': return EmitRepeated(ir::Token::Tabs, cursor.Consume('\t'));
-        case '\n': return EmitRepeated(ir::Token::NewlinesLF, cursor.Consume('\n'));
-        case '\r': {
-          auto count = Count("\r\n");
-          if (count > 0) {
-            cursor.Advance(count * 2);
-            return EmitRepeated(ir::Token::NewlinesCRLF, count);
-          }
+        case '\n': {
+          uint32_t count = 0;
+          do {
+            cursor.Advance(1);
+            mod.AddLine(cursor.cbegin());
+            count += 1;
+          } while (!cursor.Done() && cursor.Peek() == '\n');
 
-          return EmitRepeated(ir::Token::NewlinesCR, cursor.Consume('\r'));
+          return EmitRepeated(ir::Token::LineFeeds, count);
+        }
+        case '\r': {
+          if (cursor.Peek(1) == '\n') {
+            uint32_t count = 1;
+            cursor.Advance(2);
+            mod.AddLine(cursor.cbegin());
+
+            // It's a CRLF sequence
+            while (!cursor.Done() && cursor.Match("\r\n")) {
+              mod.AddLine(cursor.cbegin());
+              count += 1;
+            }
+
+            return EmitRepeated(ir::Token::CarriageReturnLineFeeds, count);
+          } else {
+            uint32_t count = 0;
+            // It's a series of lone CR characters
+            do {
+              cursor.Advance(1);
+              mod.AddLine(cursor.cbegin());
+              count += 1;
+            } while (!cursor.Done() && cursor.Match("\r"));
+
+            return EmitRepeated(ir::Token::CarriageReturns, count);
+          }
         }
         case '/': {
           switch (cursor.Peek(1)) {
@@ -417,11 +442,9 @@ namespace compiler::input {
 
             // Check for a line or paragraph separator
             if (code_point == 0x2028) {
-              mod.AddLine(cursor.cbegin());
-              return Emit(ir::Token::NewlineLS);
+              return Line(ir::Token::LineSeparators);
             } else if (code_point == 0x2029) {
-              mod.AddLine(cursor.cbegin());
-              return Emit(ir::Token::NewlinePS);
+              return Line(ir::Token::ParagraphSeparators);
             } else if (Unicode::IsWhiteSpace(code_point)) {
               return Emit(ir::Token::Spaces, 1);
             } else {
