@@ -15,6 +15,7 @@ import compiler.ir.Symbols;
 import compiler.ir.Symbol;
 import compiler.ir.Instruction;
 import compiler.ir.Token;
+import compiler.text.cursor.Token;
 
 namespace compiler::input {
   using Pair = std::pair<std::string_view, ir::Token>;
@@ -43,25 +44,13 @@ namespace compiler::input {
   // Basic trivia & comment related tokens
   inline constexpr auto TRIVIAL_SET = MakeBitset({
     ir::Token::None,
-    ir::Token::Space1,
-    ir::Token::Space2,
-    ir::Token::Space4,
-    ir::Token::Space6,
-    ir::Token::Space7,
-    ir::Token::Space8,
-    ir::Token::Space16,
-    ir::Token::Tab1,
-    ir::Token::Tab2,
-    ir::Token::Tab4,
-    ir::Token::Tab6,
-    ir::Token::Tab7,
-    ir::Token::Tab8,
-    ir::Token::Tab16,
-    ir::Token::NewlineLF,
-    ir::Token::NewlineCRLF,
-    ir::Token::NewlineCR,
-    ir::Token::NewlineLS,
-    ir::Token::NewlinePS,
+    ir::Token::Spaces,
+    ir::Token::Tabs,
+    ir::Token::LineFeeds,
+    ir::Token::CarriageReturnLineFeeds,
+    ir::Token::CarriageReturns,
+    ir::Token::LineSeparators,
+    ir::Token::ParagraphSeparators,
     ir::Token::VerticalTab,
     ir::Token::FormFeed,
     ir::Token::CommentOpen,
@@ -300,9 +289,72 @@ namespace compiler::input {
   export class Parser {
   private:
     program::Module& mod;
+    text::cursor::Token cursor;
+
+    // The indexes track the position within the module's various storage vectors 
+    size_t widths_index = 0; // Increments after seeing a variable width token, such as `Spaces` or `Characters`
+    size_t symbols_index = 0; // Increments after seeing a symbol token, such as `Identifier` or `Decimal`
+    size_t lines_index = 0; // Increments after seeing a line break token, such as `LineFeed` or `CarriageReturnLineFeed`
   public:
     virtual ~Parser() = default;
 
+    void Skip();
+    bool Match(ir::Token token);
+    bool Expect(ir::Token token);
 
+    void Instruct(ir::Opcode opcode, ir::Index res = ir::Index{}, ir::Index lhs = ir::Index{}, ir::Index rhs = ir::Index{});
+
+    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type);
+    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type, uint64_t value);
+    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type, double value);
+    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type, char32_t value);
+    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type, bool value);
+
+    // Literals
+    ir::Index Parser::Undefined(ir::Index parent);
+    ir::Index Parser::Null(ir::Index parent);
+    ir::Index Parser::Boolean(ir::Index parent);
+    ir::Index Parser::Character(ir::Index parent);
+    ir::Index Parser::Integer(ir::Index parent);
+    ir::Index Parser::Decimal(ir::Index parent);
+    ir::Index Parser::String(ir::Index parent);
+    ir::Index Parser::Array(ir::Index parent);
+    ir::Index Parser::Enum(ir::Index parent);
+    ir::Index Parser::Tuple(ir::Index parent);
+    ir::Index Parser::Object(ir::Index parent);
+    ir::Index Parser::TemplateString(ir::Index parent);
+    ir::Index Parser::Function(ir::Index parent);
+
+    ir::Index Parser::Identifier(ir::Index parent);
+    ir::Index Parser::Destructuring(ir::Index parent);
+    ir::Index Parser::Error(ir::Index parent);
+
+    ir::Index Parser::Expression(ir::Index parent);
+    ir::Index Parser::ObjectDeclaration(ir::Index parent);
+    ir::Index Parser::Declaration(ir::Index parent);
+
+    // Statements
+    ir::Index Parser::ImportStatement(ir::Index parent);
+    ir::Index Parser::Permissions(ir::Index parent);
+    ir::Index Parser::RegisterStatement(ir::Index parent);
+    ir::Index Parser::BreakStatement(ir::Index parent);
+    ir::Index Parser::ContinueStatement(ir::Index parent);
+    ir::Index Parser::ReturnStatement(ir::Index parent);
+    ir::Index Parser::DoStatement(ir::Index parent);
+    ir::Index Parser::WhileStatement(ir::Index parent);
+    ir::Index Parser::RepeatStatement(ir::Index parent);
+    ir::Index Parser::ForStatement(ir::Index parent);
+    ir::Index Parser::ElseIfStatement(ir::Index parent);
+    ir::Index Parser::ElseStatement(ir::Index parent);
+    ir::Index Parser::IfStatement(ir::Index parent);
+    ir::Index Parser::IsStatement(ir::Index parent);
+    ir::Index Parser::HasStatement(ir::Index parent);
+    ir::Index Parser::DefaultStatement(ir::Index parent);
+    ir::Index Parser::MatchStatement(ir::Index parent);
+    ir::Index Parser::DeclarationStatement(ir::Index parent);
+    ir::Index Parser::ExpressionStatement(ir::Index parent);
+    ir::Index Parser::Statement(ir::Index parent);
+    ir::Index Parser::Scope(ir::Index parent);
+    ir::Index Parser::Condition(ir::Index parent);
   };
 };
