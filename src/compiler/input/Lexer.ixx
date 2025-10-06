@@ -192,6 +192,44 @@ namespace compiler::input {
     bool EmitAndAdvance(ir::Token token, size_t count = 1);
     bool Keyword(const std::string_view text);
     bool Line(ir::Token t);
+    bool IsBacktracked() const { return furthest > cursor.cbegin(); }
+
+    // ---- Tiny, hot-path helpers (inline) to simplify WhiteSpace without cost ----
+    // Consume a run of '\n' and record line starts; returns the number consumed.
+    inline uint32_t ConsumeLFs() {
+      uint32_t count = 0;
+      while (!cursor.Done() && cursor.Peek() == '\n') {
+        cursor.Advance(1);
+        mod.AddLine(cursor.cbegin());
+        ++count;
+      }
+      return count;
+    }
+
+    // Consume a run of CRLF pairs and record line starts; returns the number of pairs consumed.
+    inline uint32_t ConsumeCRLFs() {
+      uint32_t count = 0;
+      while (!cursor.Done() && cursor.Peek() == '\r' && cursor.Peek(1) == '\n') {
+        cursor.Advance(2);
+        mod.AddLine(cursor.cbegin());
+        ++count;
+      }
+      return count;
+    }
+
+    // Consume a run of lone '\r' (not followed by '\n') and record line starts; returns the number consumed.
+    inline uint32_t ConsumeCRs() {
+      uint32_t count = 0;
+      while (!cursor.Done() && cursor.Peek() == '\r' && cursor.Peek(1) != '\n') {
+        cursor.Advance(1);
+        mod.AddLine(cursor.cbegin());
+        ++count;
+      }
+      return count;
+    }
+
+    // Handle a single non-ASCII whitespace code point. Returns true if whitespace was consumed and tokens emitted.
+    bool HandleNonASCIIWhitespace();
 
     constexpr decltype(auto) Peek() const { return cursor.Peek(); }
     constexpr decltype(auto) Peek(size_t n) const { return cursor.Peek(n); }

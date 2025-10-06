@@ -22,10 +22,12 @@ namespace compiler::input {
 
   bool Lexer::EmitRepeated(ir::Token token, uint32_t count) {
     if (count == 0) return false;
+
     while (count > 255) {
       mod.AddToken(token, static_cast<uint8_t>(255));
       count -= 255;
     }
+    
     mod.AddToken(token, static_cast<uint8_t>(count));
     return true;
   }
@@ -38,7 +40,7 @@ namespace compiler::input {
     Emit(token); // Marks that a symbol is found here
 
     // Do not create the symbol when backtracked, it was already created
-    if (furthest > cursor.cbegin()) return false;
+    if (IsBacktracked()) return false;
 
     ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
     sym.Value(static_cast<uint32_t>(start), static_cast<uint32_t>(mod.Characters().size() - start));
@@ -72,7 +74,7 @@ namespace compiler::input {
 
   bool Lexer::Line(ir::Token t) {
     // Make sure we don't double record lines when backtracked
-    if (cursor.cbegin() > furthest) {
+    if (!IsBacktracked()) {
       mod.AddLine(cursor.cbegin());
       furthest = cursor.cbegin();
     }
@@ -91,40 +93,16 @@ namespace compiler::input {
       case '\f': return EmitAndAdvance(ir::Token::FormFeed, 1);
       case ' ' : return EmitRepeated(ir::Token::Spaces, cursor.Consume(' '));
       case '\t': return EmitRepeated(ir::Token::Tabs, cursor.Consume('\t'));
-      case '\n': {
-        uint32_t count = 0;
-        do {
-          cursor.Advance(1);
-          mod.AddLine(cursor.cbegin());
-          count += 1;
-        } while (!cursor.Done() && cursor.Peek() == '\n');
-
-        return EmitRepeated(ir::Token::LineFeeds, count);
-      }
+      case '\n': return EmitRepeated(ir::Token::LineFeeds, ConsumeLFs());
       case '\r': {
         if (cursor.Peek(1) == '\n') {
-          uint32_t count = 1;
+          // First pair is guaranteed; consume it then continue with remaining pairs
           cursor.Advance(2);
           mod.AddLine(cursor.cbegin());
-
-          // It's a CRLF sequence
-          while (!cursor.Done() && cursor.Match("\r\n")) {
-            mod.AddLine(cursor.cbegin());
-            count += 1;
-          }
-
-          return EmitRepeated(ir::Token::CarriageReturnLineFeeds, count);
-        } else {
-          uint32_t count = 0;
-          // It's a series of lone CR characters
-          do {
-            cursor.Advance(1);
-            mod.AddLine(cursor.cbegin());
-            count += 1;
-          } while (!cursor.Done() && cursor.Match("\r"));
-
-          return EmitRepeated(ir::Token::CarriageReturns, count);
+          return EmitRepeated(ir::Token::CarriageReturnLineFeeds, 1u + ConsumeCRLFs());
         }
+        // Lone CRs
+        return EmitRepeated(ir::Token::CarriageReturns, ConsumeCRs());
       }
       case '/': {
         switch (cursor.Peek(1)) {
@@ -144,7 +122,7 @@ namespace compiler::input {
               }
 
               // Don't capture characters when backtracked
-              if (furthest > cursor.cbegin()) {
+              if (IsBacktracked()) {
                 cursor.Advance(1);
               } else {
                 mod.AddCharacter(cursor.CodePoint());
@@ -169,7 +147,7 @@ namespace compiler::input {
               }
 
               // Don't capture characters when backtracked
-              if (furthest > cursor.cbegin()) {
+              if (IsBacktracked()) {
                 cursor.Advance(1);
               } else {
                 auto cp = cursor.CodePoint();
@@ -202,26 +180,32 @@ namespace compiler::input {
         }
       }
       default: {
-        if (!IsASCII()) {
-          auto iter = cursor.cbegin();
-          auto code_point = cursor.CodePoint(); // This consumes the full code point automatically
-
-          // Check for a line or paragraph separator
-          if (code_point == 0x2028) {
-            return Line(ir::Token::LineSeparators);
-          } else if (code_point == 0x2029) {
-            return Line(ir::Token::ParagraphSeparators);
-          } else if (Unicode::IsWhiteSpace(code_point)) {
-            return Emit(ir::Token::Spaces, 1);
-          } else {
-            cursor.Retreat(iter); // Undo the consumption of the code point
-            return false; // Wasn't whitespace
-          }
-        }
-
-        return false; // Wasn't unicode
+        return HandleNonASCIIWhitespace();
       }
     }
+  }
+
+  bool Lexer::HandleNonASCIIWhitespace() {
+    if (IsASCII()) return false;
+
+    auto iter = cursor.cbegin();
+    auto code_point = cursor.CodePoint(); // Consumes the full code point
+
+    // LS/PS
+    if (code_point == 0x2028) {
+      return Line(ir::Token::LineSeparators);
+    }
+    if (code_point == 0x2029) {
+      return Line(ir::Token::ParagraphSeparators);
+    }
+
+    if (Unicode::IsWhiteSpace(code_point)) {
+      return Emit(ir::Token::Spaces, 1);
+    }
+
+    // Not whitespace; undo
+    cursor.Retreat(iter);
+    return false;
   }
 
   bool Lexer::WS() {
@@ -442,7 +426,7 @@ namespace compiler::input {
   bool Lexer::Char() {
     if (!CharOpen()) return false;
 
-    bool backtracked = furthest > cursor.cbegin();
+    bool backtracked = IsBacktracked();
     char32_t cp = 0;
 
     if (cursor.Peek() == '\\') {
@@ -498,7 +482,7 @@ namespace compiler::input {
         if (!esc) return Error(esc.error());
 
         // Append resulting code point unless backtracked
-        if (furthest <= cursor.cbegin()) {
+        if (!IsBacktracked()) {
           mod.AddCharacter(esc.value());
         }
 
@@ -507,7 +491,7 @@ namespace compiler::input {
       }
 
       // Don't capture characters when backtracked
-      if (furthest > cursor.cbegin()) {
+      if (IsBacktracked()) {
         cursor.Advance(1);
       } else {
         mod.AddCharacter(cursor.CodePoint());
@@ -516,7 +500,7 @@ namespace compiler::input {
 
     EmitRepeated(ir::Token::Characters, begin); // Record the UTF-8 width of the string
 
-    Emit(ir::Token::Character); // Mark that a symbol is found here
+    Emit(ir::Token::String); // Mark that a symbol is found here
 
     if (mod.Characters().size() > start) {
       ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
