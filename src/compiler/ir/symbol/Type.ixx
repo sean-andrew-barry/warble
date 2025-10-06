@@ -18,13 +18,14 @@ namespace compiler::ir::symbol {
     String, // Value is a `std::pair<uint32_t, uint32_t>` of the length and `characters` start index
     Enum, // Value is a `std::pair<uint32_t, uint32_t>` of the length and `enums` start index
     Tuple,
-    Template,
+    TemplateString,
     Object,
     Variant,
     Range,
     Phi,
     Function,
     Module, // Value is a `ir::Module*` during compilation
+    Block,
 
     // CFG blocks
     Do,
@@ -36,5 +37,8 @@ namespace compiler::ir::symbol {
     Repeat,
     While,
     RepeatWhile,
+    Is,
+    Has,
+    Default,
   };
 }
