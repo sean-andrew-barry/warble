@@ -1,8 +1,7 @@
 export module compiler.text.cursor.Token;
 
 import compiler.text.Cursor;
-import compiler.lexical.Token;
-import compiler.lexical.Tokens;
+import compiler.ir.Token;
 import <vector>;
 import <bitset>;
 import <initializer_list>;
@@ -40,11 +39,11 @@ namespace compiler::text::cursor {
       return current;
     }
 
-    constexpr bool Check(const ir::Tokens type) const {
+    constexpr bool Check(const ir::Token type) const {
       return Super::Peek() == type;
     }
 
-    constexpr bool Match(const ir::Tokens type) {
+    constexpr bool Match(const ir::Token type) {
       if (Super::Peek() == type) {
         Advance();
         return true;
