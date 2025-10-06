@@ -36,10 +36,14 @@ namespace compiler::program {
     std::vector<ir::Instruction> instructions;
   public:
     const std::vector<char32_t>& Characters() const { return characters; }
+    std::vector<char32_t>& Characters() { return characters; }
     const std::vector<uint32_t>& Lines() const { return lines; }
+    std::vector<uint32_t>& Lines() { return lines; }
     const std::vector<lexical::Token>& Tokens() const { return tokens; }
+    std::vector<lexical::Token>& Tokens() { return tokens; }
     const std::vector<program::Module*>& Dependencies() const { return dependencies; }
     const ir::Symbols& Symbols() const { return symbols; }
+    ir::Symbols& Symbols() { return symbols; }
     const std::vector<ir::Instruction>& Instructions() const { return instructions; }
     const std::string& Specifier() const { return specifier; }
 
@@ -66,6 +70,10 @@ namespace compiler::program {
 
     ir::Symbol AddSymbol(ir::symbol::Type type) {
       return ir::Symbol{*this, symbols.Add(type)};
+    }
+
+    void AddInstruction(ir::Opcode opcode, ir::Index res, ir::Index lhs, ir::Index rhs) {
+      instructions.push_back(ir::Instruction{opcode, res, lhs, rhs});
     }
 
     void Append(lexical::Token token) { tokens.push_back(token); }
