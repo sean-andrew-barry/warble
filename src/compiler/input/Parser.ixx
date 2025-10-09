@@ -13,6 +13,7 @@ import <format>;
 import compiler.program.Module;
 import compiler.ir.Symbols;
 import compiler.ir.Symbol;
+import compiler.ir.Error;
 import compiler.ir.Instruction;
 import compiler.ir.Token;
 import compiler.text.cursor.Token;
@@ -289,26 +290,52 @@ namespace compiler::input {
   export class Parser {
   private:
     program::Module& mod;
+    std::vector<ir::Index> stack;
     text::cursor::Token cursor;
 
     // The indexes track the position within the module's various storage vectors 
     size_t widths_index = 0; // Increments after seeing a variable width token, such as `Spaces` or `Characters`
     size_t symbols_index = 0; // Increments after seeing a symbol token, such as `Identifier` or `Decimal`
     size_t lines_index = 0; // Increments after seeing a line break token, such as `LineFeed` or `CarriageReturnLineFeed`
+
+    ir::Index NextSymbol();
+    bool IsEscapeToken(ir::Token token) const;
+    bool IsLiteralToken(ir::Token token) const;
+    bool IsBinaryToken(ir::Token token) const;
+    bool IsUnaryPrefixToken(ir::Token token) const;
+    bool IsModifierToken(ir::Token token) const;
+    bool IsStatementToken(ir::Token token) const;
+    int Precedence(ir::Token token) const;
+    void ConsumeCharactersToken();
+    void ConsumeEscapeSequence();
+    ir::Index ReportError(ir::Error error, ir::Index parent);
+    ir::Index ParsePrimary(ir::Index parent);
+    ir::Index ParseUnary(ir::Index parent);
+    ir::Index ParseBinary(ir::Index parent, int min_precedence);
+
+    void Push(ir::Index index) { stack.push_back(index); }
+    void Pop(ir::Index index) {
+      // TODO: Debug validation to ensure the index being popped is the one on top of the stack
+      stack.pop_back();
+    }
   public:
     virtual ~Parser() = default;
 
     void Skip();
     bool Match(ir::Token token);
-    bool Expect(ir::Token token);
 
     void Instruct(ir::Opcode opcode, ir::Index res = ir::Index{}, ir::Index lhs = ir::Index{}, ir::Index rhs = ir::Index{});
 
-    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type);
-    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type, uint64_t value);
-    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type, double value);
-    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type, char32_t value);
-    ir::Index Parser::Create(ir::Index parent, ir::symbol::Type type, bool value);
+    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent);
+    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent, uint64_t value);
+    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent, double value);
+    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent, char32_t value);
+    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent, bool value);
+
+    ir::Index Parser::Expect(ir::Token token, ir::Error error, ir::Index parent);
+
+    bool WhiteSpace();
+    bool WS();
 
     // Literals
     ir::Index Parser::Undefined(ir::Index parent);
