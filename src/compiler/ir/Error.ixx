@@ -27,5 +27,8 @@ namespace compiler::ir {
     UnicodeCodePointOutOfRange,
     UnicodeCodePointInvalid,
     UnicodeSurrogateCodePointIsNotAValidScalarValue,
+
+    // Parser errors
+    ParserExpectedObjectDeclaration,
   };
 };
