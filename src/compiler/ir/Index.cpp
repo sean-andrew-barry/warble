@@ -148,4 +148,6 @@ namespace compiler::ir {
         return false;
     }
   }
+
+  Index::operator bool() const { return index != 0; }
 };

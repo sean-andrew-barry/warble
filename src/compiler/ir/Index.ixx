@@ -48,5 +48,6 @@ namespace compiler::ir {
     bool IsStructured(program::Module& mod) const; // Structured symbols can have children
 
     uint32_t Value() const { return index; }
+    explicit operator bool() const;
   };
 };
