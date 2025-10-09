@@ -169,9 +169,15 @@ namespace compiler::input {
   private:
   protected:
     program::Module& mod;
+    std::string source;
+    std::vector<ir::Token> tokens;
+    std::vector<char32_t> characters;
+    std::vector<uint32_t> strings;
+    std::vector<uint32_t> lines;
+
     text::cursor::String cursor;
     std::string::const_iterator furthest; // Highest source iterator reached to suppress duplicate side-effects after rollback.
-
+  protected:
     struct Position {
       std::string::const_iterator cursor;
       size_t token;
@@ -230,9 +236,6 @@ namespace compiler::input {
 
     // Handle a single non-ASCII whitespace code point. Returns true if whitespace was consumed and tokens emitted.
     bool HandleNonASCIIWhitespace();
-
-    constexpr decltype(auto) Peek() const { return cursor.Peek(); }
-    constexpr decltype(auto) Peek(size_t n) const { return cursor.Peek(n); }
 
     bool Try(const auto& fn) {
       auto start = Start();

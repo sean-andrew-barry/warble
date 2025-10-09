@@ -5,29 +5,75 @@ import <cstdint>;
 namespace compiler::ir {
   export enum class Token : uint8_t {
     None,
-
-    // Symbol tokens each represent that a symbol was created for that token
-    Error, // Indicates a symbol was created for an error
-    Identifier, // Indicates a symbol was created for an identifier
-    String, // Indicates a symbol was created for a string literal
-    Character, // Indicates a symbol was created for a character literal
-    Integer, // Indicates a symbol was created for an integer literal
-    Decimal, // Indicates a symbol was created for a decimal literal
-    Comment, // Indicates a symbol was created for a comment
-    MultiLineComment, // Indicates a symbol was created for a multi-line comment
-
-    // Variable width tokens represent a sequence where the count is stored separately
-    Spaces, // One or more space characters
-    Tabs, // One or more tab characters
-    Digits, // One or more digit characters (including hex, octal, and binary)
-    Characters, // Marks a variable number of arbitrary characters
-    LineFeeds, // `\n` - One or more line feed characters
-    CarriageReturnLineFeeds, // `\r\n` - One or more combination carriage return and line feed
-    CarriageReturns, // `\r` - One or more carriage return characters
-    LineSeparators, // `'\u2028'` - One or more Unicode line separator characters
-    ParagraphSeparators, // `'\u2029'` - One or more Unicode paragraph separator characters
-
-    // Fixed width tokens represent a fixed sequence of characters
+    Spaces0,
+    Spaces1,
+    Spaces2,
+    Spaces3,
+    Spaces4,
+    Spaces5,
+    Spaces6,
+    Spaces7,
+    Spaces8,
+    Spaces9,
+    SpacesA,
+    SpacesB,
+    SpacesC,
+    SpacesD,
+    SpacesE,
+    SpacesF,
+    Tabs0,
+    Tabs1,
+    Tabs2,
+    Tabs3,
+    Tabs4,
+    Tabs5,
+    Tabs6,
+    Tabs7,
+    Tabs8,
+    Tabs9,
+    TabsA,
+    TabsB,
+    TabsC,
+    TabsD,
+    TabsE,
+    TabsF,
+    Characters0,
+    Characters1,
+    Characters2,
+    Characters3,
+    Characters4,
+    Characters5,
+    Characters6,
+    Characters7,
+    Characters8,
+    Characters9,
+    CharactersA,
+    CharactersB,
+    CharactersC,
+    CharactersD,
+    CharactersE,
+    CharactersF,
+    Digits0,
+    Digits1,
+    Digits2,
+    Digits3,
+    Digits4,
+    Digits5,
+    Digits6,
+    Digits7,
+    Digits8,
+    Digits9,
+    DigitsA,
+    DigitsB,
+    DigitsC,
+    DigitsD,
+    DigitsE,
+    DigitsF,
+    LineFeed,
+    CarriageReturnLineFeed,
+    CarriageReturn,
+    LineSeparator,
+    ParagraphSeparator,
     VerticalTab, // `\v`
     FormFeed, // `\f`
     Underscore, // `_` - Used as a spacer in numeric literals
@@ -45,18 +91,15 @@ namespace compiler::ir {
     True, // `true`
     False, // `false`
     This, // `this` - Used in object literals and functions
-    EscapeNewline, // (\n) - A newline character
-    EscapeTab, // (\t) - A tab character
-    EscapeBackspace, // (\b) - A backspace
-    EscapeReturn, // (\r) - A carriage return
-    EscapeFormFeed, // (\f) - A form feed
-    EscapeNull, // (\0) - The null character
-    EscapeCharacter, // (\cX) - An escaped alphabetic character
-    EscapeSyntax, // (\S) - Here `S` is one of `^, $, \, ., *, +, ?, (, ), [, ], {, }, |, \/`
-    EscapeUnicodeCodePointStart, // `\u{` - The start of a variable length Unicode code point of 1 to 6 hexadecimal digits like `\u{HHHHHH}`
-    EscapeUnicodeCodePointEnd, // `}` - The end marker
-    EscapeUnicodeShort, // (\uXXXX) - A Unicode character using exactly four hexadecimal digits
-    EscapeHexCode, // (\xXX) - A character specified by a hexadecimal value of exactly two digits
+    EscapeASCII, // Single character escape such as `\n`
+    EscapeHex, // `\xXX` - A character specified by a hexadecimal value of exactly two digits
+    EscapeUnicode, // `\uXXXX` - A Unicode character using exactly four hexadecimal digits
+    EscapeUnicodeBraced1, // `\u{H}` - A Unicode character using 1 hexadecimal digit
+    EscapeUnicodeBraced2, // `\u{HH}` - A Unicode character using 2 hexadecimal digits
+    EscapeUnicodeBraced3, // `\u{HHH}` - A Unicode character using 3 hexadecimal digits
+    EscapeUnicodeBraced4, // `\u{HHHH}` - A Unicode character using 4 hexadecimal digits
+    EscapeUnicodeBraced5, // `\u{HHHHH}` - A Unicode character using 5 hexadecimal digits
+    EscapeUnicodeBraced6, // `\u{HHHHHH}` - A Unicode character using 6 hexadecimal digits
     Add, // +
     And, // &&
     Or, // ||
@@ -160,14 +203,6 @@ namespace compiler::ir {
     ObjectClose, // }
     TupleOpen, // (
     TupleClose, // )
-    DestructuredArrayOpen, // [
-    DestructuredArrayClose, // ]
-    DestructuredEnumOpen, // <
-    DestructuredEnumClose, // >
-    DestructuredObjectOpen, // {
-    DestructuredObjectClose, // }
-    DestructuredTupleOpen, // (
-    DestructuredTupleClose, // )
     CharOpen, // '
     CharClose, // '
     Comma, // ,
