@@ -5,10 +5,13 @@ import <bitset>;
 import <vector>;
 import <string>;
 import <atomic>;
+import <unordered_map>;
+import <string_view>;
 
 import compiler.Program;
 import compiler.program.Package;
 import compiler.program.Stages;
+import compiler.ir.Token;
 import compiler.ir.Symbols;
 import compiler.ir.Symbol;
 import compiler.ir.Instruction;
@@ -25,10 +28,11 @@ namespace compiler::program {
     program::Stages stages;
     std::vector<program::Module*> dependencies; // Every imported module, possibly including self and/or a prelude module first
     
-    std::vector<Token> tokens;
     std::vector<uint8_t> widths; // Sequentially marks the width of every variable width token
-    std::vector<uint32_t> lines; // Sequentially marks the position of every line start in the source
-    std::vector<char32_t> characters; // The UTF-32 characters captured during parsing
+    std::vector<ir::Token> tokens;
+    std::vector<std::pair<uint32_t, uint32_t>> lines; // The token index for each line start and the `characters` checkpoint
+    std::vector<char32_t> characters; // The UTF-32 characters captured during lexing
+    std::unordered_map<std::string_view, uint32_t> strings_map; // Ensures every string literal is unique and maps to its start index in characters
     std::vector<ir::Index> enums; // The data backing enum literals
     
     ir::Symbols symbols; // All the symbols defined in this module
@@ -37,8 +41,12 @@ namespace compiler::program {
   public:
     const std::vector<char32_t>& Characters() const { return characters; }
     std::vector<char32_t>& Characters() { return characters; }
+    const std::vector<uint8_t>& Widths() const { return widths; }
+    std::vector<uint8_t>& Widths() { return widths; }
     const std::vector<uint32_t>& Lines() const { return lines; }
     std::vector<uint32_t>& Lines() { return lines; }
+    const std::vector<uint32_t>& Strings() const { return strings; }
+    std::vector<uint32_t>& Strings() { return strings; }
     const std::vector<lexical::Token>& Tokens() const { return tokens; }
     std::vector<lexical::Token>& Tokens() { return tokens; }
     const std::vector<program::Module*>& Dependencies() const { return dependencies; }
