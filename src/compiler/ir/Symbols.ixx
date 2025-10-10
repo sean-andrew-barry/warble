@@ -19,11 +19,9 @@ namespace compiler::ir {
     std::vector<uint64_t> values; // A generic typeless field: immediate literal, pointer/index, etc
     std::vector<int32_t> displacements; // Byte offset from the parent for runtime memory layout
 
-    // 2. Hierarchy / metadata
     std::vector<ir::Index> parents;
     std::vector<ir::Index> names; // A string or enum literal symbol or 0 for undefined
 
-    // 3. Source mapping
     std::vector<uint32_t> first_tokens; // The index of the first token that defined this symbol
     std::vector<uint32_t> last_tokens; // The index of the last token that defined this symbol
   public:
@@ -177,7 +175,7 @@ namespace compiler::ir {
     ir::Index Add(ir::symbol::Type type) {
       ir::Index index = static_cast<uint32_t>(values.size()); // Take the size of any column, they should all be the same
 
-      registers.emplace_back();
+      registers.emplace_back(0);
       flags.emplace_back(static_cast<uint64_t>(type));
       values.push_back(0);
       displacements.push_back(0);
