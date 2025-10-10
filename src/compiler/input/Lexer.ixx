@@ -75,7 +75,7 @@ namespace compiler::input {
   }) | DIGIT;
 
   inline constexpr auto STATEMENT_START = MakeBitset([](auto& bs){
-    for (char c : "bcdefimrw") bs.set(c);
+    for (char c : "bcdefirw") bs.set(c);
   });
 
   inline constexpr auto UNARY_PREFIX_START = MakeBitset([](auto& bs){
@@ -172,8 +172,8 @@ namespace compiler::input {
     std::string source;
     std::vector<ir::Token> tokens;
     std::vector<char32_t> characters;
-    std::vector<uint32_t> strings;
-    std::vector<uint32_t> lines;
+    std::vector<uint32_t> line_starts; // The token index where each line starts
+    std::vector<uint32_t> string_starts; // The character index where each line starts
 
     text::cursor::String cursor;
     std::string::const_iterator furthest; // Highest source iterator reached to suppress duplicate side-effects after rollback.
@@ -324,7 +324,7 @@ namespace compiler::input {
     bool Default();
     bool Auto();
     bool Void();
-    bool Match();
+    bool When();
     bool Await();
     bool Compiler();
     bool Break();

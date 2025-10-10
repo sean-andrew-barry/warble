@@ -244,7 +244,7 @@ namespace compiler::input {
   bool Lexer::Default() { return Keyword("default") && Emit(ir::Token::Default); }
   bool Lexer::Auto() { return Keyword("auto") && Emit(ir::Token::Auto); }
   bool Lexer::Void() { return Keyword("void") && Emit(ir::Token::Void); }
-  bool Lexer::Match() { return Keyword("match") && Emit(ir::Token::Match); }
+  bool Lexer::When() { return Keyword("when") && Emit(ir::Token::When); }
   bool Lexer::Await() { return Keyword("await") && Emit(ir::Token::Await); }
   bool Lexer::Compiler() { return Keyword("compiler") && Emit(ir::Token::Compiler); }
   bool Lexer::Break() { return Keyword("break") && Emit(ir::Token::Break); }
@@ -662,7 +662,7 @@ namespace compiler::input {
     if (text == "in") return Emit(ir::Token::In);
     if (text == "is") return Emit(ir::Token::Is);
     if (text == "let") return Emit(ir::Token::Let);
-    if (text == "match") return Emit(ir::Token::Match);
+    if (text == "when") return Emit(ir::Token::When);
     if (text == "null") return Emit(ir::Token::Null);
     if (text == "register") return Emit(ir::Token::Register);
     if (text == "repeat") return Emit(ir::Token::Repeat);
@@ -1167,9 +1167,8 @@ namespace compiler::input {
       case 'e': return Export();
       case 'f': return For();
       case 'i': return If() || Import() || Is();
-      case 'm': return Match();
       case 'r': return Return() || Repeat() || Register();
-      case 'w': return While();
+      case 'w': return While() || When();
       case 'y': return Yield();
       default: return false;
     }

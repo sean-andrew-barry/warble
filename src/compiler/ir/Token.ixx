@@ -37,22 +37,6 @@ namespace compiler::ir {
     TabsD,
     TabsE,
     TabsF,
-    Characters0,
-    Characters1,
-    Characters2,
-    Characters3,
-    Characters4,
-    Characters5,
-    Characters6,
-    Characters7,
-    Characters8,
-    Characters9,
-    CharactersA,
-    CharactersB,
-    CharactersC,
-    CharactersD,
-    CharactersE,
-    CharactersF,
     Digits0,
     Digits1,
     Digits2,
@@ -69,6 +53,31 @@ namespace compiler::ir {
     DigitsD,
     DigitsE,
     DigitsF,
+    Characters0,
+    Characters1,
+    Characters2,
+    Characters3,
+    Characters4,
+    Characters5,
+    Characters6,
+    Characters7,
+    Characters8,
+    Characters9,
+    CharactersA,
+    CharactersB,
+    CharactersC,
+    CharactersD,
+    CharactersE,
+    CharactersF,
+    EscapeASCII, // Single character escape such as `\n`
+    EscapeHex, // `\xXX` - A character specified by a hexadecimal value of exactly two digits
+    EscapeUnicode, // `\uXXXX` - A Unicode character using exactly four hexadecimal digits
+    EscapeUnicodeBraced1, // `\u{H}` - A Unicode character using 1 hexadecimal digit
+    EscapeUnicodeBraced2, // `\u{HH}` - A Unicode character using 2 hexadecimal digits
+    EscapeUnicodeBraced3, // `\u{HHH}` - A Unicode character using 3 hexadecimal digits
+    EscapeUnicodeBraced4, // `\u{HHHH}` - A Unicode character using 4 hexadecimal digits
+    EscapeUnicodeBraced5, // `\u{HHHHH}` - A Unicode character using 5 hexadecimal digits
+    EscapeUnicodeBraced6, // `\u{HHHHHH}` - A Unicode character using 6 hexadecimal digits
     LineFeed,
     CarriageReturnLineFeed,
     CarriageReturn,
@@ -83,7 +92,7 @@ namespace compiler::ir {
     OctalStart, // `0o`
     BinaryStart, // `0b`
     CommentOpen, // `//` - Starts a single line comment
-    CommentClose, // Simple marker, doesn't represent a character
+    CommentClose, // Simple marker, doesn't represent any characters
     MultiLineCommentOpen, // `/*` - Starts a multi-line comment
     MultiLineCommentClose, // `*/` - Ends a multi-line comment
     Undefined, // `undefined`
@@ -91,15 +100,6 @@ namespace compiler::ir {
     True, // `true`
     False, // `false`
     This, // `this` - Used in object literals and functions
-    EscapeASCII, // Single character escape such as `\n`
-    EscapeHex, // `\xXX` - A character specified by a hexadecimal value of exactly two digits
-    EscapeUnicode, // `\uXXXX` - A Unicode character using exactly four hexadecimal digits
-    EscapeUnicodeBraced1, // `\u{H}` - A Unicode character using 1 hexadecimal digit
-    EscapeUnicodeBraced2, // `\u{HH}` - A Unicode character using 2 hexadecimal digits
-    EscapeUnicodeBraced3, // `\u{HHH}` - A Unicode character using 3 hexadecimal digits
-    EscapeUnicodeBraced4, // `\u{HHHH}` - A Unicode character using 4 hexadecimal digits
-    EscapeUnicodeBraced5, // `\u{HHHHH}` - A Unicode character using 5 hexadecimal digits
-    EscapeUnicodeBraced6, // `\u{HHHHHH}` - A Unicode character using 6 hexadecimal digits
     Add, // +
     And, // &&
     Or, // ||
@@ -183,7 +183,7 @@ namespace compiler::ir {
     From,
     If,
     Return,
-    Match,
+    When,
     Is,
     In,
     Import,
