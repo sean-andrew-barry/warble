@@ -1,3 +1,7 @@
+import <array>;
+import <string_view>;
+import <vector>;
+
 import compiler.input.Lexer;
 import compiler.program.Module;
 import compiler.ir.Symbols;
@@ -8,6 +12,20 @@ import compiler.text.cursor.String;
 import compiler.text.Unicode;
 
 namespace compiler::input {
+namespace {
+  constexpr std::array<ir::Token, 16> DIGIT_TOKENS{
+    ir::Token::Digits0, ir::Token::Digits1, ir::Token::Digits2, ir::Token::Digits3,
+    ir::Token::Digits4, ir::Token::Digits5, ir::Token::Digits6, ir::Token::Digits7,
+    ir::Token::Digits8, ir::Token::Digits9, ir::Token::DigitsA, ir::Token::DigitsB,
+    ir::Token::DigitsC, ir::Token::DigitsD, ir::Token::DigitsE, ir::Token::DigitsF,
+  };
+
+  constexpr ir::Token DigitToken(uint8_t value) {
+    return DIGIT_TOKENS[value & 0xF];
+  }
+} // namespace
+
+
   Lexer::Position Lexer::Start() {
     return Position{cursor.Current(), mod.Tokens().size()};
   }
@@ -511,106 +529,217 @@ namespace compiler::input {
     return OWS();
   }
 
-  // Numeric literal helpers (Hex/Octal/Binary and general Number) adapted from lexical lexer
   bool Lexer::Hex() {
-    // assume leading 0x has already been consumed by caller or caller will advance; here consume 2
     cursor.Advance(2);
-    uint32_t width = 2;
+    Emit(ir::Token::HexStart);
 
     while (!cursor.Done()) {
-      if (cursor.Peek() == '_') { cursor.Advance(); ++width; Emit(ir::Token::Underscore); continue; }
+      char c = cursor.Peek();
+      if (c == '_') {
+        cursor.Advance();
+        Emit(ir::Token::Underscore);
+        continue;
+      }
+
       if (!IsHex()) break;
-      cursor.Advance(); ++width;
+
+      switch (c) {
+        case '0': EmitAndAdvance(ir::Token::Digits0); break;
+        case '1': EmitAndAdvance(ir::Token::Digits1); break;
+        case '2': EmitAndAdvance(ir::Token::Digits2); break;
+        case '3': EmitAndAdvance(ir::Token::Digits3); break;
+        case '4': EmitAndAdvance(ir::Token::Digits4); break;
+        case '5': EmitAndAdvance(ir::Token::Digits5); break;
+        case '6': EmitAndAdvance(ir::Token::Digits6); break;
+        case '7': EmitAndAdvance(ir::Token::Digits7); break;
+        case '8': EmitAndAdvance(ir::Token::Digits8); break;
+        case '9': EmitAndAdvance(ir::Token::Digits9); break;
+        case 'a': case 'A': EmitAndAdvance(ir::Token::DigitsA); break;
+        case 'b': case 'B': EmitAndAdvance(ir::Token::DigitsB); break;
+        case 'c': case 'C': EmitAndAdvance(ir::Token::DigitsC); break;
+        case 'd': case 'D': EmitAndAdvance(ir::Token::DigitsD); break;
+        case 'e': case 'E': EmitAndAdvance(ir::Token::DigitsE); break;
+        case 'f': case 'F': EmitAndAdvance(ir::Token::DigitsF); break;
+      }
     }
 
-    Emit(ir::Token::Hex);
     return true;
   }
 
   bool Lexer::Octal() {
     cursor.Advance(2);
-    uint32_t width = 2;
+    Emit(ir::Token::OctalStart);
+
+    uint8_t value = 0;
+    uint8_t bits = 0; // bits collected toward current hex nibble
+
+    auto flush_nibble = [&](){
+      if (bits > 0) {
+        Emit(DigitToken(value));
+        value = 0;
+        bits = 0;
+      }
+    };
 
     while (!cursor.Done()) {
-      if (cursor.Peek() == '_') { cursor.Advance(); ++width; continue; }
+      char c = cursor.Peek();
+      if (c == '_') {
+        flush_nibble();
+        cursor.Advance();
+        Emit(ir::Token::Underscore);
+        continue;
+      }
       if (!IsOctal()) break;
-      cursor.Advance(); ++width;
+
+      uint8_t oct = static_cast<uint8_t>(c - '0');
+      cursor.Advance();
+
+      if (bits == 0 && oct == 0) {
+        Emit(ir::Token::Digits0);
+        continue;
+      }
+
+      // push 3 bits MSB->LSB
+      value = static_cast<uint8_t>((value << 1) | ((oct >> 2) & 1u));
+      ++bits; if (bits == 4) { Emit(DigitToken(value)); value = 0; bits = 0; }
+
+      value = static_cast<uint8_t>((value << 1) | ((oct >> 1) & 1u));
+      ++bits; if (bits == 4) { Emit(DigitToken(value)); value = 0; bits = 0; }
+
+      value = static_cast<uint8_t>((value << 1) | (oct & 1u));
+      ++bits; if (bits == 4) { Emit(DigitToken(value)); value = 0; bits = 0; }
     }
 
-    Emit(ir::Token::Octal);
+    flush_nibble();
     return true;
   }
 
   bool Lexer::Binary() {
     cursor.Advance(2);
-    uint32_t width = 2;
+    Emit(ir::Token::BinaryStart);
 
-    while (!cursor.Done()) {
-      if (cursor.Peek() == '_') { cursor.Advance(); ++width; continue; }
-      if (!IsBinary()) break;
-      cursor.Advance(); ++width;
-    }
+    uint8_t value = 0;
+    uint8_t bits = 0; // bits collected toward current hex nibble
 
-    Emit(ir::Token::Binary);
-    return true;
-  }
-
-  bool Lexer::NumberHelper() {
-    auto start_iter = cursor.cbegin();
-    bool negative = false;
-
-    if (cursor.Peek() == '-') { cursor.Advance(); }
-    else if (cursor.Peek() == '+') { cursor.Advance(); }
-
-    if (cursor.Peek() == '0') {
-      switch (cursor.Peek(1)) {
-        case 'x': return Hex();
-        case 'o': return Octal();
-        case 'b': return Binary();
+    auto flush_nibble = [&](){
+      if (bits > 0) {
+        Emit(DigitToken(value));
+        value = 0;
+        bits = 0;
       }
-    }
-
-    bool decimal_point_encountered = false;
-    bool e_encountered = false;
-    bool exponent_sign_encountered = false;
-    bool digit_encountered = false;
+    };
 
     while (!cursor.Done()) {
       char c = cursor.Peek();
-
-      if (c == '_' && digit_encountered) { cursor.Advance(); continue; }
-      else if (c == '.') {
-        if (decimal_point_encountered || e_encountered) break;
-        decimal_point_encountered = true;
-        if (!IsDigit(cursor.Peek(1))) break; // trailing decimal not allowed
-      } else if (c == 'E' || c == 'e') {
-        if (e_encountered) break;
-        e_encountered = true;
-        decimal_point_encountered = true;
-      } else if ((c == '+' || c == '-') && e_encountered && !exponent_sign_encountered) {
-        exponent_sign_encountered = true;
-      } else if (IsDigit(c)) {
-        digit_encountered = true;
-      } else {
-        break;
+      if (c == '_') {
+        flush_nibble();
+        cursor.Advance();
+        Emit(ir::Token::Underscore);
+        continue;
       }
+      if (c != '0' && c != '1') break;
 
       cursor.Advance();
+
+      if (bits == 0 && c == '0') {
+        Emit(ir::Token::Digits0);
+        continue;
+      }
+
+      value = static_cast<uint8_t>((value << 1) | static_cast<uint8_t>(c - '0'));
+      ++bits;
+      if (bits == 4) {
+        Emit(DigitToken(value));
+        value = 0;
+        bits = 0;
+      }
     }
 
-    size_t size = static_cast<size_t>(std::distance(start_iter, cursor.cbegin()));
-    if (size == 0 || !digit_encountered) {
-      if (size > 0) cursor.Retreat(start_iter);
-      return false;
-    }
-
-    if (decimal_point_encountered) Emit(ir::Token::Decimal);
-    else Emit(ir::Token::Integer);
-
+    flush_nibble();
     return true;
   }
 
-  bool Lexer::Number() { return cursor.IsNumberStart() && NumberHelper(); }
+  bool Lexer::Decimal() {
+    bool consumed = false;
+    static thread_local std::vector<uint8_t> hex_le; // little-endian nibbles buffer
+
+    auto flush_run = [&](std::string_view run){
+      if (run.empty()) return;
+
+      // Emit leading zeros for exact reconstruction
+      size_t i = 0;
+      while (i < run.size() && run[i] == '0') { Emit(ir::Token::Digits0); ++i; }
+      if (i == run.size()) return;
+
+      // Multiply-accumulate in base-10 into hex nibbles (little-endian in buffer)
+      hex_le.clear();
+      hex_le.push_back(0);
+      for (; i < run.size(); ++i) {
+        uint32_t carry = static_cast<uint32_t>(run[i] - '0');
+        for (size_t k = 0; k < hex_le.size(); ++k) {
+          uint32_t total = static_cast<uint32_t>(hex_le[k]) * 10u + carry;
+          hex_le[k] = static_cast<uint8_t>(total & 0xFu);
+          carry = total >> 4;
+        }
+        while (carry > 0) {
+          hex_le.push_back(static_cast<uint8_t>(carry & 0xFu));
+          carry >>= 4;
+        }
+      }
+      while (hex_le.size() > 1 && hex_le.back() == 0) hex_le.pop_back();
+      for (auto it = hex_le.rbegin(); it != hex_le.rend(); ++it) Emit(DigitToken(*it));
+    };
+
+    while (!cursor.Done()) {
+      if (!IsDigit()) break;
+
+      auto run_begin = cursor.cbegin();
+      while (!cursor.Done() && IsDigit()) cursor.Advance();
+      auto run_end = cursor.cbegin();
+
+      if (run_begin != run_end) {
+        std::string_view run{&*run_begin, static_cast<size_t>(std::distance(run_begin, run_end))};
+        flush_run(run);
+        consumed = true;
+      }
+
+      if (cursor.Done()) break;
+      char c = cursor.Peek();
+      if (c == '_') { cursor.Advance(); Emit(ir::Token::Underscore); continue; }
+      if (c == '.') { cursor.Advance(); Emit(ir::Token::Dot); continue; }
+      if (c == 'e' || c == 'E') {
+        cursor.Advance(); Emit(ir::Token::Exponent);
+        if (!cursor.Done()) {
+          if (cursor.Peek() == '+') { cursor.Advance(); Emit(ir::Token::Add); }
+          else if (cursor.Peek() == '-') { cursor.Advance(); Emit(ir::Token::Subtract); }
+        }
+        continue;
+      }
+      break;
+    }
+
+    return consumed;
+  }
+
+  bool Lexer::Number() {
+    if (!cursor.IsNumberStart()) {
+      return false;
+    }
+
+    if (cursor.Peek() == '0') {
+      switch (cursor.Peek(1)) {
+        case 'x':
+        case 'X': return Hex();
+        case 'o':
+        case 'O': return Octal();
+        case 'b':
+        case 'B': return Binary();
+        default: break;
+      }
+    }
+
+    return Decimal();
+  }
 
   // Identifier parsing: supports escapes in identifiers and unicode code points.
   bool Lexer::IdentifierHelper() {
@@ -998,8 +1127,6 @@ namespace compiler::input {
 
   bool Lexer::ValueShortcut() {
     switch (cursor.Peek()) {
-      case '-':
-      case '+':
       case '0':
       case '1':
       case '2':

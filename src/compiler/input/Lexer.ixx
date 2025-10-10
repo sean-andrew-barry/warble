@@ -102,9 +102,7 @@ namespace compiler::input {
     for (char c : "aceimpslr") bs.set(c);
   });
 
-  inline constexpr auto NUMBER_START = MakeBitset([](auto& bs){
-    for (char c : "+-") bs.set(c);
-  }) | DIGIT;
+  inline constexpr auto NUMBER_START = DIGIT;
 
   inline constexpr auto NOT_ASCII = MakeBitset([](auto& bs){
     // Set bits for lead bytes of UTF-8 encoded non-ASCII characters (128-255) to 1
