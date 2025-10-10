@@ -404,7 +404,7 @@ namespace compiler::input {
   ir::Index Parser::Undefined(ir::Index parent) {
     Match(ir::Token::Undefined);
 
-    return ir::Index{}; // The module always reserves index 0 for the `undefined` symbol
+    return ir::Index{0}; // The module always reserves index 0 for the `undefined` symbol
   }
 
   ir::Index Parser::Null(ir::Index parent) {

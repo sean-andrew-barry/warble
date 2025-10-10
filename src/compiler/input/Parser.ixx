@@ -289,9 +289,15 @@ namespace compiler::input {
 
   export class Parser {
   private:
-    program::Module& mod;
-    std::vector<ir::Index> stack;
+    std::vector<ir::Token> tokens;
+    std::vector<char32_t> characters;
+    std::vector<uint32_t> line_starts; // The token index where each line starts
+    std::vector<uint32_t> string_starts; // The character index where each line starts
+    
+    ir::Symbols symbols;
+    std::vector<ir::Instruction> instructions;
     text::cursor::Token cursor;
+    std::vector<ir::Index> stack;
 
     // The indexes track the position within the module's various storage vectors 
     size_t widths_index = 0; // Increments after seeing a variable width token, such as `Spaces` or `Characters`
