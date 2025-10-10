@@ -377,7 +377,7 @@ namespace compiler::input {
     ir::Index Parser::IsStatement(ir::Index parent);
     ir::Index Parser::HasStatement(ir::Index parent);
     ir::Index Parser::DefaultStatement(ir::Index parent);
-    ir::Index Parser::MatchStatement(ir::Index parent);
+    ir::Index Parser::WhenStatement(ir::Index parent);
     ir::Index Parser::DeclarationStatement(ir::Index parent);
     ir::Index Parser::ExpressionStatement(ir::Index parent);
     ir::Index Parser::Statement(ir::Index parent);

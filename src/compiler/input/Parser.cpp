@@ -1250,9 +1250,9 @@ namespace compiler::input {
     return symbol;
   }
 
-  ir::Index Parser::MatchStatement(ir::Index parent) {
-    // A required `Match` token
-    // Create a new `Match` symbol
+  ir::Index Parser::WhenStatement(ir::Index parent) {
+    // A required `When` token
+    // Create a new `When` symbol
     // A required `Condition` group
     // A required `ScopeOpen` token
     // Zero or more `IsStatement` or `HasStatement` groups and no more than one `DefaultStatement` group, in any order
@@ -1262,15 +1262,15 @@ namespace compiler::input {
 
     // NOTE: We do not use a `Scope` group here because the contents are not normal statements
 
-    Expect(ir::Token::Match, ir::Error::ParserExpectedMatchKeyword, parent);
+    Expect(ir::Token::When, ir::Error::ParserExpectedWhenKeyword, parent);
 
-    ir::Index symbol = Create(ir::symbol::Type::Match, parent);
+    ir::Index symbol = Create(ir::symbol::Type::When, parent);
     Push(symbol);
 
     Condition(symbol);
 
     if (!Match(ir::Token::ScopeOpen)) {
-      ReportError(ir::Error::ParserExpectedMatchScopeOpen, symbol);
+      ReportError(ir::Error::ParserExpectedWhenScopeOpen, symbol);
     }
 
     bool default_seen = false;
@@ -1292,7 +1292,7 @@ namespace compiler::input {
     }
 
     if (!Match(ir::Token::ScopeClose)) {
-      ReportError(ir::Error::ParserExpectedMatchScopeClose, symbol);
+      ReportError(ir::Error::ParserExpectedWhenScopeClose, symbol);
     }
 
     Match(ir::Token::Semicolon);
@@ -1360,7 +1360,7 @@ namespace compiler::input {
       case ir::Token::Repeat: return RepeatStatement(parent);
       case ir::Token::For: return ForStatement(parent);
       case ir::Token::If: return IfStatement(parent);
-      case ir::Token::Match: return MatchStatement(parent);
+      case ir::Token::When: return WhenStatement(parent);
 
       // Modifier keywords that begin a declaration statement
       case ir::Token::Let:

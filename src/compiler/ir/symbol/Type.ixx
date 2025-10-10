@@ -32,7 +32,7 @@ namespace compiler::ir::symbol {
     If,
     ElseIf,
     Else,
-    Match,
+    When,
     For,
     Repeat,
     While,
