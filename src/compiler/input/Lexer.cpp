@@ -528,7 +528,71 @@ namespace {
     if (!StringClose()) return Error(ir::Error::StringLiteralExpectedClosingDoubleQuote);
     return OWS();
   }
+  
+  /*
+   * Numeric literal lexing — design overview
+   *
+   * Core idea
+   * - The lexer is intentionally dumb about numbers. It does not try to interpret
+   *   literals (no value folding, no float parsing, no signs consumed). It only
+   *   streams what it sees into a reconstructable token sequence.
+   * - All integer magnitude is emitted as hexadecimal nibbles using ir::Token::Digits0…DigitsF.
+   *   These tokens represent the numeric value of a contiguous digit run, encoded as hex,
+   *   and emitted in big-endian nibble order.
+   *
+   * Reconstructability and separators
+   * - Source must be exactly reconstructable from tokens. That means every width-affecting
+   *   character is preserved as its own token rather than being “interpreted away”.
+   * - Underscores are always emitted as ir::Token::Underscore and terminate the current
+   *   digit run. After an underscore, if more digits follow, that begins a new run.
+   * - Leading zeros are preserved by emitting one ir::Token::Digits0 per zero at the
+   *   front of each run. Because a 0 nibble has no effect on the decoded value, this
+   *   preserves width without changing semantics.
+   *
+   * What “dumb” means in practice
+   * - Decimal runs: A sequence of [0-9]+ is converted to hex nibbles and emitted.
+   *   A dot (.) is emitted as ir::Token::Dot and ends the current run; the digits
+   *   after the dot form a separate run. Likewise, 'e'/'E' is emitted as ir::Token::Exponent
+   *   and an immediate '+' or '-' after it is emitted as ir::Token::Add / ir::Token::Subtract.
+   *   The lexer does not try to assemble these into a float or scientific notation—
+   *   the parser owns that responsibility.
+   * - Signs: A leading '+' or '-' belongs to the unary-operator layer and must NOT be
+   *   consumed as part of a numeric literal. Number starts are digits-only in this design.
+   *
+   * Bases and prefixes
+   * - 0x/0X: Hex literals. Emit ir::Token::HexStart, then stream each hex digit as the
+   *   corresponding Digits* token. Case is not preserved for A–F; value is preserved.
+   * - 0b/0B: Binary literals. Emit ir::Token::BinaryStart. Bits are packed into 4-bit
+   *   nibbles in big-endian nibble order as they arrive. An underscore flushes any partial
+   *   nibble and is emitted as Underscore. A leading '0' with an empty nibble emits Digits0
+   *   to preserve width.
+   * - 0o/0O: Octal literals. Emit ir::Token::OctalStart. Each octal digit contributes
+   *   three bits; these are streamed MSB→LSB into the current nibble. Underscores behave
+   *   like in binary. Leading zero with an empty nibble emits Digits0.
+   * - Decimal (no prefix): See Decimal()—it first emits leading Digits0s, then converts the
+   *   remaining base-10 run into base-16 nibbles using multiply-by-10 and emits those in
+   *   big-endian order. Between runs, Underscore/Dot/Exponent(+/-) are emitted as their own
+   *   tokens.
+   *
+   * Big-endian emission invariant
+   * - Hex nibble tokens are emitted most-significant first so that leading zeros do not
+   *   affect the decoded value and exact source width can be recovered by counting tokens.
+   *
+   * Examples (tokens shown in order)
+   * - "100"          → Digits6, Digits4
+   * - "1_100"        → Digits1, Underscore, Digits6, Digits4
+   * - "42.7"         → Digits2, DigitsA, Dot, Digits7
+   * - "0x00FF"       → HexStart, Digits0, Digits0, DigitsF, DigitsF
+   * - "0b0111_0001"  → BinaryStart, Digits0, Digits7, Underscore, Digits0, Digits0, Digits0, Digits1
+   *
+   * The parser later recombines adjacent runs and interprets floats/exponents. The lexer
+   * remains context-agnostic and lossless with respect to width and separators.
+   */
 
+  // Hex(): Parse 0x/0X-prefixed hex literals.
+  // - Emits HexStart, then one Digits* token per hex digit (0-9, A-F), case-insensitive.
+  // - Underscores are preserved as Underscore and terminate runs (but hex is already nibble-aligned).
+  // - No value folding; simply streams digits to tokens; stops at first non-hex/non-underscore.
   bool Lexer::Hex() {
     cursor.Advance(2);
     Emit(ir::Token::HexStart);
@@ -566,6 +630,13 @@ namespace {
     return true;
   }
 
+  // Octal(): Parse 0o/0O-prefixed octal literals as a single pass bitstream.
+  // - Emits OctalStart.
+  // - Streams each octal digit's 3 bits MSB→LSB into a nibble accumulator; when 4 bits are filled,
+  //   emits the corresponding Digits* token.
+  // - A leading '0' when the accumulator is empty emits Digits0 to preserve width.
+  // - An underscore flushes any partial nibble, is emitted as Underscore, and digit streaming continues.
+  // - Stops at first non-octal/non-underscore.
   bool Lexer::Octal() {
     cursor.Advance(2);
     Emit(ir::Token::OctalStart);
@@ -614,6 +685,12 @@ namespace {
     return true;
   }
 
+  // Binary(): Parse 0b/0B-prefixed binary literals as a single pass bitstream.
+  // - Emits BinaryStart.
+  // - Packs bits into a 4-bit accumulator; when full, emits a Digits* token.
+  // - A leading '0' when the accumulator is empty emits Digits0 to preserve width.
+  // - Underscore flushes partial nibble and is emitted as Underscore.
+  // - Stops at first non-binary/non-underscore.
   bool Lexer::Binary() {
     cursor.Advance(2);
     Emit(ir::Token::BinaryStart);
@@ -659,6 +736,13 @@ namespace {
     return true;
   }
 
+  // Decimal(): Parse base-10 runs into hex nibble tokens, preserving separators.
+  // - Emits leading '0's as Digits0 to preserve width; an all-zero run emits only those zeros.
+  // - Converts the remaining run using base-10 multiply-accumulate into hex nibbles, stored LE
+  //   in a thread_local buffer, then emitted in big-endian nibble order as Digits* tokens.
+  // - Between runs, emits Underscore, Dot, Exponent and an optional Add/Subtract immediately
+  //   after Exponent. Does not assemble floats or scientific notation; the parser owns that.
+  // - Stops when a non-digit, non-separator is encountered.
   bool Lexer::Decimal() {
     bool consumed = false;
     static thread_local std::vector<uint8_t> hex_le; // little-endian nibbles buffer
@@ -721,6 +805,10 @@ namespace {
     return consumed;
   }
 
+  // Number(): Dispatch entry for numeric literals.
+  // - Recognizes number starts as digits only (no leading '+'/'-'; those are unary operators).
+  // - If the run begins with 0x/0X, 0o/0O, or 0b/0B, dispatch to Hex/Octal/Binary respectively.
+  // - Otherwise, parse as Decimal().
   bool Lexer::Number() {
     if (!cursor.IsNumberStart()) {
       return false;
