@@ -1,5 +1,7 @@
 export module compiler.ir.Error;
 
+import <cstdint>;
+
 namespace compiler::ir {
   export enum class Error : uint8_t {
     // Lexical errors
@@ -27,6 +29,13 @@ namespace compiler::ir {
     UnicodeCodePointOutOfRange,
     UnicodeCodePointInvalid,
     UnicodeSurrogateCodePointIsNotAValidScalarValue,
+
+    // Declaration/statement lexer errors
+    DeclarationExpectedIdentifierAfterModifiers,
+    DeclarationExplicitTypeCannotBeUsedWithPostfixUnaryOperators,
+    DeclarationExpectedTypeExpressionAfterColon,
+    DeclarationExpectedExpressionAfterAssignmentOperator,
+    DeclarationCannotSkipAssignmentOperatorWithPostfixUnaryOperators,
 
     // Parser errors
     ParserExpectedObjectDeclaration,
