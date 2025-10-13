@@ -1133,7 +1133,7 @@ namespace compiler::input {
       if (cursor.Peek() == ',' || cursor.Peek() == ')') return true;
     } else {
       if (modifiers > 0) {
-        return Error(ir::Error::ParserDeclarationExpectedIdentifierAfterModifiers);
+        return Error(ir::Error::DeclarationExpectedIdentifierAfterModifiers);
       }
 
       return false;
@@ -1285,11 +1285,11 @@ namespace compiler::input {
 
     if (TypeStart()) {
       if (operators > 0) {
-        return Error(ir::Error::ParserDeclarationExplicitTypeCannotBeUsedWithPostfixUnaryOperators);
+        return Error(ir::Error::DeclarationExplicitTypeCannotBeUsedWithPostfixUnaryOperators);
       }
 
       if (!Expression()) {
-        return Error(ir::Error::ParserDeclarationExpectedTypeExpressionAfterColon);
+        return Error(ir::Error::DeclarationExpectedTypeExpressionAfterColon);
       }
 
       if (Assign()) {
@@ -1297,7 +1297,7 @@ namespace compiler::input {
           return true;
         }
         else {
-          return Error(ir::Error::ParserDeclarationExpectedExpressionAfterAssignmentOperator);
+          return Error(ir::Error::DeclarationExpectedExpressionAfterAssignmentOperator);
         }
       }
       else {
@@ -1307,7 +1307,7 @@ namespace compiler::input {
 
     if (CallablePostfixLiteral()) {
       if (operators > 0) {
-        return Error(ir::Error::ParserDeclarationCannotSkipAssignmentOperatorWithPostfixUnaryOperators);
+        return Error(ir::Error::DeclarationCannotSkipAssignmentOperatorWithPostfixUnaryOperators);
       }
 
       return true;
@@ -1317,7 +1317,7 @@ namespace compiler::input {
         return true;
       }
       else {
-        return Error(ir::Error::ParserDeclarationExpectedExpressionAfterAssignmentOperator);
+        return Error(ir::Error::DeclarationExpectedExpressionAfterAssignmentOperator);
       }
     }
 
@@ -1334,7 +1334,7 @@ namespace compiler::input {
     }
     else {
       if (modifiers > 0) {
-        return Error(ir::Error::ParserDeclarationExpectedIdentifierAfterModifiers);
+        return Error(ir::Error::DeclarationExpectedIdentifierAfterModifiers);
       }
 
       return false;
