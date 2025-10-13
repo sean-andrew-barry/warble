@@ -69,7 +69,7 @@ namespace compiler::ir {
     CharactersD,
     CharactersE,
     CharactersF,
-    EscapeASCII, // Single character escape such as `\n`
+    EscapeASCII, // Single character escape such as `\n`, not to be confused with an actual line break token like `LineFeed`
     EscapeHex, // `\xXX` - A character specified by a hexadecimal value of exactly two digits
     EscapeUnicode, // `\uXXXX` - A Unicode character using exactly four hexadecimal digits
     EscapeUnicodeBraced1, // `\u{H}` - A Unicode character using 1 hexadecimal digit
@@ -78,23 +78,53 @@ namespace compiler::ir {
     EscapeUnicodeBraced4, // `\u{HHHH}` - A Unicode character using 4 hexadecimal digits
     EscapeUnicodeBraced5, // `\u{HHHHH}` - A Unicode character using 5 hexadecimal digits
     EscapeUnicodeBraced6, // `\u{HHHHHH}` - A Unicode character using 6 hexadecimal digits
-    LineFeed,
-    CarriageReturnLineFeed,
-    CarriageReturn,
-    LineSeparator,
-    ParagraphSeparator,
+    LineFeed, // `\n`
+    CarriageReturnLineFeed, // `\r\n`
+    CarriageReturn, // `\r`
+    LineSeparator, // `\u2028`
+    ParagraphSeparator, // `\u2029`
     VerticalTab, // `\v`
     FormFeed, // `\f`
     Underscore, // `_` - Used as a spacer in numeric literals
     Dot, // `.` - Used in decimal literals
     Exponent, // `e` or `E` - Used in decimal literals
-    HexStart, // `0x`
-    OctalStart, // `0o`
-    BinaryStart, // `0b`
+    HexStart, // `0x` or `0X`
+    OctalStart, // `0o` or `0O`
+    BinaryStart, // `0b` or `0B`
     CommentOpen, // `//` - Starts a single line comment
     CommentClose, // Simple marker, doesn't represent any characters
     MultiLineCommentOpen, // `/*` - Starts a multi-line comment
     MultiLineCommentClose, // `*/` - Ends a multi-line comment
+    ArrayOpen, // [
+    ArrayClose, // ]
+    EnumOpen, // <
+    EnumClose, // >
+    ObjectOpen, // {
+    ObjectClose, // }
+    TupleOpen, // (
+    TupleClose, // )
+    CharOpen, // '
+    CharClose, // '
+    Comma, // ,
+    ConditionOpen, // (
+    ConditionClose, // )
+    Call, // ->
+    CaptureOpen, // [
+    CaptureClose, // ]
+    ParameterOpen, // (
+    ParameterClose, // )
+    ScopeOpen, // {
+    ScopeClose, // }
+    Semicolon, // ;
+    TemplateStringOpen, // `
+    TemplateStringClose, // `
+    TemplateStringExpressionOpen, // {
+    TemplateStringExpressionClose, // }
+    StringOpen, // "
+    StringClose, // "
+    Compiler, // `compiler` - Used to access compiler built-ins
+    Auto, // `auto` - Used for type inference
+    Void, // `void` - Used as the type of `null`
     Undefined, // `undefined`
     Null, // `null`
     True, // `true`
@@ -155,73 +185,43 @@ namespace compiler::ir {
     BitwiseAssignAnd, // &=
     BitwiseAssignXor, // ^=
     BitwiseAssignOr, // |=
-    Yield, // yield
-    Await, // await
-    Copy, // @
-    Counted, // #
-    Symbol, // $
-    Reference, // &
-    MutableReference, // *
-    Move, // `=` - Unary prefix, distinct from `ASSIGN`, used in shorthand
-    Spread, // ...
-    Decrement, // --
-    Increment, // ++
-    Negative, // -
-    Positive, // +
-    Not, // !
-    BitwiseNot, // ~
+    Yield, // `yield` - Unary prefix keyword used to yield a value from a generator
+    Await, // `await` - Unary prefix keyword used to wait for a promise to resolve
+    Expect, // `expect` - Unary prefix keyword used for assertions in tests
+    Copy, // `@` - Unary prefix used to create a copy of a value
+    Counted, // `#` - Unary prefix used to indicate a counted loop
+    Symbol, // `$` - Unary prefix used to access value's symbol
+    Reference, // `&` - Unary prefix used to denote a reference
+    MutableReference, // `*` - Unary prefix used to denote a mutable reference
+    Spread, // `...` - Unary prefix used to spread elements from one structured literal to another
+    Decrement, // `--` - Unary prefix used for decrementing a value
+    Increment, // `++` - Unary prefix used for incrementing a value
+    Negative, // `-` - Unary prefix used to indicate a negative value
+    Positive, // `+` - Unary prefix used to indicate a positive value
+    Not, // `!` - Unary prefix used for logical NOT
+    BitwiseNot, // `~` - Unary prefix used for bitwise NOT
     As, // `as` - Used for aliasing
-    Has,
-    Break,
-    Continue,
-    Default,
-    Do,
-    Else,
-    For,
-    Register,
+    Do, // `do` - Used to declare an unconditional scope block
+    Else, // `else` - Used for conditional statements
+    Register, // `register` - Used to define a new package
     With, // `with` - Used in `register` statements to specify the allow list
-    From,
-    If,
-    Return,
-    When,
-    Is,
-    In,
-    Import,
-    Export,
-    While,
-    Repeat,
+    Import, // `import` - Used to import modules
+    From, // `from` - Used to specify the source of an import and in `when` statements
+    If, // `if` - Used for conditional statements
+    Return, // `return` - Used to return a value from a function
+    When, // `when` - Used for pattern matching, sometimes known as `match` in other languages
+    Is, // `is` - Used for type checking
+    Has, // `has` - Used in `when` statements
+    Export, // `export` - Modifier applied to declarations to make them available to `import` statements
+    For, // `for` - Used for iterating over collections
+    While, // `while` - Used for conditional loops
+    Repeat, // `repeat` - Used for unconditional loops, or can be augmented with a trailing `while` condition
+    In, // `in` - Used inside `for` loops
+    Break, // `break` - Used to exit loops, can be stacked
+    Continue, // `continue` - Used to skip the current iteration of a loop, can be stacked
+    Default, // `default` - Used to specify the default case in `when` statements
     Case,
-    Let,
-    Compiler,
-    Auto, // auto
-    Void, // void
-    ArrayOpen, // [
-    ArrayClose, // ]
-    EnumOpen, // <
-    EnumClose, // >
-    ObjectOpen, // {
-    ObjectClose, // }
-    TupleOpen, // (
-    TupleClose, // )
-    CharOpen, // '
-    CharClose, // '
-    Comma, // ,
-    ConditionOpen, // (
-    ConditionClose, // )
-    Call, // ->
-    CaptureOpen, // [
-    CaptureClose, // ]
-    ParameterOpen, // (
-    ParameterClose, // )
-    ScopeOpen, // {
-    ScopeClose, // }
-    Semicolon, // ;
-    TemplateStringOpen, // `
-    TemplateStringClose, // `
-    TemplateStringExpressionOpen, // {
-    TemplateStringExpressionClose, // }
-    StringOpen, // "
-    StringClose, // "
+    Let, // `let` - Used to declare a variable
     TypeStart, // :
     Wildcard, // `*` - Used in aggregating export statements
   };
