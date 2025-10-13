@@ -11,8 +11,8 @@ namespace compiler::ir::symbol {
     Raw,
     Character, // Value is a `char32_t`
     Symbol, // Value is a `std::pair<uint32_t, uint32_t>` of the module and symbol indexes
-    Decimal, // Value is a `double`
-    Integer, // Value is a `uint64_t` or `int64_t` depending on the flags
+    Integer, // Value is a `uint64_t` or `std::pair<uint32_t, uint32_t>` depending on flags
+    Float, // Value is a `std::pair<int16_t, uint32_t>` or `std::pair<uint32_t, uint32_t>` depending on flags
     Reference,
     Array,
     String, // Value is a `std::pair<uint32_t, uint32_t>` of the length and `characters` start index
@@ -21,13 +21,15 @@ namespace compiler::ir::symbol {
     TemplateString,
     Object,
     Variant,
+    Promise,
+    Expectation,
     Range,
     Phi,
     Function,
-    Module, // Value is a `ir::Module*` during compilation
+    Module, // Value is a `compiler::program::Module*` during compilation
     Block,
 
-    // CFG blocks
+    // Statements
     Do,
     If,
     ElseIf,
@@ -39,6 +41,9 @@ namespace compiler::ir::symbol {
     RepeatWhile,
     Is,
     Has,
+    From,
     Default,
+    Register,
+    Import,
   };
 }
