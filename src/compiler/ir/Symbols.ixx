@@ -41,7 +41,7 @@ namespace compiler::ir {
 
     ir::symbol::Type Type(ir::Index i) const {
       // First byte of flags stores the Type enum value; mask low 8 bits
-      auto v = Flags(i).to_ullong();
+      auto v = Flags(i);
       return static_cast<ir::symbol::Type>(static_cast<uint8_t>(v & 0xFFull));
     }
 
@@ -56,7 +56,7 @@ namespace compiler::ir {
 
     void Type(ir::Index i, ir::symbol::Type v) {
       // Replace the first byte of flags with the Type
-      auto current = Flags(i).to_ullong();
+      auto current = Flags(i);
       auto updated = (current & ~0xFFull) | static_cast<uint8_t>(v);
       Flags(i, updated);
     }
