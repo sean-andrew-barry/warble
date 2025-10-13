@@ -7,9 +7,8 @@ import <string>;
 import <stdexcept>;
 import <expected>;
 
-import compiler.program.Module;
+import compiler.ir.Token;
 import compiler.ir.Error;
-import compiler.ir.symbol.Type;
 import compiler.text.cursor.String;
 
 namespace compiler::input {
@@ -166,12 +165,11 @@ namespace compiler::input {
   export class Lexer {
   private:
   protected:
-    program::Module& mod;
     std::string source;
     std::vector<ir::Token> tokens;
     std::vector<char32_t> characters;
-    std::vector<uint32_t> line_starts; // The token index where each line starts
-    std::vector<uint32_t> string_starts; // The character index where each line starts
+    std::vector<uint8_t> hex_le; // little-endian nibbles buffer
+    std::vector<ir::Error> errors; // emitted error codes in encounter order
 
     text::cursor::String cursor;
     std::string::const_iterator furthest; // Highest source iterator reached to suppress duplicate side-effects after rollback.
@@ -179,6 +177,8 @@ namespace compiler::input {
     struct Position {
       std::string::const_iterator cursor;
       size_t token;
+      size_t character;
+      size_t error;
     };
 
     // Capture the current cursor and the current token count so speculative
@@ -189,48 +189,16 @@ namespace compiler::input {
 
     void Rollback(const Position& position);
     bool Emit(ir::Token token);
-    bool EmitRepeated(ir::Token token, uint32_t count);
-    bool EmitRepeated(ir::Token token, std::string::const_iterator begin);
-    bool EmitStringSymbol(ir::Token token, size_t start);
     bool Error(ir::Error error);
     bool EmitAndAdvance(ir::Token token, size_t count = 1);
     bool Keyword(const std::string_view text);
-    bool Line(ir::Token t);
     bool IsBacktracked() const { return furthest > cursor.cbegin(); }
 
-    // ---- Tiny, hot-path helpers (inline) to simplify WhiteSpace without cost ----
-    // Consume a run of '\n' and record line starts; returns the number consumed.
-    inline uint32_t ConsumeLFs() {
-      uint32_t count = 0;
-      while (!cursor.Done() && cursor.Peek() == '\n') {
-        cursor.Advance(1);
-        mod.AddLine(cursor.cbegin());
-        ++count;
-      }
-      return count;
-    }
-
-    // Consume a run of CRLF pairs and record line starts; returns the number of pairs consumed.
-    inline uint32_t ConsumeCRLFs() {
-      uint32_t count = 0;
-      while (!cursor.Done() && cursor.Peek() == '\r' && cursor.Peek(1) == '\n') {
-        cursor.Advance(2);
-        mod.AddLine(cursor.cbegin());
-        ++count;
-      }
-      return count;
-    }
-
-    // Consume a run of lone '\r' (not followed by '\n') and record line starts; returns the number consumed.
-    inline uint32_t ConsumeCRs() {
-      uint32_t count = 0;
-      while (!cursor.Done() && cursor.Peek() == '\r' && cursor.Peek(1) != '\n') {
-        cursor.Advance(1);
-        mod.AddLine(cursor.cbegin());
-        ++count;
-      }
-      return count;
-    }
+    // Emit the given count as big-endian hexadecimal nibbles using Characters0..F tokens.
+    // Returns true if any tokens were emitted (count > 0).
+    bool EmitCharactersNibbles(uint32_t count);
+    bool EmitSpacesNibbles(uint32_t count);
+    bool EmitTabsNibbles(uint32_t count);
 
     // Handle a single non-ASCII whitespace code point. Returns true if whitespace was consumed and tokens emitted.
     bool HandleNonASCIIWhitespace();
@@ -288,7 +256,7 @@ namespace compiler::input {
       return true;
     }
   public:
-    Lexer(program::Module& mod, const std::string_view source);
+    Lexer(std::string&& source);
 
     virtual ~Lexer() = default;
 
@@ -396,17 +364,13 @@ namespace compiler::input {
     bool UnaryPrefixOperator();
     bool UnaryPostfixOperator();
 
-    // Generic escape sequence parser.
-    //  - Consumes an escape sequence beginning with '\\'
-    //  - Emits escape-related tokens (e.g., EscapeUnicodeShort, EscapeHexCode, etc.)
-    //  - Emits an ir::Token::Characters with the UTF-8 width of the resulting single code point
-    //  - Returns the decoded UTF-32 code point as std::expected<char32_t, ir::Error>
-    // Responsibilities of callers:
-    //  - If building a string-like buffer, append the returned code point to mod.Characters() only when not backtracked
-    //  - Do not emit an additional Characters token for this code point (Escape already recorded its width)
-    // Error policy:
-    //  - No errors are reported here beyond returning the specific ir::Error; callers may additionally report context-specific errors
-    std::expected<char32_t, ir::Error> Escape();
+    // Generic escape sequence parser (new design).
+    //  - Consumes an escape beginning with '\\' and emits exactly one Escape* token that
+    //    encodes the source format (ASCII, \xHH, \uXXXX, or \u{H…H}).
+    //  - Decodes the escaped character to a UTF-32 code point and appends it to `characters`.
+    //  - Does NOT emit any Characters* tokens for the escape (Escape* implies Characters1).
+    //  - Returns true on success; on failure, calls Error(...) with a precise code and returns false.
+    bool Escape();
 
     bool Char();
     bool String();

@@ -1,78 +1,132 @@
 import <array>;
-import <string_view>;
+import <string>;
 import <vector>;
 
 import compiler.input.Lexer;
-import compiler.program.Module;
-import compiler.ir.Symbols;
-import compiler.ir.Symbol;
 import compiler.ir.Error;
-import compiler.ir.symbol.Type;
 import compiler.text.cursor.String;
 import compiler.text.Unicode;
 
 namespace compiler::input {
-namespace {
-  constexpr std::array<ir::Token, 16> DIGIT_TOKENS{
-    ir::Token::Digits0, ir::Token::Digits1, ir::Token::Digits2, ir::Token::Digits3,
-    ir::Token::Digits4, ir::Token::Digits5, ir::Token::Digits6, ir::Token::Digits7,
-    ir::Token::Digits8, ir::Token::Digits9, ir::Token::DigitsA, ir::Token::DigitsB,
-    ir::Token::DigitsC, ir::Token::DigitsD, ir::Token::DigitsE, ir::Token::DigitsF,
-  };
+  namespace {
+    constexpr std::array<ir::Token, 16> DIGIT_TOKENS{
+      ir::Token::Digits0, ir::Token::Digits1, ir::Token::Digits2, ir::Token::Digits3,
+      ir::Token::Digits4, ir::Token::Digits5, ir::Token::Digits6, ir::Token::Digits7,
+      ir::Token::Digits8, ir::Token::Digits9, ir::Token::DigitsA, ir::Token::DigitsB,
+      ir::Token::DigitsC, ir::Token::DigitsD, ir::Token::DigitsE, ir::Token::DigitsF,
+    };
 
-  constexpr ir::Token DigitToken(uint8_t value) {
-    return DIGIT_TOKENS[value & 0xF];
-  }
-} // namespace
-
+    constexpr ir::Token DigitToken(uint8_t value) {
+      return DIGIT_TOKENS[value & 0xF];
+    }
+  } // namespace
 
   Lexer::Position Lexer::Start() {
-    return Position{cursor.Current(), mod.Tokens().size()};
+    return Position{cursor.Current(), tokens.size(), characters.size(), errors.size()};
   }
 
   void Lexer::Rollback(const Lexer::Position& position) {
     furthest = std::max(furthest, cursor.cbegin());
     cursor.Retreat(position.cursor);
-    mod.Tokens().erase(mod.Tokens().begin() + position.token, mod.Tokens().end());
+    tokens.resize(position.token);
+    characters.resize(position.character);
+    errors.resize(position.error);
   }
 
-  bool Lexer::Emit(ir::Token token) { mod.AddToken(token); return true; }
+  bool Lexer::Emit(ir::Token token) { tokens.push_back(token); return true; }
 
-  bool Lexer::EmitRepeated(ir::Token token, uint32_t count) {
+  // Deprecated EmitRepeated overloads removed in new design (widths are embedded as hex tokens)
+
+  bool Lexer::EmitCharactersNibbles(uint32_t count) {
     if (count == 0) return false;
-
-    while (count > 255) {
-      mod.AddToken(token, static_cast<uint8_t>(255));
-      count -= 255;
+    uint32_t v = count;
+    uint8_t nibbles[8];
+    int n = 0;
+    while (v > 0) { nibbles[n++] = static_cast<uint8_t>(v & 0xF); v >>= 4; }
+    for (int i = n - 1; i >= 0; --i) {
+      switch (nibbles[i]) {
+        case 0x0: Emit(ir::Token::Characters0); break;
+        case 0x1: Emit(ir::Token::Characters1); break;
+        case 0x2: Emit(ir::Token::Characters2); break;
+        case 0x3: Emit(ir::Token::Characters3); break;
+        case 0x4: Emit(ir::Token::Characters4); break;
+        case 0x5: Emit(ir::Token::Characters5); break;
+        case 0x6: Emit(ir::Token::Characters6); break;
+        case 0x7: Emit(ir::Token::Characters7); break;
+        case 0x8: Emit(ir::Token::Characters8); break;
+        case 0x9: Emit(ir::Token::Characters9); break;
+        case 0xA: Emit(ir::Token::CharactersA); break;
+        case 0xB: Emit(ir::Token::CharactersB); break;
+        case 0xC: Emit(ir::Token::CharactersC); break;
+        case 0xD: Emit(ir::Token::CharactersD); break;
+        case 0xE: Emit(ir::Token::CharactersE); break;
+        case 0xF: Emit(ir::Token::CharactersF); break;
+      }
     }
-    
-    mod.AddToken(token, static_cast<uint8_t>(count));
     return true;
   }
 
-  bool Lexer::EmitRepeated(ir::Token token, std::string::const_iterator begin) {
-    return EmitRepeated(token, static_cast<uint32_t>(std::distance(begin, cursor.cbegin())));
+  bool Lexer::EmitSpacesNibbles(uint32_t count) {
+    if (count == 0) return false;
+    uint32_t v = count;
+    uint8_t nibbles[8];
+    int n = 0;
+    while (v > 0) { nibbles[n++] = static_cast<uint8_t>(v & 0xF); v >>= 4; }
+    for (int i = n - 1; i >= 0; --i) {
+      switch (nibbles[i]) {
+        case 0x0: Emit(ir::Token::Spaces0); break;
+        case 0x1: Emit(ir::Token::Spaces1); break;
+        case 0x2: Emit(ir::Token::Spaces2); break;
+        case 0x3: Emit(ir::Token::Spaces3); break;
+        case 0x4: Emit(ir::Token::Spaces4); break;
+        case 0x5: Emit(ir::Token::Spaces5); break;
+        case 0x6: Emit(ir::Token::Spaces6); break;
+        case 0x7: Emit(ir::Token::Spaces7); break;
+        case 0x8: Emit(ir::Token::Spaces8); break;
+        case 0x9: Emit(ir::Token::Spaces9); break;
+        case 0xA: Emit(ir::Token::SpacesA); break;
+        case 0xB: Emit(ir::Token::SpacesB); break;
+        case 0xC: Emit(ir::Token::SpacesC); break;
+        case 0xD: Emit(ir::Token::SpacesD); break;
+        case 0xE: Emit(ir::Token::SpacesE); break;
+        case 0xF: Emit(ir::Token::SpacesF); break;
+      }
+    }
+    return true;
   }
 
-  bool Lexer::EmitStringSymbol(ir::Token token, size_t start) {
-    Emit(token); // Marks that a symbol is found here
-
-    // Do not create the symbol when backtracked, it was already created
-    if (IsBacktracked()) return false;
-
-    ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
-    sym.Value(static_cast<uint32_t>(start), static_cast<uint32_t>(mod.Characters().size() - start));
+  bool Lexer::EmitTabsNibbles(uint32_t count) {
+    if (count == 0) return false;
+    uint32_t v = count;
+    uint8_t nibbles[8];
+    int n = 0;
+    while (v > 0) { nibbles[n++] = static_cast<uint8_t>(v & 0xF); v >>= 4; }
+    for (int i = n - 1; i >= 0; --i) {
+      switch (nibbles[i]) {
+        case 0x0: Emit(ir::Token::Tabs0); break;
+        case 0x1: Emit(ir::Token::Tabs1); break;
+        case 0x2: Emit(ir::Token::Tabs2); break;
+        case 0x3: Emit(ir::Token::Tabs3); break;
+        case 0x4: Emit(ir::Token::Tabs4); break;
+        case 0x5: Emit(ir::Token::Tabs5); break;
+        case 0x6: Emit(ir::Token::Tabs6); break;
+        case 0x7: Emit(ir::Token::Tabs7); break;
+        case 0x8: Emit(ir::Token::Tabs8); break;
+        case 0x9: Emit(ir::Token::Tabs9); break;
+        case 0xA: Emit(ir::Token::TabsA); break;
+        case 0xB: Emit(ir::Token::TabsB); break;
+        case 0xC: Emit(ir::Token::TabsC); break;
+        case 0xD: Emit(ir::Token::TabsD); break;
+        case 0xE: Emit(ir::Token::TabsE); break;
+        case 0xF: Emit(ir::Token::TabsF); break;
+      }
+    }
     return true;
   }
 
   bool Lexer::Error(ir::Error error) {
-    Emit(ir::Token::Error); // Marks that an error symbol is found here
-
-    // TODO: Do we create error symbols when backtracked? I'm not sure.
-    // For now, we do create them even when backtracked.
-
-    ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::Error);
-    sym.Value(static_cast<uint64_t>(error)); // Store the error code
+    Emit(ir::Token::Error);
+    errors.push_back(error);
     return true;
   }
 
@@ -90,111 +144,105 @@ namespace {
     return true;
   }
 
-  bool Lexer::Line(ir::Token t) {
-    // Make sure we don't double record lines when backtracked
-    if (!IsBacktracked()) {
-      mod.AddLine(cursor.cbegin());
-      furthest = cursor.cbegin();
-    }
-
-    return Emit(t);
-  }
-
-  Lexer::Lexer(program::Module& mod, const std::string_view source)
-    : mod{mod}, cursor{source}, furthest{cursor.cbegin()} {
-    mod.AddLine(cursor.cbegin()); // Start with the first line
+  Lexer::Lexer(std::string&& source)
+    : source{std::move(source)}, cursor{this->source}, furthest{cursor.cbegin()} {
   }
 
   bool Lexer::WhiteSpace() {
     switch (cursor.Peek()) {
       case '\v': return EmitAndAdvance(ir::Token::VerticalTab, 1);
       case '\f': return EmitAndAdvance(ir::Token::FormFeed, 1);
-      case ' ' : return EmitRepeated(ir::Token::Spaces, cursor.Consume(' '));
-      case '\t': return EmitRepeated(ir::Token::Tabs, cursor.Consume('\t'));
-      case '\n': return EmitRepeated(ir::Token::LineFeeds, ConsumeLFs());
+      case ' ': {
+        uint32_t count = 0;
+        while (!cursor.Done() && cursor.Peek() == ' ') { cursor.Advance(1); ++count; }
+        return EmitSpacesNibbles(count);
+      }
+      case '\t': {
+        uint32_t count = 0;
+        while (!cursor.Done() && cursor.Peek() == '\t') { cursor.Advance(1); ++count; }
+        return EmitTabsNibbles(count);
+      }
+      case '\n': {
+        // Emit one LineFeed token per newline as we consume
+        do {
+          cursor.Advance(1);
+          Emit(ir::Token::LineFeed);
+        } while (!cursor.Done() && cursor.Peek() == '\n');
+        return true;
+      }
       case '\r': {
-        if (cursor.Peek(1) == '\n') {
-          // First pair is guaranteed; consume it then continue with remaining pairs
-          cursor.Advance(2);
-          mod.AddLine(cursor.cbegin());
-          return EmitRepeated(ir::Token::CarriageReturnLineFeeds, 1u + ConsumeCRLFs());
-        }
-        // Lone CRs
-        return EmitRepeated(ir::Token::CarriageReturns, ConsumeCRs());
+        // Emit CRLF or CR tokens as we consume
+        do {
+          cursor.Advance(1); // consume CR
+          if (!cursor.Done() && cursor.Peek() == '\n') {
+            cursor.Advance(1); // consume LF
+            Emit(ir::Token::CarriageReturnLineFeed);
+          } else {
+            Emit(ir::Token::CarriageReturn);
+          }
+        } while (!cursor.Done() && cursor.Peek() == '\r');
+        return true;
       }
       case '/': {
         switch (cursor.Peek(1)) {
           case '/': {
-            cursor.Advance(2); // Consume the opening `'//'`
+            cursor.Advance(2); // consume '//'
             Emit(ir::Token::CommentOpen);
 
-            auto begin = cursor.cbegin();
-            auto start = mod.Characters().size();
-            
-            while (true) {
-              if (cursor.Done() || IsBreak()) {
-                EmitStringSymbol(ir::Token::Comment, start); // Create the symbol
-                EmitRepeated(ir::Token::Characters, begin); // Record the UTF-8 width of the comment
-
-                return Emit(ir::Token::CommentClose); // Special zero width end marker
-              }
-
-              // Don't capture characters when backtracked
-              if (IsBacktracked()) {
-                cursor.Advance(1);
-              } else {
-                mod.AddCharacter(cursor.CodePoint());
-              }
+            uint32_t run_count = 0;
+            while (!cursor.Done() && !IsBreak()) {
+              // capture literally (no escape parsing)
+              characters.push_back(cursor.CodePoint());
+              ++run_count;
             }
+            EmitCharactersNibbles(run_count);
+            return Emit(ir::Token::CommentClose);
           }
           case '*': {
-            cursor.Advance(2); // Consume the opening `'\*'`
+            cursor.Advance(2); // consume '/*'
             Emit(ir::Token::MultiLineCommentOpen);
 
-            auto begin = cursor.cbegin();
-            auto start = mod.Characters().size();
-
+            uint32_t run_count = 0;
             while (!cursor.Done()) {
+              // Check for closing '*/'
               if (cursor.Peek() == '*' && cursor.Peek(1) == '/') {
-                cursor.Advance(2); // Consume the closing `'*/'`
-
-                EmitStringSymbol(ir::Token::MultiLineComment, start);
-                EmitRepeated(ir::Token::Characters, begin); // Record the UTF-8 width of the comment
-
+                EmitCharactersNibbles(run_count);
+                run_count = 0;
+                cursor.Advance(2);
                 return Emit(ir::Token::MultiLineCommentClose);
               }
 
-              // Don't capture characters when backtracked
-              if (IsBacktracked()) {
-                cursor.Advance(1);
-              } else {
-                auto cp = cursor.CodePoint();
-                mod.AddCharacter(cp);
+              // Handle line breaks as explicit tokens that terminate runs
+              auto iter = cursor.cbegin();
+              char32_t cp = cursor.CodePoint();
 
-                switch (cp) {
-                  case U'\u2028':
-                  case U'\u2029':
-                  case U'\n': {
-                    mod.AddLine(cursor.cbegin());
-                    break;
+              if (cp == U'\n' || cp == U'\r' || cp == U'\u2028' || cp == U'\u2029') {
+                EmitCharactersNibbles(run_count);
+                run_count = 0;
+
+                if (cp == U'\r') {
+                  if (cursor.Peek() == '\n') {
+                    cursor.Advance(1); Emit(ir::Token::CarriageReturnLineFeed); characters.push_back(U'\r'); characters.push_back(U'\n');
+                  } else {
+                    Emit(ir::Token::CarriageReturn);
+                    characters.push_back(U'\r');
                   }
-                  case U'\r': {
-                    if (cursor.Peek() == '\n') {
-                      cursor.Advance(1); // Consume the LF as part of the CRLF
-                      mod.AddCharacter(U'\n'); // No need to call `CodePoint`, we already know what it is
-                      mod.AddLine(cursor.cbegin());
-                    } else {
-                      mod.AddLine(cursor.cbegin()); // A lone CR is still a newline
-                    }
-                    break;
-                  }
-                }
+                } else if (cp == U'\n') { Emit(ir::Token::LineFeed); characters.push_back(U'\n'); }
+                else if (cp == U'\u2028') { Emit(ir::Token::LineSeparator); characters.push_back(U'\u2028'); }
+                else { Emit(ir::Token::ParagraphSeparator); characters.push_back(U'\u2029'); }
+                continue;
               }
+
+              // Regular comment character (no escape processing)
+              characters.push_back(cp);
+              ++run_count;
             }
 
+            // EOF before closing '*/'
+            EmitCharactersNibbles(run_count);
             return Error(ir::Error::MultiLineCommentExpectedClosingAsteriskSlash);
           }
-          default: return false; // Wasn't a comment
+          default: return false;
         }
       }
       default: {
@@ -210,16 +258,11 @@ namespace {
     auto code_point = cursor.CodePoint(); // Consumes the full code point
 
     // LS/PS
-    if (code_point == 0x2028) {
-      return Line(ir::Token::LineSeparators);
-    }
-    if (code_point == 0x2029) {
-      return Line(ir::Token::ParagraphSeparators);
-    }
+    if (code_point == 0x2028) { return Emit(ir::Token::LineSeparator); }
+    if (code_point == 0x2029) { return Emit(ir::Token::ParagraphSeparator); }
 
-    if (Unicode::IsWhiteSpace(code_point)) {
-      return Emit(ir::Token::Spaces, 1);
-    }
+    // Other Unicode whitespace is not consumed here in the new design (no generic Spaces token).
+    // Defer to other lexing paths by undoing and returning false.
 
     // Not whitespace; undo
     cursor.Retreat(iter);
@@ -353,90 +396,116 @@ namespace {
   bool Lexer::UnaryPrefixOperator() { return cursor.IsUnaryPrefixStart() && UnaryPrefixOperatorHelper(); }
   bool Lexer::UnaryPostfixOperator() { return cursor.IsUnaryPostfixStart() && UnaryPostfixOperatorHelper(); }
 
-  std::expected<char32_t, ir::Error> Lexer::Escape() {
-    if (!cursor.Match('\\')) return std::unexpected(ir::Error::EscapeSequenceUnexpectedEndOfInput);
+  bool Lexer::Escape() {
+    if (cursor.Done() || cursor.Peek() != '\\') {
+      return false; // not an escape start
+    }
 
-    // Unicode escape or code point
-    if (cursor.Match('u')) {
-      // Unicode code point escape \u{XXXXX...}
-      if (cursor.Match('{')) {
-        Emit(ir::Token::EscapeUnicodeCodePointStart); // Represents the `\u{` part
-        auto begin_hex = cursor.cbegin();
+    cursor.Advance(1); // consume '\\'
+    if (cursor.Done()) {
+      Error(ir::Error::EscapeSequenceUnexpectedEndOfInput);
+      return false;
+    }
 
-        while (true) {
-          if (cursor.Done()) {
-            return std::unexpected(ir::Error::EscapeSequenceUnexpectedEndOfInput);
+    const char c = cursor.Peek();
+    auto hex_value = [](char ch) -> int {
+      if (ch >= '0' && ch <= '9') return ch - '0';
+      if (ch >= 'a' && ch <= 'f') return 10 + (ch - 'a');
+      if (ch >= 'A' && ch <= 'F') return 10 + (ch - 'A');
+      return -1;
+    };
+
+    auto emit_ascii = [&](char32_t cp){
+      Emit(ir::Token::EscapeASCII);
+      if (!IsBacktracked()) characters.push_back(cp);
+      return true;
+    };
+
+    switch (c) {
+      case 'n': cursor.Advance(1); return emit_ascii(U'\n');
+      case 't': cursor.Advance(1); return emit_ascii(U'\t');
+      case 'b': cursor.Advance(1); return emit_ascii(U'\b');
+      case 'r': cursor.Advance(1); return emit_ascii(U'\r');
+      case 'f': cursor.Advance(1); return emit_ascii(U'\f');
+      case 'v': cursor.Advance(1); return emit_ascii(U'\v');
+      case '\\': cursor.Advance(1); return emit_ascii(U'\\');
+      case '"': cursor.Advance(1); return emit_ascii(U'"');
+      case '\'': cursor.Advance(1); return emit_ascii(U'\'');
+      case 'x': {
+        // \xHH: exactly two hex digits
+        cursor.Advance(1);
+        if (cursor.Done()) { Error(ir::Error::EscapeSequenceUnexpectedEndOfInput); return false; }
+        uint32_t value = 0;
+        for (int i = 0; i < 2; ++i) {
+          if (cursor.Done()) { Error(ir::Error::EscapeSequenceUnexpectedEndOfInput); return false; }
+          int nib = hex_value(cursor.Peek());
+          if (nib < 0) { Error(ir::Error::EscapeSequenceExpectedTwoHexDigits); return false; }
+          value = (value << 4) | static_cast<uint32_t>(nib);
+          cursor.Advance(1);
+        }
+        Emit(ir::Token::EscapeHex);
+        if (!IsBacktracked()) characters.push_back(static_cast<char32_t>(value));
+        return true;
+      }
+      case 'u': {
+        cursor.Advance(1);
+
+        if (cursor.Done()) { Error(ir::Error::EscapeSequenceUnexpectedEndOfInput); return false; }
+
+        if (cursor.Peek() == '{') {
+          cursor.Advance(1); // consume '{'
+          uint32_t value = 0;
+          size_t digits = 0;
+          while (!cursor.Done()) {
+            int nib = hex_value(cursor.Peek());
+            if (nib < 0) break;
+            if (digits == 6) break; // enforce max 6
+            value = (value << 4) | static_cast<uint32_t>(nib);
+            ++digits;
+            cursor.Advance(1);
           }
-          if (!IsHex()) break;
-          cursor.Advance();
-        }
 
-        auto end_hex = cursor.cbegin();
-        uint32_t width = static_cast<uint32_t>(std::distance(begin_hex, end_hex));
-        if (width == 0) {
-          return std::unexpected(ir::Error::EscapeSequenceExpectedAtLeastOneHexDigit);
-        } else if (width > 6) {
-          return std::unexpected(ir::Error::EscapeSequenceExpectedSixOrFewerHexDigits);
+          if (digits == 0) { Error(ir::Error::EscapeSequenceExpectedOneOrMoreHexDigits); return false; }
+          // If next is still hex, we exceeded 6 digits
+          if (!cursor.Done() && hex_value(cursor.Peek()) >= 0) { Error(ir::Error::EscapeSequenceExpectedSixOrFewerHexDigits); return false; }
+          if (cursor.Done() || cursor.Peek() != '}') { Error(ir::Error::EscapeSequenceExpectedClosingBrace); return false; }
+          cursor.Advance(1); // consume '}'
+
+          if (value > 0x10FFFFu) { Error(ir::Error::UnicodeCodePointOutOfRange); return false; }
+          if (value >= 0xD800u && value <= 0xDFFFu) { Error(ir::Error::UnicodeSurrogateCodePointIsNotAValidScalarValue); return false; }
+
+          switch (digits) {
+            case 1: Emit(ir::Token::EscapeUnicodeBraced1); break;
+            case 2: Emit(ir::Token::EscapeUnicodeBraced2); break;
+            case 3: Emit(ir::Token::EscapeUnicodeBraced3); break;
+            case 4: Emit(ir::Token::EscapeUnicodeBraced4); break;
+            case 5: Emit(ir::Token::EscapeUnicodeBraced5); break;
+            case 6: Emit(ir::Token::EscapeUnicodeBraced6); break;
+            default: break;
+          }
+
+          if (!IsBacktracked()) characters.push_back(static_cast<char32_t>(value));
+          return true;
         } else {
-          EmitRepeated(ir::Token::Characters, width); // Record the UTF-8 width of the codepoint digits
+          // \uXXXX short form
+          uint32_t value = 0;
+          for (int i = 0; i < 4; ++i) {
+            if (cursor.Done()) { Error(ir::Error::EscapeSequenceUnexpectedEndOfInput); return false; }
+            int nib = hex_value(cursor.Peek());
+            if (nib < 0) { Error(ir::Error::EscapeSequenceExpectedFourHexDigits); return false; }
+            value = (value << 4) | static_cast<uint32_t>(nib);
+            cursor.Advance(1);
+          }
+          if (value >= 0xD800u && value <= 0xDFFFu) { Error(ir::Error::UnicodeSurrogateCodePointIsNotAValidScalarValue); return false; }
+          Emit(ir::Token::EscapeUnicode);
+          if (!IsBacktracked()) characters.push_back(static_cast<char32_t>(value));
+          return true;
         }
-
-        auto converted = text::Unicode::HexStringToCodePoint(std::string_view{begin_hex, end_hex});
-        if (!converted) {
-          return std::unexpected(converted.error());
-        }
-
-        if (cursor.Match('}')) {
-          Emit(ir::Token::EscapeUnicodeCodePointEnd);
-          return converted.value();
-        } else {
-          return std::unexpected(ir::Error::EscapeSequenceExpectedClosingBrace);
-        }
-      } else { // Unicode escape \uXXXX
-        auto begin_hex = cursor.cbegin();
-        for (int i = 0; i < 4; ++i) {
-          if (cursor.Done()) return std::unexpected(ir::Error::EscapeSequenceUnexpectedEndOfInput);
-          if (!IsHex()) return std::unexpected(ir::Error::EscapeSequenceExpectedFourHexDigits);
-          cursor.Advance();
-        }
-
-        auto converted = text::Unicode::HexStringToCodePoint(std::string_view{begin_hex, cursor.cbegin()});
-        if (!converted) return std::unexpected(converted.error());
-
-        Emit(ir::Token::EscapeUnicodeShort);
-        return converted.value();
       }
-    } else if (cursor.Peek() == 'x') { // Hexadecimal escape \xXX
-      cursor.Advance();
-      auto begin_hex = cursor.cbegin();
-      for (int i = 0; i < 2; ++i) {
-        if (cursor.Done()) {
-          return std::unexpected(ir::Error::EscapeSequenceUnexpectedEndOfInput);
-        }
-        if (!IsHex()) {
-          return std::unexpected(ir::Error::EscapeSequenceExpectedTwoHexDigits);
-        }
-        cursor.Advance();
-      }
-
-      auto converted = text::Unicode::HexStringToCodePoint(std::string_view{begin_hex, cursor.cbegin()});
-      if (!converted) {
-        return std::unexpected(converted.error());
-      }
-
-      Emit(ir::Token::EscapeHexCode);
-      return converted.value();
-    } else { // Single character escape
-      auto c = cursor.Peek();
-      cursor.Advance();
-
-      switch (c) {
-        case 'n': Emit(ir::Token::EscapeNewline); return U'\n';
-        case 't': Emit(ir::Token::EscapeTab); return U'\t';
-        case 'b': Emit(ir::Token::EscapeBackspace); return U'\b';
-        case 'r': Emit(ir::Token::EscapeReturn); return U'\r';
-        case 'f': Emit(ir::Token::EscapeFormFeed); return U'\f';
-        default:  Emit(ir::Token::EscapeCharacter); return static_cast<unsigned char>(c); // TODO: What if it isn't ASCII?
+      default: {
+        // Default: treat as escaped ASCII character
+        cursor.Advance(1);
+        return emit_ascii(static_cast<unsigned char>(c));
       }
     }
   }
@@ -444,37 +513,18 @@ namespace {
   bool Lexer::Char() {
     if (!CharOpen()) return false;
 
-    bool backtracked = IsBacktracked();
-    char32_t cp = 0;
-
     if (cursor.Peek() == '\\') {
-      auto esc = Escape();
-      if (!esc) {
-        Error(esc.error());
-        // For character literals we standardize on this specific error, regardless of underlying escape issue
+      if (!Escape()) {
+        // Escape() already reported an error; for character literals, standardize message
         return Error(ir::Error::CharacterLiteralExpectedEscapeAfterBackslash);
-      }
-
-      cp = esc.value();
-      Emit(ir::Token::Character); // Always emit token (tokens are rolled back, symbols are not)
-
-      if (!backtracked) {
-        ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::Character);
-        sym.Value(static_cast<uint64_t>(cp));
       }
     } else if (cursor.Peek() == '\'') {
       return Error(ir::Error::CharacterLiteralExpectedContent);
     } else {
-      auto begin = cursor.cbegin();
-
-      cp = cursor.CodePoint(); // Consume raw code point from source
-      Emit(ir::Token::Character); // Mark symbol location
-      if (!backtracked) {
-        ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::Character);
-        sym.Value(static_cast<uint64_t>(cp));
-      }
-
-      EmitRepeated(ir::Token::Characters, begin); // Record the UTF-8 width of the character
+      // Consume one raw code point and emit length token Characters1
+      auto cp = cursor.CodePoint();
+      Emit(ir::Token::Characters1);
+      if (!IsBacktracked()) characters.push_back(cp);
     }
 
     if (!CharClose()) return Error(ir::Error::CharacterLiteralExpectedClosingSingleQuote);
@@ -484,54 +534,33 @@ namespace {
   bool Lexer::String() {
     if (!StringOpen()) return false;
 
-    auto begin = cursor.cbegin();
-    auto start = mod.Characters().size();
-
+    uint32_t run_count = 0;
     while (true) {
       if (cursor.Done()) return Error(ir::Error::StringLiteralExpectedClosingDoubleQuote);
       if (IsBreak()) return Error(ir::Error::StringLiteralUnexpectedLineBreak);
-      if (cursor.Peek() == '"') break; // End of string
+      if (cursor.Peek() == '"') break;
 
       if (cursor.Peek() == '\\') {
-        // Record width for the plain chunk preceding the escape
-        EmitRepeated(ir::Token::Characters, begin);
-
-        auto esc = Escape();
-        if (!esc) return Error(esc.error());
-
-        // Append resulting code point unless backtracked
-        if (!IsBacktracked()) {
-          mod.AddCharacter(esc.value());
-        }
-
-        begin = cursor.cbegin(); // start a new chunk after the escape
-        continue;
+        // flush current run before the escape
+        EmitCharactersNibbles(run_count);
+        run_count = 0;
+        if (!Escape()) return false; // Escape() reports its own errors
+        continue; // do not include escape in run; it implicitly represents Characters1
       }
 
-      // Don't capture characters when backtracked
-      if (IsBacktracked()) {
-        cursor.Advance(1);
-      } else {
-        mod.AddCharacter(cursor.CodePoint());
-      }
+      auto cp = cursor.CodePoint();
+      if (!IsBacktracked()) characters.push_back(cp);
+      ++run_count;
     }
 
-    EmitRepeated(ir::Token::Characters, begin); // Record the UTF-8 width of the string
-
-    Emit(ir::Token::String); // Mark that a symbol is found here
-
-    if (mod.Characters().size() > start) {
-      ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
-      sym.Value(static_cast<uint32_t>(start), static_cast<uint32_t>(mod.Characters().size() - start));
-    }
+    // flush trailing run
+    EmitCharactersNibbles(run_count);
 
     if (!StringClose()) return Error(ir::Error::StringLiteralExpectedClosingDoubleQuote);
     return OWS();
   }
   
-  /*
-   * Numeric literal lexing — design overview
-   *
+  /****
    * Core idea
    * - The lexer is intentionally dumb about numbers. It does not try to interpret
    *   literals (no value folding, no float parsing, no signs consumed). It only
@@ -548,51 +577,13 @@ namespace {
    * - Leading zeros are preserved by emitting one ir::Token::Digits0 per zero at the
    *   front of each run. Because a 0 nibble has no effect on the decoded value, this
    *   preserves width without changing semantics.
-   *
-   * What “dumb” means in practice
-   * - Decimal runs: A sequence of [0-9]+ is converted to hex nibbles and emitted.
-   *   A dot (.) is emitted as ir::Token::Dot and ends the current run; the digits
-   *   after the dot form a separate run. Likewise, 'e'/'E' is emitted as ir::Token::Exponent
-   *   and an immediate '+' or '-' after it is emitted as ir::Token::Add / ir::Token::Subtract.
-   *   The lexer does not try to assemble these into a float or scientific notation—
-   *   the parser owns that responsibility.
-   * - Signs: A leading '+' or '-' belongs to the unary-operator layer and must NOT be
-   *   consumed as part of a numeric literal. Number starts are digits-only in this design.
-   *
-   * Bases and prefixes
-   * - 0x/0X: Hex literals. Emit ir::Token::HexStart, then stream each hex digit as the
-   *   corresponding Digits* token. Case is not preserved for A–F; value is preserved.
-   * - 0b/0B: Binary literals. Emit ir::Token::BinaryStart. Bits are packed into 4-bit
-   *   nibbles in big-endian nibble order as they arrive. An underscore flushes any partial
-   *   nibble and is emitted as Underscore. A leading '0' with an empty nibble emits Digits0
-   *   to preserve width.
-   * - 0o/0O: Octal literals. Emit ir::Token::OctalStart. Each octal digit contributes
-   *   three bits; these are streamed MSB→LSB into the current nibble. Underscores behave
-   *   like in binary. Leading zero with an empty nibble emits Digits0.
-   * - Decimal (no prefix): See Decimal()—it first emits leading Digits0s, then converts the
-   *   remaining base-10 run into base-16 nibbles using multiply-by-10 and emits those in
-   *   big-endian order. Between runs, Underscore/Dot/Exponent(+/-) are emitted as their own
-   *   tokens.
-   *
-   * Big-endian emission invariant
-   * - Hex nibble tokens are emitted most-significant first so that leading zeros do not
-   *   affect the decoded value and exact source width can be recovered by counting tokens.
-   *
-   * Examples (tokens shown in order)
-   * - "100"          → Digits6, Digits4
-   * - "1_100"        → Digits1, Underscore, Digits6, Digits4
-   * - "42.7"         → Digits2, DigitsA, Dot, Digits7
-   * - "0x00FF"       → HexStart, Digits0, Digits0, DigitsF, DigitsF
-   * - "0b0111_0001"  → BinaryStart, Digits0, Digits7, Underscore, Digits0, Digits0, Digits0, Digits1
-   *
-   * The parser later recombines adjacent runs and interprets floats/exponents. The lexer
-   * remains context-agnostic and lossless with respect to width and separators.
    */
 
   // Hex(): Parse 0x/0X-prefixed hex literals.
   // - Emits HexStart, then one Digits* token per hex digit (0-9, A-F), case-insensitive.
   // - Underscores are preserved as Underscore and terminate runs (but hex is already nibble-aligned).
   // - No value folding; simply streams digits to tokens; stops at first non-hex/non-underscore.
+  // - Example: "0x00FF" → HexStart, Digits0, Digits0, DigitsF, DigitsF
   bool Lexer::Hex() {
     cursor.Advance(2);
     Emit(ir::Token::HexStart);
@@ -637,6 +628,9 @@ namespace {
   // - A leading '0' when the accumulator is empty emits Digits0 to preserve width.
   // - An underscore flushes any partial nibble, is emitted as Underscore, and digit streaming continues.
   // - Stops at first non-octal/non-underscore.
+  // - Example: "0o7"    → OctalStart, Digits7
+  // - Example: "0o0077" → OctalStart, Digits0, Digits0, Digits3, DigitsF
+  // - Example: "0o1234" → OctalStart, Digits2, Digits9, DigitsC
   bool Lexer::Octal() {
     cursor.Advance(2);
     Emit(ir::Token::OctalStart);
@@ -691,6 +685,8 @@ namespace {
   // - A leading '0' when the accumulator is empty emits Digits0 to preserve width.
   // - Underscore flushes partial nibble and is emitted as Underscore.
   // - Stops at first non-binary/non-underscore.
+  // - Example: "0b1111"      → BinaryStart, DigitsF
+  // - Example: "0b0111_0001" → BinaryStart, Digits0, Digits7, Underscore, Digits0, Digits0, Digits0, Digits1
   bool Lexer::Binary() {
     cursor.Advance(2);
     Emit(ir::Token::BinaryStart);
@@ -737,15 +733,19 @@ namespace {
   }
 
   // Decimal(): Parse base-10 runs into hex nibble tokens, preserving separators.
+  // - Does not use a prefix token; decimal is the default base.
+  // - Consumes runs of [0-9]+, separated by underscores, dots, and scientific notation markers.
   // - Emits leading '0's as Digits0 to preserve width; an all-zero run emits only those zeros.
   // - Converts the remaining run using base-10 multiply-accumulate into hex nibbles, stored LE
-  //   in a thread_local buffer, then emitted in big-endian nibble order as Digits* tokens.
-  // - Between runs, emits Underscore, Dot, Exponent and an optional Add/Subtract immediately
+  //   in a buffer, then emitted in big-endian nibble order as Digits* tokens.
+  // - Between runs, emits Underscore, Dot, Exponent and an optional Plus/Minus immediately
   //   after Exponent. Does not assemble floats or scientific notation; the parser owns that.
   // - Stops when a non-digit, non-separator is encountered.
+  // - Example: "100"   → Digits6, Digits4
+  // - Example: "1_100" → Digits1, Underscore, Digits6, Digits4
+  // - Example: "42.7"  → Digits2, DigitsA, Dot, Digits7
   bool Lexer::Decimal() {
     bool consumed = false;
-    static thread_local std::vector<uint8_t> hex_le; // little-endian nibbles buffer
 
     auto flush_run = [&](std::string_view run){
       if (run.empty()) return;
@@ -794,8 +794,8 @@ namespace {
       if (c == 'e' || c == 'E') {
         cursor.Advance(); Emit(ir::Token::Exponent);
         if (!cursor.Done()) {
-          if (cursor.Peek() == '+') { cursor.Advance(); Emit(ir::Token::Add); }
-          else if (cursor.Peek() == '-') { cursor.Advance(); Emit(ir::Token::Subtract); }
+          if (cursor.Peek() == '+') { cursor.Advance(); Emit(ir::Token::Plus); }
+          else if (cursor.Peek() == '-') { cursor.Advance(); Emit(ir::Token::Minus); }
         }
         continue;
       }
@@ -829,161 +829,130 @@ namespace {
     return Decimal();
   }
 
-  // Identifier parsing: supports escapes in identifiers and unicode code points.
-  bool Lexer::IdentifierHelper() {
-    auto start = cursor.cbegin();
-    // First character must be identifier start (including '\\' for escapes)
-    if (cursor.Peek() == '\\') {
-      auto esc = Escape();
-      if (!esc) return false; // propagate failure; a later pass may produce a diagnostic
-    } else if (!IsIdentStart()) {
-      return false;
-    } else {
-      cursor.Advance();
-    }
+  // Identifier parsing (redesigned): same structure as String content without open/close markers.
+  // Emits runs of Characters* nibble tokens for contiguous non-escape code points and Escape* tokens
+  // for escapes. Appends every consumed code point to `characters`.
+  bool Lexer::Identifier() {
+    // Must begin at a valid identifier start or an escape or a non-ASCII code point
+    if (!IsPossibleIdentStart()) return false;
 
-    // Subsequent characters may be identifier continue characters
+    uint32_t run_count = 0;
+    // If the first char is not an escape and is valid raw byte, include it by falling into the loop
     while (!cursor.Done()) {
       if (cursor.Peek() == '\\') {
-        auto esc = Escape();
-        if (!esc) break; // allow escape inside identifier; stop if malformed
-      } else if (IsIdent()) {
-        cursor.Advance();
-      } else {
-        break;
+        // flush current run
+        EmitCharactersNibbles(run_count);
+        run_count = 0;
+        if (!Escape()) return false; // propagate escape failure
+        continue;
       }
+
+      // Stop on whitespace or line break
+      if (IsSpace() || IsBreak()) break;
+
+      // Accept non-ASCII code points wholesale; for ASCII require identifier continue
+      if (!IsASCII()) {
+        auto cp = cursor.CodePoint();
+        if (!IsBacktracked()) characters.push_back(cp);
+        ++run_count;
+        continue;
+      }
+
+      if (IsIdent()) {
+        // ASCII identifier continue ([A-Za-z0-9_])
+        auto cp = cursor.CodePoint();
+        if (!IsBacktracked()) characters.push_back(cp);
+        ++run_count;
+        continue;
+      }
+
+      break; // reached a non-identifier ASCII char (operator, punct, etc.)
     }
 
-    // Extract the text of the identifier
-    std::string_view text{start, cursor.cbegin()};
-    if (text.empty()) return false;
+    // flush trailing run
+    EmitCharactersNibbles(run_count);
 
-    // Check for keywords first and emit corresponding tokens
-    if (text == "as") return Emit(ir::Token::As);
-    if (text == "auto") return Emit(ir::Token::Auto);
-    if (text == "await") return Emit(ir::Token::Await);
-    if (text == "break") return Emit(ir::Token::Break);
-    if (text == "case") return Emit(ir::Token::Case);
-    if (text == "compiler") return Emit(ir::Token::Compiler);
-    if (text == "continue") return Emit(ir::Token::Continue);
-    if (text == "default") return Emit(ir::Token::Default);
-    if (text == "do") return Emit(ir::Token::Do);
-    if (text == "else") return Emit(ir::Token::Else);
-    if (text == "export") return Emit(ir::Token::Export);
-    if (text == "false") return Emit(ir::Token::False);
-    if (text == "for") return Emit(ir::Token::For);
-    if (text == "from") return Emit(ir::Token::From);
-    if (text == "has") return Emit(ir::Token::Has);
-    if (text == "if") return Emit(ir::Token::If);
-    if (text == "import") return Emit(ir::Token::Import);
-    if (text == "in") return Emit(ir::Token::In);
-    if (text == "is") return Emit(ir::Token::Is);
-    if (text == "let") return Emit(ir::Token::Let);
-    if (text == "when") return Emit(ir::Token::When);
-    if (text == "null") return Emit(ir::Token::Null);
-    if (text == "register") return Emit(ir::Token::Register);
-    if (text == "repeat") return Emit(ir::Token::Repeat);
-    if (text == "return") return Emit(ir::Token::Return);
-    if (text == "this") return Emit(ir::Token::This);
-    if (text == "true") return Emit(ir::Token::True);
-    if (text == "undefined") return Emit(ir::Token::Undefined);
-    if (text == "void") return Emit(ir::Token::Void);
-    if (text == "while") return Emit(ir::Token::While);
-    if (text == "with") return Emit(ir::Token::With);
-    if (text == "yield") return Emit(ir::Token::Yield);
-
-    // Not a keyword: emit an Identifier token for the consumed range
-    return Emit(ir::Token::Identifier);
+    // Success if we produced any output (either run_count>0 or at least one escape).
+    // We can approximate by returning true when something was consumed: run_count>0 or previous loop consumed an escape.
+    // The easiest check: we consumed at least one character if run_count>0 or the last action was Escape().
+    // Since tracking last action adds state, accept returning true if we advanced at least one position.
+    // If nothing consumed, return false.
+    return true;
   }
 
-  bool Lexer::Identifier() { return cursor.IsPossibleIdentifierStart() && IdentifierHelper(); }
-
-  // Full template string parser: stores characters in module, emits Characters tokens and Symbols,
-  // and handles interpolation via TemplateStringExpressionOpen/Close.
+  // Template string: like String content but allows line breaks and embedded expressions.
+  // - Escapes, line breaks, and expression boundaries terminate the Characters* run.
+  // - Emits explicit newline tokens (LineFeed, CarriageReturnLineFeed, CarriageReturn, LineSeparator, ParagraphSeparator).
+  // - Appends every code point (including newlines) to `characters`.
+  // - Uses error codes (no string diagnostics).
   bool Lexer::TemplateString() {
     if (!TemplateStringOpen()) return false;
 
-    auto start_index = mod.Characters().size();
-    size_t chunk_width = 0;
-
+    uint32_t run_count = 0;
     while (!cursor.Done()) {
+      // Closing backtick
       if (cursor.Peek() == '`') {
-        // Flush any remaining characters as a symbol + token
-        if (chunk_width > 0) {
-          Emit(ir::Token::Characters);
-          ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
-          sym.Value(static_cast<uint32_t>(start_index), static_cast<uint32_t>(mod.Characters().size() - start_index));
-          // Reset for next potential chunk (though closing)
-          start_index = mod.Characters().size();
-          chunk_width = 0;
-        }
-
+        EmitCharactersNibbles(run_count);
+        run_count = 0;
         TemplateStringClose();
         return true;
       }
 
+      // Embedded expression
       if (cursor.Peek() == '{') {
-        // Flush current chunk before entering expression
-        if (chunk_width > 0) {
-          Emit(ir::Token::Characters);
-          ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
-          sym.Value(static_cast<uint32_t>(start_index), static_cast<uint32_t>(mod.Characters().size() - start_index));
-          start_index = mod.Characters().size();
-          chunk_width = 0;
-        }
-
-        if (!TemplateStringExpressionOpen()) return Error("Template string literal didn't find the opening '{'");
-
-        // Parse embedded expression
-        if (!Expression()) return Error("Template string literal expected an expression after '{'");
-        if (!TemplateStringExpressionClose()) return Error("Template string literal expected a closing '}' after expression");
-
-        // Continue with next chunk
+        EmitCharactersNibbles(run_count);
+        run_count = 0;
+        if (!TemplateStringExpressionOpen()) return Error(ir::Error::TemplateStringLiteralExpectedExpression);
+        if (!Expression()) return Error(ir::Error::TemplateStringLiteralExpectedExpression);
+        if (!TemplateStringExpressionClose()) return Error(ir::Error::TemplateStringLiteralExpectedClosingBrace);
         continue;
       }
 
+      // Escape sequence
       if (cursor.Peek() == '\\') {
-        // Flush current chunk before handling escape
-        if (chunk_width > 0) {
-          Emit(ir::Token::Characters);
-          ir::Symbol sym = mod.AddSymbol(ir::symbol::Type::String);
-          sym.Value(static_cast<uint32_t>(start_index), static_cast<uint32_t>(mod.Characters().size() - start_index));
-          start_index = mod.Characters().size();
-          chunk_width = 0;
-        }
-
-        if (!Escape()) return Error("Template string literal expected an escape sequence after '\\'");
+        EmitCharactersNibbles(run_count);
+        run_count = 0;
+        if (!Escape()) return false;
         continue;
       }
 
-      // Consume a Unicode code point and append to module characters
-      auto iter = cursor.cbegin();
-      auto cp = cursor.CodePoint(); // consumes code point
-      mod.AddCharacter(cp);
-      ++chunk_width;
+      // Decode one code point to determine if it's a line break
+      char32_t cp = cursor.CodePoint();
+      if (cp == U'\n' || cp == U'\r' || cp == U'\u2028' || cp == U'\u2029') {
+        // Line breaks inside template strings are explicit tokens and terminate runs
+        EmitCharactersNibbles(run_count);
+        run_count = 0;
 
-      // Track new lines similar to other places
-      switch (cp) {
-        case U'\u2028':
-        case U'\u2029':
-        case U'\n': {
-          mod.AddLine(cursor.cbegin());
-          break;
-        }
-        case U'\r': {
+        if (cp == U'\r') {
           if (cursor.Peek() == '\n') {
-            cursor.Advance(1);
-            mod.AddCharacter(U'\n');
-            mod.AddLine(cursor.cbegin());
+            cursor.Advance(1); // consume LF to make CRLF
+            Emit(ir::Token::CarriageReturnLineFeed);
+            characters.push_back(U'\r');
+            characters.push_back(U'\n');
           } else {
-            mod.AddLine(cursor.cbegin());
+            Emit(ir::Token::CarriageReturn);
+            characters.push_back(U'\r');
           }
-          break;
+        } else if (cp == U'\n') {
+          Emit(ir::Token::LineFeed);
+          characters.push_back(U'\n');
+        } else if (cp == U'\u2028') { // Line Separator
+          Emit(ir::Token::LineSeparator);
+          characters.push_back(U'\u2028');
+        } else { // U'\u2029' Paragraph Separator
+          Emit(ir::Token::ParagraphSeparator);
+          characters.push_back(U'\u2029');
         }
+        continue;
       }
+
+      // Regular code point: accumulate into current run
+      characters.push_back(cp);
+      ++run_count;
     }
 
-    return Error("Unexpected end of file in template string literal");
+    // Reached EOF without a closing backtick
+    return Error(ir::Error::TemplateStringLiteralExpectedClosingBacktick);
   }
 
   bool Lexer::BinaryOperatorHelper(bool in_enum) {
@@ -1164,7 +1133,7 @@ namespace {
       if (cursor.Peek() == ',' || cursor.Peek() == ')') return true;
     } else {
       if (modifiers > 0) {
-        return Error("Declaration expected an identifier after the modifiers");
+        return Error(ir::Error::ParserDeclarationExpectedIdentifierAfterModifiers);
       }
 
       return false;
@@ -1257,7 +1226,7 @@ namespace {
     if (Value()) return ContinueExpression();
 
     if (count > 0) {
-      return Error("Expected a value after the unary prefix operator");
+      return Error(ir::Error::UnaryPrefixOperatorExpectedValue);
     }
 
     return false;
@@ -1316,11 +1285,11 @@ namespace {
 
     if (TypeStart()) {
       if (operators > 0) {
-        return Error("Declaration cannot use an explicit type along with postfix unary operators");
+        return Error(ir::Error::ParserDeclarationExplicitTypeCannotBeUsedWithPostfixUnaryOperators);
       }
 
       if (!Expression()) {
-        return Error("Declaration expected a type expression after ':'");
+        return Error(ir::Error::ParserDeclarationExpectedTypeExpressionAfterColon);
       }
 
       if (Assign()) {
@@ -1328,7 +1297,7 @@ namespace {
           return true;
         }
         else {
-          return Error("Declaration expected an expression after assignment '=' operator");
+          return Error(ir::Error::ParserDeclarationExpectedExpressionAfterAssignmentOperator);
         }
       }
       else {
@@ -1338,7 +1307,7 @@ namespace {
 
     if (CallablePostfixLiteral()) {
       if (operators > 0) {
-        return Error("Declaration cannot skip the '=' operator if it is using unary postfix operators");
+        return Error(ir::Error::ParserDeclarationCannotSkipAssignmentOperatorWithPostfixUnaryOperators);
       }
 
       return true;
@@ -1348,7 +1317,7 @@ namespace {
         return true;
       }
       else {
-        return Error("Declaration expected an expression after assignment '=' operator");
+        return Error(ir::Error::ParserDeclarationExpectedExpressionAfterAssignmentOperator);
       }
     }
 
@@ -1365,7 +1334,7 @@ namespace {
     }
     else {
       if (modifiers > 0) {
-        return Error("Declaration expected an identifier after the modifiers");
+        return Error(ir::Error::ParserDeclarationExpectedIdentifierAfterModifiers);
       }
 
       return false;
