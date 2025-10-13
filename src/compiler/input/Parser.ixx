@@ -10,7 +10,6 @@ import <utility>;
 import <array>;
 import <format>;
 
-import compiler.program.Module;
 import compiler.ir.Symbols;
 import compiler.ir.Symbol;
 import compiler.ir.Error;
@@ -19,6 +18,8 @@ import compiler.ir.Token;
 import compiler.text.cursor.Token;
 
 namespace compiler::input {
+  export class Lexer; // Forward declaration
+
   using Pair = std::pair<std::string_view, ir::Token>;
 
   consteval std::bitset<256> MakeBitset(std::initializer_list<ir::Token> list) {
@@ -45,19 +46,47 @@ namespace compiler::input {
   // Basic trivia & comment related tokens
   inline constexpr auto TRIVIAL_SET = MakeBitset({
     ir::Token::None,
-    ir::Token::Spaces,
-    ir::Token::Tabs,
-    ir::Token::LineFeeds,
-    ir::Token::CarriageReturnLineFeeds,
-    ir::Token::CarriageReturns,
-    ir::Token::LineSeparators,
-    ir::Token::ParagraphSeparators,
+    ir::Token::Spaces0,
+    ir::Token::Spaces1,
+    ir::Token::Spaces2,
+    ir::Token::Spaces3,
+    ir::Token::Spaces4,
+    ir::Token::Spaces5,
+    ir::Token::Spaces6,
+    ir::Token::Spaces7,
+    ir::Token::Spaces8,
+    ir::Token::Spaces9,
+    ir::Token::SpacesA,
+    ir::Token::SpacesB,
+    ir::Token::SpacesC,
+    ir::Token::SpacesD,
+    ir::Token::SpacesE,
+    ir::Token::SpacesF,
+    ir::Token::Tabs0,
+    ir::Token::Tabs1,
+    ir::Token::Tabs2,
+    ir::Token::Tabs3,
+    ir::Token::Tabs4,
+    ir::Token::Tabs5,
+    ir::Token::Tabs6,
+    ir::Token::Tabs7,
+    ir::Token::Tabs8,
+    ir::Token::Tabs9,
+    ir::Token::TabsA,
+    ir::Token::TabsB,
+    ir::Token::TabsC,
+    ir::Token::TabsD,
+    ir::Token::TabsE,
+    ir::Token::TabsF,
+    ir::Token::LineFeed,
+    ir::Token::CarriageReturnLineFeed,
+    ir::Token::CarriageReturn,
+    ir::Token::LineSeparator,
+    ir::Token::ParagraphSeparator,
     ir::Token::VerticalTab,
     ir::Token::FormFeed,
     ir::Token::CommentOpen,
-    ir::Token::CommentClose,
     ir::Token::MultiLineCommentOpen,
-    ir::Token::MultiLineCommentClose,
   });
 
   // Literal-like primary tokens (no longer distinguishing numeric forms here)
@@ -295,9 +324,10 @@ namespace compiler::input {
     std::vector<uint32_t> string_starts; // The character index where each line starts
     
     ir::Symbols symbols;
+    std::vector<uint32_t> limbs; // The data storage for big integers
     std::vector<ir::Instruction> instructions;
     text::cursor::Token cursor;
-    std::vector<ir::Index> stack;
+    std::vector<ir::Index> parents; // Stack of parent symbols for nested constructs
 
     // The indexes track the position within the module's various storage vectors 
     size_t widths_index = 0; // Increments after seeing a variable width token, such as `Spaces` or `Characters`
@@ -305,12 +335,35 @@ namespace compiler::input {
     size_t lines_index = 0; // Increments after seeing a line break token, such as `LineFeed` or `CarriageReturnLineFeed`
 
     ir::Index NextSymbol();
-    bool IsEscapeToken(ir::Token token) const;
-    bool IsLiteralToken(ir::Token token) const;
-    bool IsBinaryToken(ir::Token token) const;
-    bool IsUnaryPrefixToken(ir::Token token) const;
-    bool IsModifierToken(ir::Token token) const;
-    bool IsStatementToken(ir::Token token) const;
+
+    constexpr static bool IsTrivialToken(ir::Token token) {
+      return TRIVIAL_SET.test(static_cast<uint8_t>(token));
+    }
+
+    constexpr static bool IsEscapeToken(ir::Token token) {
+      return ESCAPE_SET.test(static_cast<uint8_t>(token));
+    }
+
+    constexpr static bool IsLiteralToken(ir::Token token) {
+      return LITERAL_SET.test(static_cast<uint8_t>(token));
+    }
+
+    constexpr static bool IsBinaryToken(ir::Token token) {
+      return BINARY_SET.test(static_cast<uint8_t>(token));
+    }
+
+    constexpr static bool IsUnaryPrefixToken(ir::Token token) {
+      return UNARY_PREFIX_SET.test(static_cast<uint8_t>(token));
+    }
+
+    constexpr static bool IsModifierToken(ir::Token token) {
+      return MODIFIER_SET.test(static_cast<uint8_t>(token));
+    }
+
+    constexpr static bool IsStatementToken(ir::Token token) {
+      return STATEMENT_SET.test(static_cast<uint8_t>(token));
+    }
+
     int Precedence(ir::Token token) const;
     void ConsumeCharactersToken();
     void ConsumeEscapeSequence();
@@ -319,75 +372,89 @@ namespace compiler::input {
     ir::Index ParseUnary(ir::Index parent);
     ir::Index ParseBinary(ir::Index parent, int min_precedence);
 
-    void Push(ir::Index index) { stack.push_back(index); }
+    void Push(ir::Index index) { parents.push_back(index); }
     void Pop(ir::Index index) {
-      // TODO: Debug validation to ensure the index being popped is the one on top of the stack
-      stack.pop_back();
+      // TODO: Debug validation to ensure the index being popped is the one on top of the parents
+      parents.pop_back();
     }
   public:
+    Parser(input::Lexer& lexer);
+
     virtual ~Parser() = default;
 
     void Skip();
+    void Advance(size_t count = 1);
     bool Match(ir::Token token);
+    bool Check(ir::Token token);
+    ir::Token Peek();
 
     void Instruct(ir::Opcode opcode, ir::Index res = ir::Index{}, ir::Index lhs = ir::Index{}, ir::Index rhs = ir::Index{});
 
-    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent);
-    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent, uint64_t value);
-    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent, double value);
-    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent, char32_t value);
-    ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent, bool value);
+    ir::Index Create(ir::symbol::Type type, ir::Index parent);
+    ir::Index Create(ir::symbol::Type type, ir::Index parent, uint64_t value);
+    ir::Index Create(ir::symbol::Type type, ir::Index parent, double value);
+    ir::Index Create(ir::symbol::Type type, ir::Index parent, char32_t value);
+    ir::Index Create(ir::symbol::Type type, ir::Index parent, bool value);
 
     ir::Index Parser::Expect(ir::Token token, ir::Error error, ir::Index parent);
+
+    void None();
+    void Spaces();
+    void Tabs();
+    void NewLine();
+    void Comment();
+    void MultiLineComment();
+    void Trivial();
 
     bool WhiteSpace();
     bool WS();
 
     // Literals
-    ir::Index Parser::Undefined(ir::Index parent);
-    ir::Index Parser::Null(ir::Index parent);
-    ir::Index Parser::Boolean(ir::Index parent);
-    ir::Index Parser::Character(ir::Index parent);
-    ir::Index Parser::Integer(ir::Index parent);
-    ir::Index Parser::Decimal(ir::Index parent);
-    ir::Index Parser::String(ir::Index parent);
-    ir::Index Parser::Array(ir::Index parent);
-    ir::Index Parser::Enum(ir::Index parent);
-    ir::Index Parser::Tuple(ir::Index parent);
-    ir::Index Parser::Object(ir::Index parent);
-    ir::Index Parser::TemplateString(ir::Index parent);
-    ir::Index Parser::Function(ir::Index parent);
+    ir::Index Undefined(ir::Index parent);
+    ir::Index Null(ir::Index parent);
+    ir::Index Boolean(ir::Index parent);
+    ir::Index Character(ir::Index parent);
+    ir::Index Number(ir::Index parent);
+    ir::Index String(ir::Index parent);
+    ir::Index Array(ir::Index parent);
+    ir::Index Enum(ir::Index parent);
+    ir::Index Tuple(ir::Index parent);
+    ir::Index Object(ir::Index parent);
+    ir::Index TemplateString(ir::Index parent);
+    ir::Index Function(ir::Index parent);
+    ir::Index Value(ir::Index parent);
 
-    ir::Index Parser::Identifier(ir::Index parent);
-    ir::Index Parser::Destructuring(ir::Index parent);
-    ir::Index Parser::Error(ir::Index parent);
+    ir::Index Identifier(ir::Index parent);
+    ir::Index Destructuring(ir::Index parent);
+    ir::Index Error(ir::Index parent);
 
-    ir::Index Parser::Expression(ir::Index parent);
-    ir::Index Parser::ObjectDeclaration(ir::Index parent);
-    ir::Index Parser::Declaration(ir::Index parent);
+    ir::Index Expression(ir::Index parent);
+    ir::Index ObjectDeclaration(ir::Index parent);
+    ir::Index Declaration(ir::Index parent);
 
     // Statements
-    ir::Index Parser::ImportStatement(ir::Index parent);
-    ir::Index Parser::Permissions(ir::Index parent);
-    ir::Index Parser::RegisterStatement(ir::Index parent);
-    ir::Index Parser::BreakStatement(ir::Index parent);
-    ir::Index Parser::ContinueStatement(ir::Index parent);
-    ir::Index Parser::ReturnStatement(ir::Index parent);
-    ir::Index Parser::DoStatement(ir::Index parent);
-    ir::Index Parser::WhileStatement(ir::Index parent);
-    ir::Index Parser::RepeatStatement(ir::Index parent);
-    ir::Index Parser::ForStatement(ir::Index parent);
-    ir::Index Parser::ElseIfStatement(ir::Index parent);
-    ir::Index Parser::ElseStatement(ir::Index parent);
-    ir::Index Parser::IfStatement(ir::Index parent);
-    ir::Index Parser::IsStatement(ir::Index parent);
-    ir::Index Parser::HasStatement(ir::Index parent);
-    ir::Index Parser::DefaultStatement(ir::Index parent);
-    ir::Index Parser::WhenStatement(ir::Index parent);
-    ir::Index Parser::DeclarationStatement(ir::Index parent);
-    ir::Index Parser::ExpressionStatement(ir::Index parent);
-    ir::Index Parser::Statement(ir::Index parent);
-    ir::Index Parser::Scope(ir::Index parent);
-    ir::Index Parser::Condition(ir::Index parent);
+    ir::Index ImportStatement(ir::Index parent);
+    ir::Index Permissions(ir::Index parent);
+    ir::Index RegisterStatement(ir::Index parent);
+    ir::Index BreakStatement(ir::Index parent);
+    ir::Index ContinueStatement(ir::Index parent);
+    ir::Index ReturnStatement(ir::Index parent);
+    ir::Index DoStatement(ir::Index parent);
+    ir::Index WhileStatement(ir::Index parent);
+    ir::Index RepeatStatement(ir::Index parent);
+    ir::Index ForStatement(ir::Index parent);
+    ir::Index ElseIfStatement(ir::Index parent);
+    ir::Index ElseStatement(ir::Index parent);
+    ir::Index IfStatement(ir::Index parent);
+    ir::Index IsStatement(ir::Index parent);
+    ir::Index HasStatement(ir::Index parent);
+    ir::Index FromStatement(ir::Index parent);
+    ir::Index DefaultStatement(ir::Index parent);
+    ir::Index WhenStatement(ir::Index parent);
+    ir::Index DeclarationStatement(ir::Index parent);
+    ir::Index ExpressionStatement(ir::Index parent);
+    ir::Index Statement(ir::Index parent);
+    ir::Index Scope(ir::Index parent);
+    ir::Index Condition(ir::Index parent);
   };
 };

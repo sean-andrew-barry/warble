@@ -1,5 +1,4 @@
 import compiler.input.Lexer;
-import compiler.program.Module;
 import compiler.ir.Symbols;
 import compiler.ir.Symbol;
 import compiler.ir.Error;
@@ -17,30 +16,6 @@ namespace compiler::input {
     return ir::Index{static_cast<uint32_t>(symbols_index++)};
   }
 
-  bool Parser::IsEscapeToken(ir::Token token) const {
-    return ESCAPE_SET.test(static_cast<uint8_t>(token));
-  }
-
-  bool Parser::IsLiteralToken(ir::Token token) const {
-    return LITERAL_SET.test(static_cast<uint8_t>(token));
-  }
-
-  bool Parser::IsBinaryToken(ir::Token token) const {
-    return BINARY_SET.test(static_cast<uint8_t>(token));
-  }
-
-  bool Parser::IsUnaryPrefixToken(ir::Token token) const {
-    return UNARY_PREFIX_SET.test(static_cast<uint8_t>(token));
-  }
-
-  bool Parser::IsModifierToken(ir::Token token) const {
-    return MODIFIER_SET.test(static_cast<uint8_t>(token));
-  }
-
-  bool Parser::IsStatementToken(ir::Token token) const {
-    return STATEMENT_SET.test(static_cast<uint8_t>(token));
-  }
-
   void Parser::ConsumeCharactersToken() {
     if (cursor.Peek() != ir::Token::Characters) {
       return;
@@ -50,12 +25,12 @@ namespace compiler::input {
       widths_index += 1;
     }
 
-    cursor.Advance();
+    Advance();
   }
 
   void Parser::ConsumeEscapeSequence() {
     while (IsEscapeToken(cursor.Peek())) {
-      cursor.Advance();
+      Advance();
 
       while (cursor.Peek() == ir::Token::Characters) {
         ConsumeCharactersToken();
@@ -239,7 +214,7 @@ namespace compiler::input {
 
   ir::Index Parser::ParseUnary(ir::Index parent) {
     while (IsUnaryPrefixToken(cursor.Peek())) {
-      cursor.Advance();
+      Advance();
     }
 
     return ParsePrimary(parent);
@@ -265,75 +240,122 @@ namespace compiler::input {
     return lhs;
   }
 
-  void Parser::Skip() {
-    while (!cursor.Done()) {
-      switch (cursor.Peek()) {
-        case ir::Token::Spaces:
-        case ir::Token::Tabs: {
-          widths_index += 1;
-          cursor.Advance();
-          break;
-        }
-        case ir::Token::LineFeeds:
-        case ir::Token::CarriageReturnLineFeeds:
-        case ir::Token::CarriageReturns:
-        case ir::Token::LineSeparators:
-        case ir::Token::ParagraphSeparators: {
-          // Advance the lines by the width
-          lines_index += mod.Widths()[widths_index];
-          widths_index += 1;
-          cursor.Advance();
-          break;
-        }
-        case ir::Token::CommentOpen: {
-          cursor.Advance();
-          
-          while (!cursor.Done()) {
-            if (cursor.Peek() == ir::Token::CommentClose) {
-              cursor.Advance();
-              break;
-            } else if (cursor.Peek() == ir::Token::Comment) {
-              symbols_index += 1;
-            } else if (cursor.Peek() == ir::Token::Characters) {
-              widths_index += 1;
-            }
+  Parser::Parser(input::Lexer& lexer)
+    : tokens{lexer.TakeTokens()}
+    , characters{lexer.TakeCharacters()}
+    , line_starts{lexer.TakeLines()}
+    , string_starts{lexer.TakeStrings()}
+    , symbols{}
+    , instructions{}
+    , cursor{tokens}
+  {
+    Skip(); // Skip any leading trivial tokens
+  }
 
-            cursor.Advance();
-          }
-          break;
-        }
-        case ir::Token::MultiLineCommentOpen: {
-          cursor.Advance();
-          
-          while (!cursor.Done()) {
-            if (cursor.Peek() == ir::Token::MultiLineCommentClose) {
-              cursor.Advance();
-              break;
-            } else if (cursor.Peek() == ir::Token::MultiLineComment) {
-              symbols_index += 1;
-            } else if (cursor.Peek() == ir::Token::Characters) {
-              widths_index += 1;
-            }
+  void Parser::None() {
+    cursor.Advance(); // Eat the `None` token
+  }
 
-            cursor.Advance();
-          }
-          break;
-        }
-        case ir::Token::VerticalTab:
-        case ir::Token::FormFeed: {
-          // No special behavior for these, just skip
-          cursor.Advance();
-          break;
-        }
-        default:
-          return; // Not a trivial token
-      }
+  void Parser::Spaces() {
+    cursor.Advance(); // Eat the `Spaces*` token
+  }
+
+  void Parser::Tabs() {
+    cursor.Advance(); // Eat the `Tabs*` token
+  }
+
+  void Parser::NewLine() {
+    cursor.Advance();
+  }
+
+  void Parser::Comment() {
+    // TODO
+  }
+
+  void Parser::MultiLineComment() {
+    // TODO
+  }
+
+  void Parser::Trivial() {
+    switch (cursor.Peek()) {
+      case ir::Token::VerticalTab:
+      case ir::Token::FormFeed:
+      case ir::Token::None: return None();
+
+      case ir::Token::Spaces0:
+      case ir::Token::Spaces1:
+      case ir::Token::Spaces2:
+      case ir::Token::Spaces3:
+      case ir::Token::Spaces4:
+      case ir::Token::Spaces5:
+      case ir::Token::Spaces6:
+      case ir::Token::Spaces7:
+      case ir::Token::Spaces8:
+      case ir::Token::Spaces9:
+      case ir::Token::SpacesA:
+      case ir::Token::SpacesB:
+      case ir::Token::SpacesC:
+      case ir::Token::SpacesD:
+      case ir::Token::SpacesE:
+      case ir::Token::SpacesF: return Spaces();
+
+      case ir::Token::Tabs0:
+      case ir::Token::Tabs1:
+      case ir::Token::Tabs2:
+      case ir::Token::Tabs3:
+      case ir::Token::Tabs4:
+      case ir::Token::Tabs5:
+      case ir::Token::Tabs6:
+      case ir::Token::Tabs7:
+      case ir::Token::Tabs8:
+      case ir::Token::Tabs9:
+      case ir::Token::TabsA:
+      case ir::Token::TabsB:
+      case ir::Token::TabsC:
+      case ir::Token::TabsD:
+      case ir::Token::TabsE:
+      case ir::Token::TabsF: return Tabs();
+
+      case ir::Token::LineFeed:
+      case ir::Token::CarriageReturnLineFeed:
+      case ir::Token::CarriageReturn:
+      case ir::Token::LineSeparator:
+      case ir::Token::ParagraphSeparator: return NewLine();
+
+      case ir::Token::CommentOpen: return Comment();
+      case ir::Token::MultiLineCommentOpen: return MultiLineComment();
+      default: return; // Not a trivial token
     }
   }
 
-  bool Parser::Match(ir::Token token) {
+  void Parser::Skip() {
+    while (!cursor.Done() && IsTrivialToken(cursor.Peek())) {
+      Trivial();
+    }
+  }
+
+  void Parser::Advance(size_t count) {
+    Advance(count);
     Skip();
-    return cursor.Match(token);
+  }
+
+  bool Parser::Match(ir::Token token) {
+    if (cursor.Match(token)) {
+      Skip(); // Only skip after a successful match
+      return true;
+    }
+
+    return false;
+  }
+
+  bool Parser::Check(ir::Token token) {
+    Skip();
+    return cursor.Check(token);
+  }
+
+  ir::Token Parser::Peek() {
+    Skip();
+    return cursor.Peek();
   }
 
   ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent) {
@@ -483,13 +505,17 @@ namespace compiler::input {
     return Create(ir::symbol::Type::Integer, parent, static_cast<uint64_t>(0));
   }
 
-  ir::Index Parser::Decimal(ir::Index parent) {
-    if (!Match(ir::Token::Decimal)) {
-      return ReportError(ir::Error::ParserExpectedDecimalLiteral, parent);
+  ir::Index Parser::Number(ir::Index parent) {
+    ir::Index symbol = Create(ir::symbol::Type::Float, parent);
+    Push(symbol);
+
+    if (!Match(ir::Token::Float)) {
+      return ReportError(ir::Error::ParserExpectedFloatLiteral, symbol);
     }
 
     // TODO: Capture literal value once numeric storage is wired up
-    return Create(ir::symbol::Type::Decimal, parent, 0.0);
+    Pop(symbol);
+    return symbol;
   }
 
   ir::Index Parser::String(ir::Index parent) {
@@ -499,8 +525,11 @@ namespace compiler::input {
     // A required `StringClose` token
     // Return the symbol index created by the lexer
 
+    ir::Index symbol = Create(ir::symbol::Type::String, parent);
+    Push(symbol);
+
     if (!Match(ir::Token::StringOpen)) {
-      return ReportError(ir::Error::ParserExpectedStringOpenQuote, parent);
+      return ReportError(ir::Error::ParserExpectedStringOpenQuote, symbol);
     }
 
     while (true) {
@@ -518,16 +547,12 @@ namespace compiler::input {
       break;
     }
 
-    if (!Match(ir::Token::String)) {
-      return ReportError(ir::Error::ParserExpectedStringToken, parent);
-    }
-    ir::Index index = NextSymbol();
-
     if (!Match(ir::Token::StringClose)) {
-      ReportError(ir::Error::ParserExpectedStringCloseQuote, parent);
+      ReportError(ir::Error::ParserExpectedStringCloseQuote, symbol);
     }
 
-    return index;
+    Pop(symbol);
+    return symbol;
   }
 
   ir::Index Parser::Array(ir::Index parent) {
@@ -537,12 +562,12 @@ namespace compiler::input {
     // A required `ArrayClose` token
     // Return the symbol
 
-    if (!Match(ir::Token::ArrayOpen)) {
-      return ReportError(ir::Error::ParserExpectedArrayOpenBracket, parent);
-    }
-
     ir::Index symbol = Create(ir::symbol::Type::Array, parent);
     Push(symbol);
+    
+    if (!Match(ir::Token::ArrayOpen)) {
+      return ReportError(ir::Error::ParserExpectedArrayOpenBracket, symbol);
+    }
 
     if (!Match(ir::Token::ArrayClose)) {
       while (true) {
@@ -573,12 +598,12 @@ namespace compiler::input {
     // A required `EnumClose` token
     // Return the symbol
 
-    if (!Match(ir::Token::EnumOpen)) {
-      return ReportError(ir::Error::ParserExpectedEnumOpenChevron, parent);
-    }
-
     ir::Index symbol = Create(ir::symbol::Type::Enum, parent);
     Push(symbol);
+
+    if (!Match(ir::Token::EnumOpen)) {
+      return ReportError(ir::Error::ParserExpectedEnumOpenChevron, symbol);
+    }
 
     if (!Match(ir::Token::EnumClose)) {
       while (true) {
@@ -609,12 +634,12 @@ namespace compiler::input {
     // A required `TupleClose` token
     // Return the symbol
 
-    if (!Match(ir::Token::TupleOpen)) {
-      return ReportError(ir::Error::ParserExpectedTupleOpenParen, parent);
-    }
-
     ir::Index symbol = Create(ir::symbol::Type::Tuple, parent);
     Push(symbol);
+
+    if (!Match(ir::Token::TupleOpen)) {
+      return ReportError(ir::Error::ParserExpectedTupleOpenParen, symbol);
+    }
 
     if (!Match(ir::Token::TupleClose)) {
       while (true) {
@@ -645,12 +670,12 @@ namespace compiler::input {
     // A required `ObjectClose` token
     // Return the symbol
 
-    if (!Match(ir::Token::ObjectOpen)) {
-      return ReportError(ir::Error::ParserExpectedObjectOpenBrace, parent);
-    }
-
     ir::Index symbol = Create(ir::symbol::Type::Object, parent);
     Push(symbol);
+
+    if (!Match(ir::Token::ObjectOpen)) {
+      return ReportError(ir::Error::ParserExpectedObjectOpenBrace, symbol);
+    }
 
     if (!Match(ir::Token::ObjectClose)) {
       while (true) {
@@ -679,12 +704,12 @@ namespace compiler::input {
   }
 
   ir::Index Parser::TemplateString(ir::Index parent) {
+    ir::Index symbol = Create(ir::symbol::Type::TemplateString, parent);
+    Push(symbol);
+
     if (!Match(ir::Token::TemplateStringOpen)) {
       return ReportError(ir::Error::ParserExpectedTemplateStringOpenBacktick, parent);
     }
-
-    ir::Index symbol = Create(ir::symbol::Type::TemplateString, parent);
-    Push(symbol);
 
     while (true) {
       if (Match(ir::Token::TemplateStringClose)) {
@@ -725,7 +750,7 @@ namespace compiler::input {
       }
 
       // Unknown token inside template string; advance to avoid infinite loop
-      cursor.Advance();
+      Advance();
     }
 
     Pop(symbol);
@@ -734,6 +759,78 @@ namespace compiler::input {
 
   ir::Index Parser::Function(ir::Index parent) {
     // TODO
+  }
+
+  ir::Index Parser::Value(ir::Index parent) {
+    switch (cursor.Peek()) {
+      // Any of these have to be an identifier, since they aren't inside a string/character literal
+      case ir::Token::Characters0:
+      case ir::Token::Characters1:
+      case ir::Token::Characters2:
+      case ir::Token::Characters3:
+      case ir::Token::Characters4:
+      case ir::Token::Characters5:
+      case ir::Token::Characters6:
+      case ir::Token::Characters7:
+      case ir::Token::Characters8:
+      case ir::Token::Characters9:
+      case ir::Token::CharactersA:
+      case ir::Token::CharactersB:
+      case ir::Token::CharactersC:
+      case ir::Token::CharactersD:
+      case ir::Token::CharactersE:
+      case ir::Token::CharactersF:
+      case ir::Token::EscapeASCII:
+      case ir::Token::EscapeHex:
+      case ir::Token::EscapeUnicode:
+      case ir::Token::EscapeUnicodeBraced1:
+      case ir::Token::EscapeUnicodeBraced2:
+      case ir::Token::EscapeUnicodeBraced3:
+      case ir::Token::EscapeUnicodeBraced4:
+      case ir::Token::EscapeUnicodeBraced5:
+      case ir::Token::EscapeUnicodeBraced6: return Identifier(parent);
+
+      // Any of these have to be a number. (Floats cannot start with a dot.)
+      case ir::Token::Digits0:
+      case ir::Token::Digits1:
+      case ir::Token::Digits2:
+      case ir::Token::Digits3:
+      case ir::Token::Digits4:
+      case ir::Token::Digits5:
+      case ir::Token::Digits6:
+      case ir::Token::Digits7:
+      case ir::Token::Digits8:
+      case ir::Token::Digits9:
+      case ir::Token::DigitsA:
+      case ir::Token::DigitsB:
+      case ir::Token::DigitsC:
+      case ir::Token::DigitsD:
+      case ir::Token::DigitsE:
+      case ir::Token::DigitsF:
+      case ir::Token::HexStart:
+      case ir::Token::OctalStart:
+      case ir::Token::BinaryStart: return Number(parent);
+
+      case ir::Token::True:
+      case ir::Token::False: return Boolean(parent);
+
+      case ir::Token::Null: return Null(parent);
+      case ir::Token::Undefined: return Undefined(parent);
+      case ir::Token::This: return This(parent);
+      case ir::Token::StringOpen: return String(parent);
+      case ir::Token::CharOpen: return Character(parent);
+      case ir::Token::ArrayOpen: return Array(parent);
+      case ir::Token::EnumOpen: return Enum(parent);
+      case ir::Token::TupleOpen: return Tuple(parent);
+      case ir::Token::ObjectOpen: return Object(parent);
+      case ir::Token::TemplateStringOpen: return TemplateString(parent);
+
+      // Functions may start with a capture list or parameter list
+      case ir::Token::CaptureOpen:
+      case ir::Token::ParameterOpen: return Function(parent);
+
+      default: return ir::Index{};
+    }
   }
 
   ir::Index Parser::Identifier(ir::Index parent) {
@@ -812,7 +909,7 @@ namespace compiler::input {
     // NOTE: Unsure what we return here. If there was an expression, we return that symbol. If not, do we create a new `Declaration` symbol? Or just return the identifier/destructuring symbol? This will need more thought.
 
     while (IsModifierToken(cursor.Peek())) {
-      cursor.Advance();
+      Advance();
     }
 
     ir::Index target;
@@ -836,10 +933,6 @@ namespace compiler::input {
 
   // Statements
   ir::Index Parser::ImportStatement(ir::Index parent) {
-    if (!Match(ir::Token::Import)) {
-      return ReportError(ir::Error::ParserExpectedImportKeyword, parent);
-    }
-
     // A required `Import` token
     // An optional `Identifier` or a destructured object, this can be skipped to import the module for side effects only
     // A required `From` token
@@ -847,28 +940,35 @@ namespace compiler::input {
     // An optional `In` token, followed by a required `String` group for a target package
     // A required `Semicolon` token
 
-    // NOTE: Unsure what we return here, if anything. Does it make sense to have an `Import` symbol?
+    ir::Index symbol = Create(ir::symbol::Type::Import, parent);
+    Push(symbol);
+
+    if (!Match(ir::Token::Import)) {
+      return ReportError(ir::Error::ParserExpectedImportKeyword, symbol);
+    }
+
     if (cursor.Peek() == ir::Token::Identifier) {
-      Identifier(parent);
+      Identifier(symbol);
     } else if (cursor.Peek() == ir::Token::ObjectOpen) {
-      Destructuring(parent);
+      Destructuring(symbol);
     }
 
     if (!Match(ir::Token::From)) {
-      return ReportError(ir::Error::ParserExpectedFromAfterImport, parent);
+      return ReportError(ir::Error::ParserExpectedFromAfterImport, symbol);
     }
 
-    String(parent);
+    String(symbol);
 
     if (Match(ir::Token::In)) {
-      String(parent);
+      String(symbol);
     }
 
     if (!Match(ir::Token::Semicolon)) {
-      ReportError(ir::Error::ParserExpectedSemicolonAfterImport, parent);
+      ReportError(ir::Error::ParserExpectedSemicolonAfterImport, symbol);
     }
 
-    return ir::Index{};
+    Pop(symbol);
+    return symbol;
   }
 
   ir::Index Parser::Permissions(ir::Index parent) {
@@ -891,10 +991,6 @@ namespace compiler::input {
   }
 
   ir::Index Parser::RegisterStatement(ir::Index parent) {
-    if (!Match(ir::Token::Register)) {
-      return ReportError(ir::Error::ParserExpectedRegisterKeyword, parent);
-    }
-
     // A required `Register` token
     // A required `String` group naming the package
     // A required `From` token
@@ -902,22 +998,31 @@ namespace compiler::input {
     // Zero or more `Permissions` groups
     // A required `Semicolon` token
 
-    // NOTE: Unsure what we return here, if anything. Does it make sense to have a `Register` symbol?
-    String(parent);
-    if (!Match(ir::Token::From)) {
-      return ReportError(ir::Error::ParserExpectedFromAfterRegister, parent);
+    ir::Index symbol = Create(ir::symbol::Type::Register, parent);
+    Push(symbol);
+
+    if (!Match(ir::Token::Register)) {
+      return ReportError(ir::Error::ParserExpectedRegisterKeyword, symbol);
     }
-    String(parent);
+
+    String(symbol);
+
+    if (!Match(ir::Token::From)) {
+      return ReportError(ir::Error::ParserExpectedFromAfterRegister, symbol);
+    }
+
+    String(symbol);
 
     while (cursor.Peek() == ir::Token::With) {
-      Permissions(parent);
+      Permissions(symbol);
     }
 
     if (!Match(ir::Token::Semicolon)) {
-      ReportError(ir::Error::ParserExpectedSemicolonAfterRegister, parent);
+      ReportError(ir::Error::ParserExpectedSemicolonAfterRegister, symbol);
     }
 
-    return ir::Index{};
+    Pop(symbol);
+    return symbol;
   }
 
   ir::Index Parser::BreakStatement(ir::Index parent) {
@@ -1006,12 +1111,13 @@ namespace compiler::input {
     // A required `Scope` group
     // An optional `Semicolon` token
     // Return the symbol
+    ir::Index symbol = Create(ir::symbol::Type::Do, parent);
+    Push(symbol);
+
     if (!Match(ir::Token::Do)) {
       return ReportError(ir::Error::ParserExpectedDoKeyword, parent);
     }
 
-    ir::Index symbol = Create(ir::symbol::Type::Do, parent);
-    Push(symbol);
     Scope(symbol);
     Match(ir::Token::Semicolon);
 
@@ -1026,12 +1132,14 @@ namespace compiler::input {
     // A required `Scope` group
     // An optional `Semicolon` token
     // Return the symbol
+    
+    ir::Index symbol = Create(ir::symbol::Type::While, parent);
+    Push(symbol);
+
     if (!Match(ir::Token::While)) {
       return ReportError(ir::Error::ParserExpectedWhileKeyword, parent);
     }
 
-    ir::Index symbol = Create(ir::symbol::Type::While, parent);
-    Push(symbol);
     Condition(symbol);
     Scope(symbol);
     Match(ir::Token::Semicolon);
@@ -1159,12 +1267,11 @@ namespace compiler::input {
     // An optional trailing `Else` group
     // An optional `Semicolon` token
     // Return the symbol
-    if (!Match(ir::Token::If)) {
-      return ReportError(ir::Error::ParserExpectedIfKeyword, parent);
-    }
-
+    
     ir::Index symbol = Create(ir::symbol::Type::If, parent);
     Push(symbol);
+
+    Expect(ir::Token::If, ir::Error::ParserExpectedIfKeyword);
 
     Condition(symbol);
     Scope(symbol);
@@ -1180,8 +1287,8 @@ namespace compiler::input {
     }
 
     Match(ir::Token::Semicolon);
-    Pop(symbol);
 
+    Pop(symbol);
     return symbol;
   }
 
@@ -1194,15 +1301,13 @@ namespace compiler::input {
 
     // TODO: `Is` and `Has` are suppose to be able to be chained without a scope block, allowing any number of them to share a single scope block
 
-    if (!Match(ir::Token::Is)) {
-      return ReportError(ir::Error::ParserExpectedIsKeyword, parent);
-    }
-
-    ir::Index symbol = Create(ir::symbol::Type::Is, parent);
+    ir::Index symbol = Create(ir::symbol::Type::Is);
     Push(symbol);
 
-    Condition(symbol);
-    Scope(symbol);
+    Expect(ir::Token::Is, ir::Error::ParserExpectedIsKeyword);
+
+    Condition();
+    Scope();
 
     Pop(symbol);
     return symbol;
@@ -1217,12 +1322,31 @@ namespace compiler::input {
 
     // TODO: `Is` and `Has` are suppose to be able to be chained without a scope block, allowing any number of them to share a single scope block
 
-    if (!Match(ir::Token::Has)) {
-      return ReportError(ir::Error::ParserExpectedHasKeyword, parent);
-    }
-
-    ir::Index symbol = Create(ir::symbol::Type::Has, parent);
+    ir::Index symbol = Create(ir::symbol::Type::Has);
     Push(symbol);
+
+    Expect(ir::Token::Has, ir::Error::ParserExpectedHasKeyword);
+
+    Condition();
+    Scope();
+
+    Pop(symbol);
+    return symbol;
+  }
+
+  ir::Index Parser::FromStatement(ir::Index parent) {
+    // A required `From` keyword
+    // Create a new `From` symbol
+    // A required `Condition` group
+    // A required `Scope` group
+    // Return the symbol
+
+    // TODO: `Is` and `Has` and `From` are suppose to be able to be chained without a scope block, allowing any number of them to share a single scope block
+
+    ir::Index symbol = Create(ir::symbol::Type::From, parent);
+    Push(symbol);
+
+    Expect(ir::Token::From, ir::Error::ParserExpectedFromKeyword, symbol);
 
     Condition(symbol);
     Scope(symbol);
@@ -1237,14 +1361,14 @@ namespace compiler::input {
     // A required `Scope` group
     // Return the symbol
 
-    if (!Match(ir::Token::Default)) {
-      return ReportError(ir::Error::ParserExpectedDefaultKeyword, parent);
-    }
-
-    ir::Index symbol = Create(ir::symbol::Type::Default, parent);
+    ir::Index symbol = Create(ir::symbol::Type::Default);
     Push(symbol);
 
-    Scope(symbol);
+    if (!Match(ir::Token::Default)) {
+      return ReportError(ir::Error::ParserExpectedDefaultKeyword);
+    }
+
+    Scope();
 
     Pop(symbol);
     return symbol;
@@ -1259,42 +1383,35 @@ namespace compiler::input {
     // A required `ScopeClose` token
     // An optional `Semicolon` token
     // Return the symbol
+    
+    ir::Index symbol = Create(ir::symbol::Type::When);
+    Push(symbol);
+    
+    Expect(ir::Token::When, ir::Error::ParserExpectedWhenKeyword);
+    Condition();
 
     // NOTE: We do not use a `Scope` group here because the contents are not normal statements
-
-    Expect(ir::Token::When, ir::Error::ParserExpectedWhenKeyword, parent);
-
-    ir::Index symbol = Create(ir::symbol::Type::When, parent);
-    Push(symbol);
-
-    Condition(symbol);
-
-    if (!Match(ir::Token::ScopeOpen)) {
-      ReportError(ir::Error::ParserExpectedWhenScopeOpen, symbol);
-    }
-
+    Expect(ir::Token::ScopeOpen, ir::Error::ParserExpectedWhenScopeOpen);
+    
     bool default_seen = false;
-    while (cursor.Peek() != ir::Token::ScopeClose && !cursor.Done()) {
+    while (!cursor.Done() && cursor.Peek() != ir::Token::ScopeClose) {
       if (cursor.Peek() == ir::Token::Is) {
-        IsStatement(symbol);
+        IsStatement();
       } else if (cursor.Peek() == ir::Token::Has) {
-        HasStatement(symbol);
+        HasStatement();
       } else if (cursor.Peek() == ir::Token::Default) {
         if (!default_seen) {
-          DefaultStatement(symbol);
+          DefaultStatement();
           default_seen = true;
         } else {
-          DefaultStatement(symbol); // Parse to keep progress; diagnostics TBD
+          DefaultStatement(); // Parse to keep progress; diagnostics TBD
         }
       } else {
         break;
       }
     }
 
-    if (!Match(ir::Token::ScopeClose)) {
-      ReportError(ir::Error::ParserExpectedWhenScopeClose, symbol);
-    }
-
+    Expect(ir::Token::ScopeClose, ir::Error::ParserExpectedWhenScopeClose);
     Match(ir::Token::Semicolon);
 
     Pop(symbol);
@@ -1311,7 +1428,7 @@ namespace compiler::input {
 
     // NOTE: We do not create a symbol for the declaration itself, we use the symbol from the expression
     while (IsModifierToken(cursor.Peek())) {
-      cursor.Advance();
+      Advance();
     }
 
     ir::Index target = Identifier(parent);
