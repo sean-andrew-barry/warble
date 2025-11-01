@@ -13,6 +13,7 @@ namespace compiler::ir::symbol {
     Symbol, // Value is a `std::pair<uint32_t, uint32_t>` of the module and symbol indexes
     Integer, // Value is a `uint64_t` or `std::pair<uint32_t, uint32_t>` depending on flags
     Float, // Value is a `std::pair<int16_t, uint32_t>` or `std::pair<uint32_t, uint32_t>` depending on flags
+    Identifier, // Value is a `std::pair<uint32_t, uint32_t>` of the length and `characters` start index
     Reference,
     Array,
     String, // Value is a `std::pair<uint32_t, uint32_t>` of the length and `characters` start index
@@ -23,11 +24,23 @@ namespace compiler::ir::symbol {
     Variant,
     Promise,
     Expectation,
+    Optional,
     Range,
     Phi,
     Function,
+    // GeneratorFunction,
+    // AsyncFunction,
+    // AsyncGeneratorFunction,
     Module, // Value is a `compiler::program::Module*` during compilation
-    Block,
+    Label,
+    Declaration,
+    // DestructuredDeclaration,
+    // PropertyDeclaration,
+    // PropertyEnumDeclaration,
+    // PropertySpreadDeclaration,
+    // CaptureDeclaration,
+    // ParameterDeclaration,
+    // ParameterPackDeclaration,
 
     // Statements
     Do,
