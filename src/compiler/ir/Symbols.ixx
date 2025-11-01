@@ -11,12 +11,26 @@ import compiler.ir.symbol.Type;
 // ────────────────────────────────────────────────────────────────
 
 // Tree topology: Preorder layout with subtree interval (DFS numbering) — nodes are stored in DFS-preorder; each node stores parent and an inclusive subtree end index to hop over whole subtrees in O(1) per child.
+
+// Notes:
+// - Symbols can only be appended; no deletions or reordering is supported.
+// - Since symbols are created depth-first, parents always have lower indexes than their children.
+// - Not all symbols are structured (i.e., have children); only those that do will have subtree end indexes.
+// - The parent of a symbol can be found via a backwards scan to the first symbol whose subtree end index is > the current symbol's index.
+// - The next symbol after any given symbol is always either a child of that symbol or a younger sibling.
+
+// TODO:
+// - Subdivide `flags` into multiple columns for better cache locality
+// - Get rid of `last_tokens`, it can always be inferred via iterating tokens or looking at the subtree end's first token
+// - Get rid of `names`, only declarations need names, and they can be stored in the payload
+// - The `parents` could be shrunk to be a `uint8_t` if `255` means it's out of range, fall back to a search.
 namespace compiler::ir {
   export class Symbols {
   private:
     std::vector<uint64_t> registers; // Live-range bitset
+    std::vector<ir::symbol::Type> types; // Symbol types
     std::vector<uint64_t> flags; // Modifiers, type information, etc
-    std::vector<uint64_t> values; // A generic typeless field: immediate literal, pointer/index, etc
+    std::vector<uint64_t> payloads; // A generic typeless field: immediate literal, pointer/index, etc
     std::vector<int32_t> displacements; // Byte offset from the parent for runtime memory layout
 
     std::vector<ir::Index> parents;
@@ -33,11 +47,13 @@ namespace compiler::ir {
 
     uint64_t Registers(ir::Index i) const { return registers[i.Row()]; }
     uint64_t Flags(ir::Index i) const { return flags[i.Row()]; }
-    uint64_t Value(ir::Index i) const { return values[i.Row()]; }
-    uint32_t Size(ir::Index i) const { return static_cast<uint32_t>(Value(i) & 0xFFFFFFFFu); }
+    uint64_t Payload(ir::Index i) const { return payloads[i.Row()]; }
+    uint32_t Size(ir::Index i) const { return static_cast<uint32_t>(Payload(i) & 0xFFFFFFFFu); }
     int32_t Displacement(ir::Index i) const { return displacements[i.Row()]; }
     ir::Index Parent(ir::Index i) const { return parents[i.Row()]; }
     ir::Index Name(ir::Index i) const { return names[i.Row()]; }
+    uint32_t FirstToken(ir::Index i) const { return first_tokens[i.Row()]; }
+    uint32_t LastToken(ir::Index i) const { return last_tokens[i.Row()]; }
 
     ir::symbol::Type Type(ir::Index i) const {
       // First byte of flags stores the Type enum value; mask low 8 bits
@@ -47,12 +63,14 @@ namespace compiler::ir {
 
     void Registers(ir::Index i, uint64_t v) { registers[i.Row()] = v; }
     void Flags(ir::Index i, uint64_t v) { flags[i.Row()] = v; }
-    void Value(ir::Index i, uint64_t v) { values[i.Row()] = v; }
-    void Value(ir::Index i, uint32_t a, uint32_t b) { Value(i, (static_cast<uint64_t>(a) << 32) | b); }
-    void Size(ir::Index i, uint32_t v) { Value(i, static_cast<uint32_t>(Value(i) >> 32), static_cast<uint32_t>(v)); }
+    void Payload(ir::Index i, uint64_t v) { payloads[i.Row()] = v; }
+    void Payload(ir::Index i, uint32_t a, uint32_t b) { Payload(i, (static_cast<uint64_t>(a) << 32) | b); }
+    void Size(ir::Index i, uint32_t v) { Payload(i, static_cast<uint32_t>(Payload(i) >> 32), static_cast<uint32_t>(v)); }
     void Displacement(ir::Index i, int32_t v) { displacements[i.Row()] = v; }
     void Parent(ir::Index i, ir::Index v) { parents[i.Row()] = v; }
     void Name(ir::Index i, ir::Index v) { names[i.Row()] = v; }
+    void FirstToken(ir::Index i, uint32_t v) { first_tokens[i.Row()] = v; }
+    void LastToken(ir::Index i, uint32_t v) { last_tokens[i.Row()] = v; }
 
     void Type(ir::Index i, ir::symbol::Type v) {
       // Replace the first byte of flags with the Type
@@ -67,6 +85,10 @@ namespace compiler::ir {
 
     bool IsScope(ir::Index i) const {
       switch (Type(i)) {
+        case ir::symbol::Type::IfHeader:
+        case ir::symbol::Type::IfThen:
+        case ir::symbol::Type::IfElse:
+        case ir::symbol::Type::IfJoin:
         case ir::symbol::Type::Function:
         case ir::symbol::Type::Module:
         case ir::symbol::Type::If:
@@ -106,6 +128,10 @@ namespace compiler::ir {
 
     bool IsStructured(ir::Index i) const {
       switch (Type(i)) {
+        case ir::symbol::Type::IfHeader:
+        case ir::symbol::Type::IfThen:
+        case ir::symbol::Type::IfElse:
+        case ir::symbol::Type::IfJoin:
         case ir::symbol::Type::Function:
         case ir::symbol::Type::Module:
         case ir::symbol::Type::Object:
@@ -113,6 +139,7 @@ namespace compiler::ir {
         case ir::symbol::Type::Enum:
         case ir::symbol::Type::Tuple:
         case ir::symbol::Type::TemplateString:
+        case ir::symbol::Type::Error:
         case ir::symbol::Type::If:
         case ir::symbol::Type::ElseIf:
         case ir::symbol::Type::Else:
@@ -139,7 +166,7 @@ namespace compiler::ir {
 
     ir::Index LastChild(ir::Index i) const {
       if (!IsStructured(i)) return ir::Index{};
-      uint64_t value = Value(i);
+      uint64_t value = Payload(i);
       uint32_t end = static_cast<uint32_t>(value >> 32);
 
       return ir::Index{end};
@@ -173,11 +200,11 @@ namespace compiler::ir {
     }
 
     ir::Index Add(ir::symbol::Type type) {
-      ir::Index index = static_cast<uint32_t>(values.size()); // Take the size of any column, they should all be the same
+      ir::Index index = static_cast<uint32_t>(payloads.size()); // Take the size of any column, they should all be the same
 
       registers.emplace_back(0);
       flags.emplace_back(static_cast<uint64_t>(type));
-      values.push_back(0);
+      payloads.push_back(0);
       displacements.push_back(0);
       parents.push_back({});
       names.push_back({});
@@ -187,12 +214,12 @@ namespace compiler::ir {
       return index;
     }
 
-    size_t Count() const { return values.size(); }
+    size_t Count() const { return payloads.size(); }
 
     void Resize(size_t n) {
       registers.resize(n);
       flags.resize(n);
-      values.resize(n);
+      payloads.resize(n);
       displacements.resize(n);
       parents.resize(n);
       names.resize(n);
