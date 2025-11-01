@@ -1,4 +1,4 @@
-export module compiler.hw.x64.Encoder;
+export module compiler.output.x64.Encoder;
 
 import <cstdint>;
 import <bitset>;
@@ -8,11 +8,11 @@ import <stdexcept>;
 
 import compiler.Encoder;
 import compiler.ir.Symbols;
-import compiler.ir.Symbol;
+import compiler.ir.Index;
 import compiler.ir.Instruction;
 import compiler.utility.Buffer;
 
-namespace compiler::hw::x64 {
+namespace compiler::output::x64 {
   export class Encoder : public compiler::Encoder {
   public:
     virtual ~Encoder() final = default;
@@ -58,35 +58,35 @@ namespace compiler::hw::x64 {
     void REXWRXB();
 
     void OP(uint8_t opcode);
-    void OP(uint8_t op, const ir::Symbol& reg); // Embeds the register in the opcode
+    void OP(uint8_t op, const ir::Index reg); // Embeds the register in the opcode
 
     void Displacement(int32_t displacement, uint8_t mod, bool is_bp);
 
-    bool IsStandard(const ir::Symbol& reg) const;
-    bool IsExtended(const ir::Symbol& reg) const;
+    bool IsStandard(const ir::Index reg) const;
+    bool IsExtended(const ir::Index reg) const;
 
-    void Lock(const ir::Symbol& symbol) { if (symbol.IsAtomic()) Lock(); }
+    void Lock(const ir::Index symbol) { if (symbol.IsAtomic()) Lock(); }
 
-    void IMM8(const ir::Symbol& symbol) { Codes().Emit8(symbol.Value()); }
-    void IMM16(const ir::Symbol& symbol) { Codes().Emit16(symbol.Value()); }
-    void IMM32(const ir::Symbol& symbol) { Codes().Emit32(symbol.Value()); }
-    void IMM64(const ir::Symbol& symbol) { Codes().Emit64(symbol.Value()); }
+    void IMM8(const ir::Index symbol) { Codes().Emit8(symbol.Value()); }
+    void IMM16(const ir::Index symbol) { Codes().Emit16(symbol.Value()); }
+    void IMM32(const ir::Index symbol) { Codes().Emit32(symbol.Value()); }
+    void IMM64(const ir::Index symbol) { Codes().Emit64(symbol.Value()); }
 
-    inline uint8_t Ext(const ir::Symbol& reg) {
+    inline uint8_t Ext(const ir::Index reg) {
       // return (reg.Register() >> 3) & 1u;
       return !!(reg.Register() & 0x08);
     }
 
-    void REX(const ir::Symbol& r);
-    void REX(const ir::Symbol& r, const ir::Symbol& rm);
-    void REX(const ir::Symbol& r, const ir::Symbol& base, const ir::Symbol& index);
-    void REXW(const ir::Symbol& r);
-    void REXW(const ir::Symbol& r, const ir::Symbol& rm);
-    void REXW(const ir::Symbol& r, const ir::Symbol& base, const ir::Symbol& index);
+    void REX(const ir::Index r);
+    void REX(const ir::Index r, const ir::Index rm);
+    void REX(const ir::Index r, const ir::Index base, const ir::Index index);
+    void REXW(const ir::Index r);
+    void REXW(const ir::Index r, const ir::Index rm);
+    void REXW(const ir::Index r, const ir::Index base, const ir::Index index);
 
     template<typename T>
     requires (std::same_as<T, uint8_t> || std::same_as<T, ir::Symbol>)
-    void ModRM(const T& reg, const ir::Symbol& rm) {
+    void ModRM(const T& reg, const ir::Index rm) {
       uint8_t modrm  = 0;
       uint8_t reg_id = 0;
     
@@ -165,213 +165,213 @@ namespace compiler::hw::x64 {
       }
     }
 
-    bool AL_IMM8(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool AX_IMM16(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool EAX_IMM32(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool RAX_IMM32(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool R8_IMM8(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool R32_IMM32(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool R64_IMM32(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool R8_IMM8s(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool R16_IMM8s(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool R32_IMM8s(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool R64_IMM8s(uint8_t op, const ir::Symbol& reg, const ir::Symbol& imm);
-    bool RM8_IMM8(uint8_t op, uint8_t ext, const ir::Symbol& rm, const ir::Symbol& imm);
-    bool RM16_IMM8(uint8_t op, uint8_t ext, const ir::Symbol& rm, const ir::Symbol& imm);
-    bool RM32_IMM8(uint8_t op, uint8_t ext, const ir::Symbol& rm, const ir::Symbol& imm);
-    bool RM64_IMM8(uint8_t op, uint8_t ext, const ir::Symbol& rm, const ir::Symbol& imm);
-    bool RM16_IMM16(uint8_t op, uint8_t ext, const ir::Symbol& rm, const ir::Symbol& imm);
-    bool RM32_IMM32(uint8_t op, uint8_t ext, const ir::Symbol& rm, const ir::Symbol& imm);
-    bool RM64_IMM32(uint8_t op, uint8_t ext, const ir::Symbol& rm, const ir::Symbol& imm);
-    bool R8_RM8(uint8_t op, const ir::Symbol& reg, const ir::Symbol& rm);
-    bool R16_RM16(uint8_t op, const ir::Symbol& reg, const ir::Symbol& rm);
-    bool R32_RM32(uint8_t op, const ir::Symbol& reg, const ir::Symbol& rm);
-    bool R64_RM64(uint8_t op, const ir::Symbol& reg, const ir::Symbol& rm);
-    bool R16(uint8_t op, const ir::Symbol& reg);
-    bool R32(uint8_t op, const ir::Symbol& reg);
-    bool R64(uint8_t op, const ir::Symbol& reg);
-    bool RM8(uint8_t op, uint8_t ext, const ir::Symbol& rm);
-    bool RM16(uint8_t op, uint8_t ext, const ir::Symbol& rm);
-    bool RM32(uint8_t op, uint8_t ext, const ir::Symbol& rm);
-    bool RM64(uint8_t op, uint8_t ext, const ir::Symbol& rm);
-    bool IMM8(uint8_t op, const ir::Symbol& imm);
-    bool IMM16(uint8_t op, const ir::Symbol& imm);
-    bool IMM32(uint8_t op, const ir::Symbol& imm);
-    void REL8(const ir::Symbol& imm);
-    void REL32(const ir::Symbol& imm);
+    bool AL_IMM8(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool AX_IMM16(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool EAX_IMM32(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool RAX_IMM32(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool R8_IMM8(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool R32_IMM32(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool R64_IMM32(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool R8_IMM8s(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool R16_IMM8s(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool R32_IMM8s(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool R64_IMM8s(uint8_t op, const ir::Index reg, const ir::Index imm);
+    bool RM8_IMM8(uint8_t op, uint8_t ext, const ir::Index rm, const ir::Index imm);
+    bool RM16_IMM8(uint8_t op, uint8_t ext, const ir::Index rm, const ir::Index imm);
+    bool RM32_IMM8(uint8_t op, uint8_t ext, const ir::Index rm, const ir::Index imm);
+    bool RM64_IMM8(uint8_t op, uint8_t ext, const ir::Index rm, const ir::Index imm);
+    bool RM16_IMM16(uint8_t op, uint8_t ext, const ir::Index rm, const ir::Index imm);
+    bool RM32_IMM32(uint8_t op, uint8_t ext, const ir::Index rm, const ir::Index imm);
+    bool RM64_IMM32(uint8_t op, uint8_t ext, const ir::Index rm, const ir::Index imm);
+    bool R8_RM8(uint8_t op, const ir::Index reg, const ir::Index rm);
+    bool R16_RM16(uint8_t op, const ir::Index reg, const ir::Index rm);
+    bool R32_RM32(uint8_t op, const ir::Index reg, const ir::Index rm);
+    bool R64_RM64(uint8_t op, const ir::Index reg, const ir::Index rm);
+    bool R16(uint8_t op, const ir::Index reg);
+    bool R32(uint8_t op, const ir::Index reg);
+    bool R64(uint8_t op, const ir::Index reg);
+    bool RM8(uint8_t op, uint8_t ext, const ir::Index rm);
+    bool RM16(uint8_t op, uint8_t ext, const ir::Index rm);
+    bool RM32(uint8_t op, uint8_t ext, const ir::Index rm);
+    bool RM64(uint8_t op, uint8_t ext, const ir::Index rm);
+    bool IMM8(uint8_t op, const ir::Index imm);
+    bool IMM16(uint8_t op, const ir::Index imm);
+    bool IMM32(uint8_t op, const ir::Index imm);
+    void REL8(const ir::Index imm);
+    void REL32(const ir::Index imm);
     bool RMx_1();
     bool RMx_CL();
     bool RMx_IMM8();
-    bool RDX_RAX_RM8(uint8_t op, uint8_t ext, const ir::Symbol& rdx, const ir::Symbol& rax, const ir::Symbol& rm);
-    bool RDX_RAX_RM16(uint8_t op, uint8_t ext, const ir::Symbol& rdx, const ir::Symbol& rax, const ir::Symbol& rm);
-    bool RDX_RAX_RM32(uint8_t op, uint8_t ext, const ir::Symbol& rdx, const ir::Symbol& rax, const ir::Symbol& rm);
-    bool RDX_RAX_RM64(uint8_t op, uint8_t ext, const ir::Symbol& rdx, const ir::Symbol& rax, const ir::Symbol& rm);
+    bool RDX_RAX_RM8(uint8_t op, uint8_t ext, const ir::Index rdx, const ir::Index rax, const ir::Index rm);
+    bool RDX_RAX_RM16(uint8_t op, uint8_t ext, const ir::Index rdx, const ir::Index rax, const ir::Index rm);
+    bool RDX_RAX_RM32(uint8_t op, uint8_t ext, const ir::Index rdx, const ir::Index rax, const ir::Index rm);
+    bool RDX_RAX_RM64(uint8_t op, uint8_t ext, const ir::Index rdx, const ir::Index rax, const ir::Index rm);
     bool RAX_RM64();
-    bool R16_AX(uint8_t op, const ir::Symbol& reg, const ir::Symbol& ax);
-    bool R32_EAX(uint8_t op, const ir::Symbol& reg, const ir::Symbol& eax);
-    bool R64_RAX(uint8_t op, const ir::Symbol& reg, const ir::Symbol& rax);
+    bool R16_AX(uint8_t op, const ir::Index reg, const ir::Index ax);
+    bool R32_EAX(uint8_t op, const ir::Index reg, const ir::Index eax);
+    bool R64_RAX(uint8_t op, const ir::Index reg, const ir::Index rax);
     bool MOFFS32_RAX();
     bool RAX_MOFFS32();
 
-    bool ADD(const ir::Symbol& d, const ir::Symbol& s);
-    bool ADC(const ir::Symbol& d, const ir::Symbol& s);
-    bool XADD(const ir::Symbol& d, const ir::Symbol& s);
-    bool SUB(const ir::Symbol& d, const ir::Symbol& s);
-    bool SBB(const ir::Symbol& d, const ir::Symbol& s);
-    bool AND(const ir::Symbol& d, const ir::Symbol& s);
-    bool OR(const ir::Symbol& d, const ir::Symbol& s);
-    bool XOR(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMP(const ir::Symbol& d, const ir::Symbol& s);
-    bool TEST(const ir::Symbol& d, const ir::Symbol& s);
-    bool MOV(const ir::Symbol& d, const ir::Symbol& s);
-    bool MOVSX(const ir::Symbol& d, const ir::Symbol& s);
-    bool MOVSXD(const ir::Symbol& d, const ir::Symbol& s);
-    bool MOVZX(const ir::Symbol& d, const ir::Symbol& s);
+    bool ADD(const ir::Index d, const ir::Index s);
+    bool ADC(const ir::Index d, const ir::Index s);
+    bool XADD(const ir::Index d, const ir::Index s);
+    bool SUB(const ir::Index d, const ir::Index s);
+    bool SBB(const ir::Index d, const ir::Index s);
+    bool AND(const ir::Index d, const ir::Index s);
+    bool OR(const ir::Index d, const ir::Index s);
+    bool XOR(const ir::Index d, const ir::Index s);
+    bool CMP(const ir::Index d, const ir::Index s);
+    bool TEST(const ir::Index d, const ir::Index s);
+    bool MOV(const ir::Index d, const ir::Index s);
+    bool MOVSX(const ir::Index d, const ir::Index s);
+    bool MOVSXD(const ir::Index d, const ir::Index s);
+    bool MOVZX(const ir::Index d, const ir::Index s);
     
-    bool LEA(const ir::Symbol& d, const ir::Symbol& s);
-    bool XCHG(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMPXCHG(const ir::Symbol& d, const ir::Symbol& s);
-    bool PUSH(const ir::Symbol& v);
-    bool POP(const ir::Symbol& d);
+    bool LEA(const ir::Index d, const ir::Index s);
+    bool XCHG(const ir::Index d, const ir::Index s);
+    bool CMPXCHG(const ir::Index d, const ir::Index s);
+    bool PUSH(const ir::Index v);
+    bool POP(const ir::Index d);
 
-    bool MUL(const ir::Symbol& d, const ir::Symbol& s);
-    bool IMUL(const ir::Symbol& d, const ir::Symbol& s);
-    bool IMUL(const ir::Symbol& d, const ir::Symbol& s, const ir::Symbol& i);
+    bool MUL(const ir::Index d, const ir::Index s);
+    bool IMUL(const ir::Index d, const ir::Index s);
+    bool IMUL(const ir::Index d, const ir::Index s, const ir::Index i);
     bool CWDE();
     bool CDQE();
     bool CDQ();
     bool CQO();
-    bool DIV(const ir::Symbol& d, const ir::Symbol& s);
-    bool IDIV(const ir::Symbol& d, const ir::Symbol& s);
+    bool DIV(const ir::Index d, const ir::Index s);
+    bool IDIV(const ir::Index d, const ir::Index s);
 
-    bool INC(const ir::Symbol& d);
-    bool DEC(const ir::Symbol& d);
-    bool NEG(const ir::Symbol& d);
-    bool NOT(const ir::Symbol& d);
+    bool INC(const ir::Index d);
+    bool DEC(const ir::Index d);
+    bool NEG(const ir::Index d);
+    bool NOT(const ir::Index d);
 
-    bool Shift(uint8_t ext, const ir::Symbol& d);
-    bool ROL(const ir::Symbol& d);
-    bool ROR(const ir::Symbol& d);
-    bool RCL(const ir::Symbol& d);
-    bool RCR(const ir::Symbol& d);
-    bool SHL(const ir::Symbol& d);
-    bool SHR(const ir::Symbol& d);
-    bool SAL(const ir::Symbol& d);
-    bool SAR(const ir::Symbol& d);
+    bool Shift(uint8_t ext, const ir::Index d);
+    bool ROL(const ir::Index d);
+    bool ROR(const ir::Index d);
+    bool RCL(const ir::Index d);
+    bool RCR(const ir::Index d);
+    bool SHL(const ir::Index d);
+    bool SHR(const ir::Index d);
+    bool SAL(const ir::Index d);
+    bool SAR(const ir::Index d);
 
-    bool Shift(uint8_t ext, const ir::Symbol& d, const ir::Symbol& s);
-    bool ROL(const ir::Symbol& d, const ir::Symbol& s);
-    bool ROR(const ir::Symbol& d, const ir::Symbol& s);
-    bool RCL(const ir::Symbol& d, const ir::Symbol& s);
-    bool RCR(const ir::Symbol& d, const ir::Symbol& s);
-    bool SHL(const ir::Symbol& d, const ir::Symbol& s);
-    bool SHR(const ir::Symbol& d, const ir::Symbol& s);
-    bool SAL(const ir::Symbol& d, const ir::Symbol& s);
-    bool SAR(const ir::Symbol& d, const ir::Symbol& s);
+    bool Shift(uint8_t ext, const ir::Index d, const ir::Index s);
+    bool ROL(const ir::Index d, const ir::Index s);
+    bool ROR(const ir::Index d, const ir::Index s);
+    bool RCL(const ir::Index d, const ir::Index s);
+    bool RCR(const ir::Index d, const ir::Index s);
+    bool SHL(const ir::Index d, const ir::Index s);
+    bool SHR(const ir::Index d, const ir::Index s);
+    bool SAL(const ir::Index d, const ir::Index s);
+    bool SAR(const ir::Index d, const ir::Index s);
 
-    bool CALL(const ir::Symbol& d);
+    bool CALL(const ir::Index d);
     bool RET();
-    bool RET(const ir::Symbol& bytes);
+    bool RET(const ir::Index bytes);
     bool NOP();
-    bool JMP(const ir::Symbol& d);
+    bool JMP(const ir::Index d);
 
-    bool Jcc(uint8_t op8, uint8_t op, const ir::Symbol& d);
-    bool JO(const ir::Symbol& d);
-    bool JNO(const ir::Symbol& d);
-    bool JB(const ir::Symbol& d);
-    bool JNAE(const ir::Symbol& d);
-    bool JC(const ir::Symbol& d);
-    bool JNB(const ir::Symbol& d);
-    bool JAE(const ir::Symbol& d);
-    bool JNC(const ir::Symbol& d);
-    bool JZ(const ir::Symbol& d);
-    bool JE(const ir::Symbol& d);
-    bool JNZ(const ir::Symbol& d);
-    bool JNE(const ir::Symbol& d);
-    bool JBE(const ir::Symbol& d);
-    bool JNA(const ir::Symbol& d);
-    bool JNBE(const ir::Symbol& d);
-    bool JA(const ir::Symbol& d);
-    bool JS(const ir::Symbol& d);
-    bool JNS(const ir::Symbol& d);
-    bool JP(const ir::Symbol& d);
-    bool JPE(const ir::Symbol& d);
-    bool JNP(const ir::Symbol& d);
-    bool JPO(const ir::Symbol& d);
-    bool JL(const ir::Symbol& d);
-    bool JNGE(const ir::Symbol& d);
-    bool JNL(const ir::Symbol& d);
-    bool JGE(const ir::Symbol& d);
-    bool JLE(const ir::Symbol& d);
-    bool JNG(const ir::Symbol& d);
-    bool JNLE(const ir::Symbol& d);
-    bool JG(const ir::Symbol& d);
+    bool Jcc(uint8_t op8, uint8_t op, const ir::Index d);
+    bool JO(const ir::Index d);
+    bool JNO(const ir::Index d);
+    bool JB(const ir::Index d);
+    bool JNAE(const ir::Index d);
+    bool JC(const ir::Index d);
+    bool JNB(const ir::Index d);
+    bool JAE(const ir::Index d);
+    bool JNC(const ir::Index d);
+    bool JZ(const ir::Index d);
+    bool JE(const ir::Index d);
+    bool JNZ(const ir::Index d);
+    bool JNE(const ir::Index d);
+    bool JBE(const ir::Index d);
+    bool JNA(const ir::Index d);
+    bool JNBE(const ir::Index d);
+    bool JA(const ir::Index d);
+    bool JS(const ir::Index d);
+    bool JNS(const ir::Index d);
+    bool JP(const ir::Index d);
+    bool JPE(const ir::Index d);
+    bool JNP(const ir::Index d);
+    bool JPO(const ir::Index d);
+    bool JL(const ir::Index d);
+    bool JNGE(const ir::Index d);
+    bool JNL(const ir::Index d);
+    bool JGE(const ir::Index d);
+    bool JLE(const ir::Index d);
+    bool JNG(const ir::Index d);
+    bool JNLE(const ir::Index d);
+    bool JG(const ir::Index d);
 
-    bool SETcc(uint8_t op, const ir::Symbol& d);
-    bool SETO(const ir::Symbol& d);
-    bool SETNO(const ir::Symbol& d);
-    bool SETB(const ir::Symbol& d);
-    bool SETNAE(const ir::Symbol& d);
-    bool SETC(const ir::Symbol& d);
-    bool SETNB(const ir::Symbol& d);
-    bool SETAE(const ir::Symbol& d);
-    bool SETNC(const ir::Symbol& d);
-    bool SETZ(const ir::Symbol& d);
-    bool SETE(const ir::Symbol& d);
-    bool SETNZ(const ir::Symbol& d);
-    bool SETNE(const ir::Symbol& d);
-    bool SETBE(const ir::Symbol& d);
-    bool SETNA(const ir::Symbol& d);
-    bool SETNBE(const ir::Symbol& d);
-    bool SETA(const ir::Symbol& d);
-    bool SETS(const ir::Symbol& d);
-    bool SETNS(const ir::Symbol& d);
-    bool SETP(const ir::Symbol& d);
-    bool SETPE(const ir::Symbol& d);
-    bool SETNP(const ir::Symbol& d);
-    bool SETPO(const ir::Symbol& d);
-    bool SETL(const ir::Symbol& d);
-    bool SETNGE(const ir::Symbol& d);
-    bool SETNL(const ir::Symbol& d);
-    bool SETGE(const ir::Symbol& d);
-    bool SETLE(const ir::Symbol& d);
-    bool SETNG(const ir::Symbol& d);
-    bool SETNLE(const ir::Symbol& d);
-    bool SETG(const ir::Symbol& d);
+    bool SETcc(uint8_t op, const ir::Index d);
+    bool SETO(const ir::Index d);
+    bool SETNO(const ir::Index d);
+    bool SETB(const ir::Index d);
+    bool SETNAE(const ir::Index d);
+    bool SETC(const ir::Index d);
+    bool SETNB(const ir::Index d);
+    bool SETAE(const ir::Index d);
+    bool SETNC(const ir::Index d);
+    bool SETZ(const ir::Index d);
+    bool SETE(const ir::Index d);
+    bool SETNZ(const ir::Index d);
+    bool SETNE(const ir::Index d);
+    bool SETBE(const ir::Index d);
+    bool SETNA(const ir::Index d);
+    bool SETNBE(const ir::Index d);
+    bool SETA(const ir::Index d);
+    bool SETS(const ir::Index d);
+    bool SETNS(const ir::Index d);
+    bool SETP(const ir::Index d);
+    bool SETPE(const ir::Index d);
+    bool SETNP(const ir::Index d);
+    bool SETPO(const ir::Index d);
+    bool SETL(const ir::Index d);
+    bool SETNGE(const ir::Index d);
+    bool SETNL(const ir::Index d);
+    bool SETGE(const ir::Index d);
+    bool SETLE(const ir::Index d);
+    bool SETNG(const ir::Index d);
+    bool SETNLE(const ir::Index d);
+    bool SETG(const ir::Index d);
 
-    bool CMOVcc(uint8_t op, const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVO(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNO(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVB(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNAE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVC(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNB(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVAE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNC(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVZ(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNZ(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVBE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNA(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNBE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVA(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVS(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNS(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVP(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVPE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNP(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVPO(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVL(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNGE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNL(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVGE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVLE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNG(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVNLE(const ir::Symbol& d, const ir::Symbol& s);
-    bool CMOVG(const ir::Symbol& d, const ir::Symbol& s);
+    bool CMOVcc(uint8_t op, const ir::Index d, const ir::Index s);
+    bool CMOVO(const ir::Index d, const ir::Index s);
+    bool CMOVNO(const ir::Index d, const ir::Index s);
+    bool CMOVB(const ir::Index d, const ir::Index s);
+    bool CMOVNAE(const ir::Index d, const ir::Index s);
+    bool CMOVC(const ir::Index d, const ir::Index s);
+    bool CMOVNB(const ir::Index d, const ir::Index s);
+    bool CMOVAE(const ir::Index d, const ir::Index s);
+    bool CMOVNC(const ir::Index d, const ir::Index s);
+    bool CMOVZ(const ir::Index d, const ir::Index s);
+    bool CMOVE(const ir::Index d, const ir::Index s);
+    bool CMOVNZ(const ir::Index d, const ir::Index s);
+    bool CMOVNE(const ir::Index d, const ir::Index s);
+    bool CMOVBE(const ir::Index d, const ir::Index s);
+    bool CMOVNA(const ir::Index d, const ir::Index s);
+    bool CMOVNBE(const ir::Index d, const ir::Index s);
+    bool CMOVA(const ir::Index d, const ir::Index s);
+    bool CMOVS(const ir::Index d, const ir::Index s);
+    bool CMOVNS(const ir::Index d, const ir::Index s);
+    bool CMOVP(const ir::Index d, const ir::Index s);
+    bool CMOVPE(const ir::Index d, const ir::Index s);
+    bool CMOVNP(const ir::Index d, const ir::Index s);
+    bool CMOVPO(const ir::Index d, const ir::Index s);
+    bool CMOVL(const ir::Index d, const ir::Index s);
+    bool CMOVNGE(const ir::Index d, const ir::Index s);
+    bool CMOVNL(const ir::Index d, const ir::Index s);
+    bool CMOVGE(const ir::Index d, const ir::Index s);
+    bool CMOVLE(const ir::Index d, const ir::Index s);
+    bool CMOVNG(const ir::Index d, const ir::Index s);
+    bool CMOVNLE(const ir::Index d, const ir::Index s);
+    bool CMOVG(const ir::Index d, const ir::Index s);
 
-    bool Add(const ir::Symbol& res, const ir::Symbol& lhs, const ir::Symbol& rhs) {
+    bool Add(const ir::Index res, const ir::Index lhs, const ir::Index rhs) {
       // Integer addition (signed and unsigned)
       if (res == lhs) {
         return ADD(res, rhs); // Directly add rhs to res
@@ -383,7 +383,7 @@ namespace compiler::hw::x64 {
       }
     }
 
-    bool AddFloat(const ir::Symbol& res, const ir::Symbol& lhs, const ir::Symbol& rhs) {
+    bool AddFloat(const ir::Index res, const ir::Index lhs, const ir::Index rhs) {
       // // Floating-point addition
       // if (res == lhs) {
       //   return ADDPS(res, rhs); // Directly add rhs to res (packed single-precision)
