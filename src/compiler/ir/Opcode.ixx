@@ -6,6 +6,7 @@ namespace compiler::ir {
   enum class Opcode : uint8_t {
     Extension, // A pseudo-instruction, whose operands apply to the **previous** instruction as a way to have more than 3 operands
     Anchor, // A CFG block's anchor point, marking where the block begins
+    Label, // A connection to a `Label` symbol, marking its position
     NoOperation,
     Unreachable,
     Abort, // Abort();
@@ -21,9 +22,15 @@ namespace compiler::ir {
     CallWithString, // result = Call(function, string);
     CallWithTemplateString, // result = Call(function, template_string);
     Return, // Return();
-    Jump, // Jump(block);
-    Branch, // Branch(condition, block);
-    Fork, // Fork(condition, block1, block2);
+    Jump, // Jump(label);
+    Branch, // Branch(condition, label);
+    Fork, // Fork(condition, label1, label2);
+    BranchIs, // BranchIs(condition, value, label);
+    BranchHas, // BranchHas(condition, value, label);
+    BranchFrom, // BranchFrom(condition, value, label);
+    BranchNotIs, // BranchNotIs(condition, value, label);
+    BranchNotHas, // BranchNotHas(condition, value, label);
+    BranchNotFrom, // BranchNotFrom(condition, value, label);
 
     // Memory
     Allocate, // Allocate(bytes); // Reserve stack space
