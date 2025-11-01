@@ -167,7 +167,8 @@ namespace compiler::input {
   protected:
     std::string source;
     std::vector<ir::Token> tokens;
-    std::vector<char32_t> characters;
+    std::vector<uint32_t> data; // Unified side table for UTF-32 code points and other literal payloads
+    std::vector<uint32_t> temp_le; // Shared little-endian workspace for numeric accumulation
     std::vector<uint8_t> hex_le; // little-endian nibbles buffer
     std::vector<ir::Error> errors; // emitted error codes in encounter order
 
@@ -177,7 +178,7 @@ namespace compiler::input {
     struct Position {
       std::string::const_iterator cursor;
       size_t token;
-      size_t character;
+      size_t data;
       size_t error;
     };
 
@@ -367,7 +368,7 @@ namespace compiler::input {
     // Generic escape sequence parser (new design).
     //  - Consumes an escape beginning with '\\' and emits exactly one Escape* token that
     //    encodes the source format (ASCII, \xHH, \uXXXX, or \u{H…H}).
-    //  - Decodes the escaped character to a UTF-32 code point and appends it to `characters`.
+    //  - Decodes the escaped character to a UTF-32 code point and appends it to `data`.
     //  - Does NOT emit any Characters* tokens for the escape (Escape* implies Characters1).
     //  - Returns true on success; on failure, calls Error(...) with a precise code and returns false.
     bool Escape();
@@ -381,12 +382,14 @@ namespace compiler::input {
     bool Number();
     bool IdentifierHelper();
     bool Identifier();
+    bool IdentifierOrArrowFunction();
     bool TemplateString();
     bool BinaryOperatorHelper(bool in_enum = false);
     bool BinaryOperator(bool in_enum = false);
     bool ParameterDeclaration();
     bool ParameterDeclarationList();
     bool Parameters();
+    bool ArrowFunction();
     bool Function();
     bool IdentifiedExpression();
     bool CallablePrefixLiteralHelper();
