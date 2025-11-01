@@ -39,5 +39,7 @@ namespace compiler::ir::symbol {
     Runtime, // Unknown at compile-time.
     NonZero, // Specifies that a value will never hold `0` at runtime. This is an optimization hint, allowing things like optionals to avoid having a type tag.
     NonMax, // Specifies that a value will never hold its maximum value, all `1`s, at runtime. This is an optimization hint, allowing things like optionals to avoid having a type tag.
+    Halts, // Specifies a function is proven to halt. In other words, it will never loop infinitely or recurse infinitely.
+    Topic, // Indicates that this symbol is a topic, and so accessible via `this` or `that`
   };
 }
