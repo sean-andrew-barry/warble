@@ -24,6 +24,7 @@ namespace compiler::ir {
     UnaryPrefixOperatorExpectedValue,
     BinaryOperatorExpectedLHS,
     MultiLineCommentExpectedClosingAsteriskSlash,
+    ArrowFunctionExpectedExpression,
 
     // Unicode errors
     UnicodeCodePointOutOfRange,
@@ -39,5 +40,14 @@ namespace compiler::ir {
 
     // Parser errors
     ParserExpectedObjectDeclaration,
+    ParserBreakOutsideLoop,
+    ParserContinueOutsideLoop,
+    ParserExpectedWhenArmBody,
+    ParserDuplicateDefaultInWhen,
+    ParserExpectedWhenArm,
+    ParserExpectedHexStart,
+    ParserExpectedOctalStart,
+    ParserExpectedBinaryStart,
+    ParserExpectedDecimal,
   };
 };
