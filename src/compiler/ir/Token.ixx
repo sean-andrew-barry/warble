@@ -69,6 +69,14 @@ namespace compiler::ir {
     CharactersD,
     CharactersE,
     CharactersF,
+    Redirect0,
+    Redirect1,
+    Redirect2,
+    Redirect3,
+    Redirect4,
+    Redirect5,
+    Redirect6,
+    Redirect7,
     EscapeASCII, // Single character escape such as `\n`, not to be confused with an actual line break token like `LineFeed`
     EscapeHex, // `\xXX` - A character specified by a hexadecimal value of exactly two digits
     EscapeUnicode, // `\uXXXX` - A Unicode character using exactly four hexadecimal digits
@@ -88,6 +96,8 @@ namespace compiler::ir {
     Underscore, // `_` - Used as a spacer in numeric literals
     Dot, // `.` - Used in decimal literals
     Exponent, // `e` or `E` - Used in decimal literals
+    Power, // `p` or `P` - Used in hexadecimal float literals
+    Mantissa, // Used in decimal literals to mark the presence of a 32 bit mantissa limb
     HexStart, // `0x` or `0X`
     OctalStart, // `0o` or `0O`
     BinaryStart, // `0b` or `0B`
@@ -95,33 +105,33 @@ namespace compiler::ir {
     CommentClose, // Simple marker, doesn't represent any characters
     MultiLineCommentOpen, // `/*` - Starts a multi-line comment
     MultiLineCommentClose, // `*/` - Ends a multi-line comment
-    ArrayOpen, // [
-    ArrayClose, // ]
-    EnumOpen, // <
-    EnumClose, // >
-    ObjectOpen, // {
-    ObjectClose, // }
-    TupleOpen, // (
-    TupleClose, // )
-    CharOpen, // '
-    CharClose, // '
-    Comma, // ,
-    ConditionOpen, // (
-    ConditionClose, // )
-    Call, // ->
-    CaptureOpen, // [
-    CaptureClose, // ]
-    ParameterOpen, // (
-    ParameterClose, // )
-    ScopeOpen, // {
-    ScopeClose, // }
-    Semicolon, // ;
+    ArrayOpen, // `[`
+    ArrayClose, // `]`
+    EnumOpen, // `<`
+    EnumClose, // `>`
+    ObjectOpen, // `{`
+    ObjectClose, // `}`
+    TupleOpen, // `(`
+    TupleClose, // `)`
+    CharOpen, // `'`
+    CharClose, // `'`
+    Comma, // `,`
+    ConditionOpen, // `(`
+    ConditionClose, // `)`
+    Pipeline, // `->`
+    CaptureOpen, // `[`
+    CaptureClose, // `]`
+    ParameterOpen, // `(`
+    ParameterClose, // `)`
+    ScopeOpen, // `{`
+    ScopeClose, // `}`
+    Semicolon, // `;`
     TemplateStringOpen, // `
     TemplateStringClose, // `
-    TemplateStringExpressionOpen, // {
-    TemplateStringExpressionClose, // }
-    StringOpen, // "
-    StringClose, // "
+    TemplateStringExpressionOpen, // `{`
+    TemplateStringExpressionClose, // `}`
+    StringOpen, // `"`
+    StringClose, // `"`
     Compiler, // `compiler` - Used to access compiler built-ins
     Auto, // `auto` - Used for type inference
     Void, // `void` - Used as the type of `null`
@@ -129,62 +139,66 @@ namespace compiler::ir {
     Null, // `null`
     True, // `true`
     False, // `false`
-    This, // `this` - Used in object literals and functions
-    Add, // +
-    And, // &&
-    Or, // ||
+    This, // `this` - Used in object literals and some statements to refer to the top of the topic stack
+    That, // `that` - Used in object literals and some statements to refer to the second item on the topic stack
+    TypeStart, // `:` - Used to denote the start of a type annotation in a declaration
+    Wildcard, // `*` - Used in aggregating export statements
+    Add, // `+`
+    And, // `&&`
+    Or, // `||`
     Wrap, // `!!` - Builds a variant from values
     Unwrap, // `??` - Conditionally unwraps a variant
     InlineFunctionArrow, // `=>` - Used to mark the body of an inline function
-    Divide, // /
-    Equal, // ==
-    Exponent, // **
-    GreaterOrEqual, // >=
-    Greater, // >
-    ExclusiveRange, // ..
-    InclusiveRange, // ...
-    LesserOrEqual, // <=
-    Lesser, // <
+    ArrowHead, // A special zero width marker that says the following identifier is an arrow function parameter
+    Divide, // `/`
+    Equal, // `==`
+    Exponent, // `**`
+    GreaterOrEqual, // `>=`
+    Greater, // `>`
+    ExclusiveRange, // `..`
+    InclusiveRange, // `...`
+    LesserOrEqual, // `<=`
+    Lesser, // `<`
     MemberAccess, // `.` - Standard identifier based lookup
     MemberAccessOptional, // `?.` - Returns an optional for the member
     MemberAccessStatic, // `:` - Used to access static members via a symbol
     MemberAccessStaticOptional, // `?:` - Returns an optional for the static member
-    Modulo, // %
-    Multiply, // *
-    NotEqual, // !=
-    Subtract, // -
-    TripleLeftShift, // <<<
-    TripleRightShift, // >>>
+    Modulo, // `%`
+    Multiply, // `*`
+    NotEqual, // `!=`
+    Subtract, // `-`
+    TripleLeftShift, // `<<<`
+    TripleRightShift, // `>>>`
     AssignOptional, // `?=` - Conditional assignment
-    AssertEqual, // ===
-    AssertGreaterOrEqual, // >==
-    AssertLesserOrEqual, // <==
-    AssertNotEqual, // !==
-    Assign, // =
-    AssignAdd, // +=
-    AssignDivide, // /=
-    AssignExponent, // **=
-    AssignModulo, // %=
-    AssignMultiply, // *=
-    AssignSubtract, // -=
-    AssignAnd, // &&=
-    AssignOr, // ||=
-    AssignTruthyAnd, // !!=
-    AssignTruthyOr, // ??=
-    BitwiseLeftShift, // <<
-    BitwiseRightShift, // >>
-    BitwiseTripleLeftShift, // <<<
-    BitwiseTripleRightShift, // >>>
-    BitwiseAssignTripleLeftShift, // <<<=
-    BitwiseAssignTripleRightShift, // >>>=
-    BitwiseAssignLeftShift, // <<=
-    BitwiseAssignRightShift, // >>=
-    BitwiseAnd, // &
-    BitwiseXor, // ^
-    BitwiseOr, // |
-    BitwiseAssignAnd, // &=
-    BitwiseAssignXor, // ^=
-    BitwiseAssignOr, // |=
+    AssertEqual, // `===`
+    AssertGreaterOrEqual, // `>==`
+    AssertLesserOrEqual, // `<==`
+    AssertNotEqual, // `!==`
+    Assign, // `=`
+    AssignAdd, // `+=`
+    AssignDivide, // `/=`
+    AssignExponent, // `**=`
+    AssignModulo, // `%=`
+    AssignMultiply, // `*=`
+    AssignSubtract, // `-=`
+    AssignAnd, // `&&=`
+    AssignOr, // `||=`
+    AssignTruthyAnd, // `!!=`
+    AssignTruthyOr, // `??=`
+    BitwiseLeftShift, // `<<`
+    BitwiseRightShift, // `>>`
+    BitwiseTripleLeftShift, // `<<<`
+    BitwiseTripleRightShift, // `>>>`
+    BitwiseAssignTripleLeftShift, // `<<<=`
+    BitwiseAssignTripleRightShift, // `>>>=`
+    BitwiseAssignLeftShift, // `<<=`
+    BitwiseAssignRightShift, // `>>=`
+    BitwiseAnd, // `&`
+    BitwiseXor, // `^`
+    BitwiseOr, // `|`
+    BitwiseAssignAnd, // `&=`
+    BitwiseAssignXor, // `^=`
+    BitwiseAssignOr, // `|=`
     Yield, // `yield` - Unary prefix keyword used to yield a value from a generator
     Await, // `await` - Unary prefix keyword used to wait for a promise to resolve
     Expect, // `expect` - Unary prefix keyword used for assertions in tests
@@ -222,7 +236,5 @@ namespace compiler::ir {
     Default, // `default` - Used to specify the default case in `when` statements
     Case,
     Let, // `let` - Used to declare a variable
-    TypeStart, // :
-    Wildcard, // `*` - Used in aggregating export statements
   };
 };
