@@ -18,8 +18,6 @@ import compiler.ir.Token;
 import compiler.text.cursor.Token;
 
 namespace compiler::input {
-  export class Lexer; // Forward declaration
-
   using Pair = std::pair<std::string_view, ir::Token>;
 
   consteval std::bitset<256> MakeBitset(std::initializer_list<ir::Token> list) {
@@ -319,22 +317,24 @@ namespace compiler::input {
   export class Parser {
   private:
     std::vector<ir::Token> tokens;
-    std::vector<char32_t> characters;
-    std::vector<uint32_t> line_starts; // The token index where each line starts
-    std::vector<uint32_t> string_starts; // The character index where each line starts
+    std::vector<uint32_t> data;
+    uint32_t data_position = 0; // Current data index
+    std::vector<uint32_t> lines; // The token index where each line starts
     
     ir::Symbols symbols;
     std::vector<uint32_t> limbs; // The data storage for big integers
     std::vector<ir::Instruction> instructions;
-    text::cursor::Token cursor;
-    std::vector<ir::Index> parents; // Stack of parent symbols for nested constructs
 
-    // The indexes track the position within the module's various storage vectors 
-    size_t widths_index = 0; // Increments after seeing a variable width token, such as `Spaces` or `Characters`
-    size_t symbols_index = 0; // Increments after seeing a symbol token, such as `Identifier` or `Decimal`
-    size_t lines_index = 0; // Increments after seeing a line break token, such as `LineFeed` or `CarriageReturnLineFeed`
+    text::cursor::Token cursor;
+    std::vector<ir::Index> break_targets; // Stack of active loop exit labels
+    std::vector<ir::Index> continue_targets; // Stack of active loop continue labels
+    std::vector<ir::Index> topics; // Stack of active topics
 
     ir::Index NextSymbol();
+    void SlideDestruct(ir::Index symbol);
+    ir::Index MakeTemporary(ir::Index parent, ir::Index lhs, ir::Index rhs);
+    ir::Opcode UnaryOpcode(ir::Token token) const;
+    ir::Opcode BinaryOpcode(ir::Token token) const;
 
     constexpr static bool IsTrivialToken(ir::Token token) {
       return TRIVIAL_SET.test(static_cast<uint8_t>(token));
@@ -372,49 +372,36 @@ namespace compiler::input {
     ir::Index ParseUnary(ir::Index parent);
     ir::Index ParseBinary(ir::Index parent, int min_precedence);
 
-    void Push(ir::Index index) { parents.push_back(index); }
-    void Pop(ir::Index index) {
-      // TODO: Debug validation to ensure the index being popped is the one on top of the parents
-      parents.pop_back();
-    }
+    ir::Index Open(ir::symbol::Type type, ir::Index parent);
+    ir::Index Close(ir::Index index);
   public:
-    Parser(input::Lexer& lexer);
+    Parser(std::vector<ir::Token>&& tokens, std::vector<uint32_t>&& data);
 
     virtual ~Parser() = default;
 
-    void Skip();
-    void Advance(size_t count = 1);
-    bool Match(ir::Token token);
-    bool Check(ir::Token token);
-    ir::Token Peek();
-
-    void Instruct(ir::Opcode opcode, ir::Index res = ir::Index{}, ir::Index lhs = ir::Index{}, ir::Index rhs = ir::Index{});
+    uint32_t Instruct(ir::Opcode opcode, ir::Index res = ir::Index{}, ir::Index lhs = ir::Index{}, ir::Index rhs = ir::Index{});
 
     ir::Index Create(ir::symbol::Type type, ir::Index parent);
-    ir::Index Create(ir::symbol::Type type, ir::Index parent, uint64_t value);
-    ir::Index Create(ir::symbol::Type type, ir::Index parent, double value);
-    ir::Index Create(ir::symbol::Type type, ir::Index parent, char32_t value);
-    ir::Index Create(ir::symbol::Type type, ir::Index parent, bool value);
 
     ir::Index Parser::Expect(ir::Token token, ir::Error error, ir::Index parent);
 
-    void None();
-    void Spaces();
-    void Tabs();
-    void NewLine();
-    void Comment();
-    void MultiLineComment();
-    void Trivial();
-
-    bool WhiteSpace();
-    bool WS();
+    bool None(ir::Token token);
+    bool Spaces(ir::Token token);
+    bool Tabs(ir::Token token);
+    bool NewLine(ir::Token token);
+    bool Comment(ir::Token token);
+    bool MultiLineComment(ir::Token token);
+    bool WhiteSpace(ir::Token token);
 
     // Literals
     ir::Index Undefined(ir::Index parent);
     ir::Index Null(ir::Index parent);
     ir::Index Boolean(ir::Index parent);
     ir::Index Character(ir::Index parent);
-    ir::Index Number(ir::Index parent);
+    ir::Index Hex(ir::Index parent);
+    ir::Index Octal(ir::Index parent);
+    ir::Index Binary(ir::Index parent);
+    ir::Index Decimal(ir::Index parent);
     ir::Index String(ir::Index parent);
     ir::Index Array(ir::Index parent);
     ir::Index Enum(ir::Index parent);
@@ -443,13 +430,12 @@ namespace compiler::input {
     ir::Index WhileStatement(ir::Index parent);
     ir::Index RepeatStatement(ir::Index parent);
     ir::Index ForStatement(ir::Index parent);
-    ir::Index ElseIfStatement(ir::Index parent);
     ir::Index ElseStatement(ir::Index parent);
     ir::Index IfStatement(ir::Index parent);
-    ir::Index IsStatement(ir::Index parent);
-    ir::Index HasStatement(ir::Index parent);
-    ir::Index FromStatement(ir::Index parent);
-    ir::Index DefaultStatement(ir::Index parent);
+    ir::Index IsStatement(ir::Index parent, ir::Index subject, ir::Index when_end);
+    ir::Index HasStatement(ir::Index parent, ir::Index subject, ir::Index when_end);
+    ir::Index FromStatement(ir::Index parent, ir::Index subject, ir::Index when_end);
+    ir::Index DefaultStatement(ir::Index parent, ir::Index when_end);
     ir::Index WhenStatement(ir::Index parent);
     ir::Index DeclarationStatement(ir::Index parent);
     ir::Index ExpressionStatement(ir::Index parent);
