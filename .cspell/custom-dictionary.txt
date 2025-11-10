@@ -1,2 +1,7 @@
 # Custom Dictionary Words
+Abempty
+FADV
+fadvise
+hier
 Legalizer
+relock
