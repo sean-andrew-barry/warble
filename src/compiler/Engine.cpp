@@ -1,47 +1,23 @@
-import engine;
-import node;
-// import node.compiler;
-// import node.scope.context.global;
-import utility.print;
+import compiler.Engine;
+import <thread>;
+import <chrono>;
 
-// import <mutex>;
+namespace compiler {
+  Engine::Engine(Compiler& compiler)
+    : thread_pool{compiler}
+  {}
 
-Engine* Engine::instance{nullptr};
+  void Engine::Activate() {
+    thread_pool.Activate();
+  }
 
-Engine::Engine()
-{
-  instance = this;
-  // library = Register(nullptr, "library", "library", {}, true);
+  void Engine::Pause() {
+    thread_pool.Pause();
+  }
+
+  void Engine::Deactivate() {
+    thread_pool.Deactivate();
+  }
+
+  size_t Engine::ThreadCount() const { return thread_pool.Threads().size(); }
 }
-
-// node::Compiler* Engine::Register(node::Compiler* parent, node::scope::context::Global& scope, std::string&& path, std::string&& name, std::vector<std::string>&& allowed, bool wildcard) {
-//   utility::Debug("Engine registering package:", name, "at", path);
-
-//   std::unique_lock<std::shared_mutex> lock{mutex};
-
-//   std::string key = path; // Make a copy since we're going to move the path
-
-//   auto [iter, result] = compilers.try_emplace(key, *this, parent, std::move(path), std::move(name), std::move(allowed), wildcard);
-//   if (!result) {
-//     throw utility::Error("A node::Compiler was already registered at", key);
-//   }
-
-//   return &iter->second;
-// }
-
-// node::Compiler* Engine::Find(const std::string& name) {
-//   std::shared_lock<std::shared_mutex> lock{mutex};
-
-//   auto it = compilers.find(name);
-//   if (it == compilers.end()) {
-//     return nullptr;
-//   }
-
-//   return &it->second;
-// }
-
-// node::Compiler* Engine::Library() { return library; }
-
-// bool Engine::Queue(Node* node) {
-//   return thread_pool.Push(node);
-// }

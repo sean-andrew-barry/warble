@@ -2,27 +2,20 @@ export module compiler.Engine;
 
 import compiler.engine.ThreadPool;
 
-import <memory>;
-import <vector>;
-import <string>;
-import <string_view>;
-// import <shared_mutex>;
-import <unordered_map>;
-import <cstdint>;
-import <shared_mutex>;
+class Compiler; // forward declaration for constructor parameter
 
 namespace compiler {
+  // Engine owns the thread pool and connects it to the Compiler.
   export class Engine {
   private:
-    static Engine* instance;
     engine::ThreadPool thread_pool;
   public:
-    Engine();
+    explicit Engine(Compiler& compiler);
 
-    // node::Compiler* Register(node::Compiler* parent, std::string&& path, std::string&& name, std::vector<std::string>&& allowed, bool wildcard);
+    void Activate();
+    void Pause();
+    void Deactivate();
 
-    // node::Compiler* Find(const std::string& name);
-    // node::Compiler* Library();
-    // bool Queue(Node* node);
+    size_t ThreadCount() const;
   };
-};
+}

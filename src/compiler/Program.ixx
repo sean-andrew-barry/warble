@@ -5,27 +5,22 @@ import <string>;
 import <string_view>;
 import <unordered_map>;
 import <shared_mutex>;
+import <filesystem>;
 
+import Compiler;
 import compiler.program.Module;
 import compiler.program.Package;
+import compiler.fs.ID;
 
 namespace compiler {
   export class Program {
   private:
-    mutable std::shared_mutex mutex; // Guards access to packages map
-    std::unordered_map<std::string, std::unique_ptr<program::Package>> packages; // legacy name keyed
-    std::unordered_map<std::string, std::unique_ptr<program::Package>> root_packages; // canonical root keyed
+    Compiler& compiler;
+    mutable std::shared_mutex packages_mutex; // Guards access to package maps
+    std::unordered_map<fs::ID, std::unique_ptr<program::Package>> packages;
   public:
-    Program() = default;
+    Program(Compiler& compiler) : compiler{compiler} {}
 
-    program::Package& Register(std::string name, std::string root_path);
-    program::Package* Find(std::string_view name) const;
-    program::Package& GetOrCreateByRoot(const std::string& canonical_root);
-
-    // Build graph entrypoints
-    program::Module& Import(std::string_view package_name, std::string specifier);
-
-    // Scheduling/execution to be added later
-    // void BuildAll();
+    program::Package& Register(std::filesystem::path&& path);
   };
 };

@@ -1,61 +1,44 @@
 import compiler.Program;
 import compiler.program.Package;
 import compiler.program.Module;
+import compiler.fs.ID;
+import compiler.fs.File;
+import Compiler;
 
 import <shared_mutex>;
 import <utility>;
 import <stdexcept>;
+import <filesystem>;
 
 namespace compiler {
-  program::Package& Program::Register(std::string name, std::string root_path) {
-    // Fast path: check if exists under shared lock
+  Program::Program(Compiler& compiler) : compiler{compiler} {}
+
+  program::Package& Program::Register(std::filesystem::path&& path) {
+    fs::File file{std::move(path)};
+
+    if (!file) {
+      throw std::runtime_error("Failed to open package: " + file.Path().string());
+    }
+
+    const fs::ID key = file.ID();
+
+    // First shared lock lookup
     {
-      std::shared_lock lock{mutex};
-      auto it = packages.find(name);
+      std::shared_lock lock{packages_mutex};
+      auto it = packages.find(key);
       if (it != packages.end()) {
         return *it->second;
       }
     }
-  
-    // Upgrade to unique lock to insert
-    std::unique_lock lock{mutex};
-    auto [it, inserted] = packages.try_emplace(name, nullptr);
-    if (!inserted) {
-      // Another thread inserted between locks
-      return *it->second;
-    }
-    it->second = std::make_unique<program::Package>(*this, it->first, std::move(root_path));
-    return *it->second;
-  }
-  
-  program::Package* Program::Find(std::string_view name) const {
-    std::shared_lock lock{mutex};
-    auto it = packages.find(std::string{name});
-    if (it == packages.end()) return nullptr;
-    return it->second.get();
-  }
-  
-  program::Module& Program::Import(std::string_view package_name, std::string specifier) {
-    auto* pkg = Find(package_name);
-    if (!pkg) {
-      throw std::runtime_error("Package not found");
-    }
-    return pkg->Require(std::move(specifier));
-  }
-  
-  program::Package& Program::GetOrCreateByRoot(const std::string& canonical_root) {
-    // Fast path: shared lock
-    {
-      std::shared_lock lock{mutex};
-      auto it = root_packages.find(canonical_root);
-      if (it != root_packages.end()) return *it->second;
-    }
-  
-    std::unique_lock lock{mutex};
-    auto [it, inserted] = root_packages.try_emplace(canonical_root, nullptr);
+
+    // Upgrade to unique lock for creation
+    std::unique_lock lock{packages_mutex};
+    auto [it, inserted] = packages.try_emplace(key, nullptr);
     if (inserted) {
-      it->second = std::make_unique<program::Package>(*this, canonical_root, canonical_root);
+      // Construct the package now that we own the slot
+      it->second = std::make_unique<program::Package>(*this, std::move(file));
     }
+    
     return *it->second;
   }
 };
