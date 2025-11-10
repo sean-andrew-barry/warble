@@ -114,7 +114,7 @@ namespace compiler::input {
     bs.set('/'); // Comments are treated as whitespace for this bitset
   }) | WHITESPACE | NOT_ASCII;
 
-  inline constexpr auto URL_PROTOCOL = MakeBitset([](auto& bs){
+  inline constexpr auto URL_SCHEME = MakeBitset([](auto& bs){
     // These cannot be the starting character
     for (char c : "+.-") bs.set(c);
   }) | ALNUM;
@@ -129,32 +129,39 @@ namespace compiler::input {
     for (char c : ".-") bs.set(c);
   }) | ALNUM;
 
-  inline constexpr auto URL_PATHNAME = MakeBitset([](auto& bs){
-    // Unreserved characters
-    for (char c : ".-_~") bs.set(c);
+  inline constexpr auto URL_SUB_DELIMS = MakeBitset([](auto& bs){
+    for (char c : "!$&'()*+,;=") bs.set(c);
+  });
 
+  inline constexpr auto URL_UNRESERVED = MakeBitset([](auto& bs){
+    for (char c : ".-_~") bs.set(c);
+  }) | ALNUM;
+
+  inline constexpr auto URL_SEGMENT = MakeBitset([](auto& bs){
+    for (char c : ":@") bs.set(c);
+  }) | URL_UNRESERVED | URL_SUB_DELIMS;
+
+  inline constexpr auto URL_SEGMENT_NC = MakeBitset([](auto& bs){
+    for (char c : "@") bs.set(c); // Excludes ':'
+  }) | URL_UNRESERVED | URL_SUB_DELIMS;
+
+  inline constexpr auto URL_PATH = MakeBitset([](auto& bs){
     // Reserved characters
     for (char c : ":@&=+$,") bs.set(c);
 
     // Sub-delimiters
     for (char c : "!\'()*;%") bs.set(c);
-  }) | ALNUM;
+  }) | URL_UNRESERVED;
 
   inline constexpr auto URL_SEARCH = MakeBitset([](auto& bs){
-    // Unreserved characters
-    for (char c : ".-_~") bs.set(c);
-
     // Reserved characters
     for (char c : "!$\'()*,;:@%") bs.set(c);
-  }) | ALNUM;
+  }) | URL_UNRESERVED;
 
-  inline constexpr auto URL_HASH = MakeBitset([](auto& bs){
-    // Unreserved characters
-    for (char c : ".-_~") bs.set(c);
-
+  inline constexpr auto URL_FRAGMENT = MakeBitset([](auto& bs){
     // Reserved characters
     for (char c : "!$&\'()*+,;=@/?%") bs.set(c);
-  }) | ALNUM;
+  }) | URL_UNRESERVED;
 
   inline constexpr auto FILE_PATH = MakeBitset([](auto& bs){
     for (char c : "-_!#$%&'()[]{}+@~^. ") bs.set(c);
@@ -190,9 +197,12 @@ namespace compiler::input {
 
     void Rollback(const Position& position);
     bool Emit(ir::Token token);
+    bool Match(const char c, ir::Token token);
+    bool Match(const std::string_view s, ir::Token token);
     bool Error(ir::Error error);
     bool EmitAndAdvance(ir::Token token, size_t count = 1);
     bool Keyword(const std::string_view text);
+    bool Keyword(const std::string_view text, ir::Token token);
     bool IsBacktracked() const { return furthest > cursor.cbegin(); }
 
     // Emit the given count as big-endian hexadecimal nibbles using Characters0..F tokens.
@@ -203,6 +213,45 @@ namespace compiler::input {
 
     // Handle a single non-ASCII whitespace code point. Returns true if whitespace was consumed and tokens emitted.
     bool HandleNonASCIIWhitespace();
+
+    void Push(uint32_t word) {
+      if (IsBacktracked()) return; // Don't add data words when backtracked
+      data.push_back(word);
+    }
+
+    void Push(char32_t cp) {
+      Push(static_cast<uint32_t>(cp));
+    }
+
+    bool CaptureCharacters(const auto& fn) {
+      uint32_t count = 0;
+      while (!cursor.Done() && fn()) {
+        auto cp = cursor.CodePoint();
+
+        Push(cp);
+        ++count;
+      }
+
+      if (count > 0) {
+        EmitCharactersNibbles(count);
+        return true;
+      }
+
+      return false;
+    }
+
+    bool CaptureCharacters(const auto& fn, const auto& separator) {
+      bool matched = false;
+
+      while (!cursor.Done()) {
+        matched = CaptureCharacters(fn) || matched; // At least one run matched
+        if (separator()) continue;
+
+        break;
+      }
+
+      return matched;
+    }
 
     bool Try(const auto& fn) {
       auto start = Start();
@@ -218,41 +267,33 @@ namespace compiler::input {
     // Repeat helpers for speculative lexing.
     // ZeroOrMore(fn): repeatedly applies fn until it fails; rollback last failed probe.
     bool ZeroOrMore(const auto& fn) {
-      for (;;) {
-        auto s = Start();
-        if (!fn()) { Rollback(s); break; }
-      }
+      while (fn()) {}
       return true; // Always succeeds (matches empty sequence)
     }
 
-    // ZeroOrMore(item, sep): matches item (sep item)* without a trailing sep.
+    // ZeroOrMore(item, sep): matches item (sep item)* and allows a trailing separator.
     bool ZeroOrMore(const auto& item, const auto& sep) {
-      for (;;) {
-        auto s = Start();
-        if (!item()) { Rollback(s); break; }
-        if (!sep()) break; // No rollback: separator absence is normal termination.
+      while (true) {
+        if (!item()) break;
+        if (!sep()) break;
       }
       return true;
     }
 
-    // OneOrMore(fn): require at least one match, then reuse ZeroOrMore.
+    // OneOrMore(fn): require at least one match, then continue matching.
     bool OneOrMore(const auto& fn) {
-      auto first = Start();
-      if (!fn()) { Rollback(first); return false; }
-      return ZeroOrMore(fn);
+      if (!fn()) return false;
+      while (fn()) {}
+      return true;
     }
 
-    // OneOrMore(item, sep): require one item then repeat (sep item)*.
+    // OneOrMore(item, sep): require one item then repeat (sep item)*, permitting a trailing separator.
     bool OneOrMore(const auto& item, const auto& sep) {
-      auto first = Start();
-      if (!item()) { Rollback(first); return false; }
+      if (!item()) return false;
 
-      for (;;) {
-        auto s = Start();
-        // Probe separator; if absent we're done.
-        if (!sep()) { Rollback(s); break; }
-        // After a separator there must be another item; if not, rollback separator.
-        if (!item()) { Rollback(s); break; }
+      while (true) {
+        if (!sep()) break;
+        if (!item()) break;
       }
       return true;
     }
@@ -293,6 +334,7 @@ namespace compiler::input {
     bool Void();
     bool When();
     bool Await();
+    bool Async();
     bool Compiler();
     bool Break();
     bool Continue();
@@ -343,8 +385,6 @@ namespace compiler::input {
     bool DestructuredEnumOpen();
     bool DestructuredEnumClose();
 
-    bool OptionalSemicolon();
-
     // Unary operators
     bool Reference();
     bool MutableReference();
@@ -373,43 +413,67 @@ namespace compiler::input {
     //  - Returns true on success; on failure, calls Error(...) with a precise code and returns false.
     bool Escape();
 
-    bool Char();
-    bool String();
-    bool Hex();
-    bool Octal();
-    bool Binary();
-    bool NumberHelper();
-    bool Number();
+    bool TrueLiteral();
+    bool FalseLiteral();
+    bool ThisLiteral();
+    bool ThatLiteral();
+    bool NullLiteral();
+    bool UndefinedLiteral();
+    bool CharacterLiteral();
+    bool StringLiteral();
+    bool HexLiteral();
+    bool OctalLiteral();
+    bool BinaryLiteral();
+    bool DecimalLiteral();
+    bool NumberLiteral();
     bool IdentifierHelper();
     bool Identifier();
     bool IdentifierOrArrowFunction();
-    bool TemplateString();
-    bool BinaryOperatorHelper(bool in_enum = false);
-    bool BinaryOperator(bool in_enum = false);
+    bool TemplateStringLiteral();
+    bool BinaryOperatorHelper(bool in_enum, bool in_type);
+    bool BinaryOperator(bool in_enum, bool in_type);
     bool ParameterDeclaration();
     bool ParameterDeclarationList();
     bool Parameters();
     bool ArrowFunction();
-    bool Function();
-    bool IdentifiedExpression();
+    bool FunctionLiteral();
+    bool EnumLiteral();
+    bool ObjectLiteral();
+    bool ArrayLiteral();
+    bool TupleLiteral();
     bool CallablePrefixLiteralHelper();
     bool CallablePostfixLiteralHelper();
     bool CallablePrefixLiteral();
     bool CallablePostfixLiteral();
-    bool ValueShortcut();
-    bool Value();
-    bool InitialValue();
-    bool UnaryStartedExpression();
-    bool ContinueExpression();
-    bool ContinueEnumExpression();
-    bool Expression();
-    bool EnumExpression();
-    bool DeclarationValue();
-    bool Declaration();
+    bool AtomShortcut();
+    bool Atom();
+    bool Selector();
+    bool Expression(bool in_enum = false, bool in_type = false);
+    bool DeclarationStatement();
     bool StatementShortcut();
     bool Statement();
+    bool Condition();
+    bool Block();
+    bool IsPattern();
+    bool HasPattern();
+    bool FromPattern();
     bool StatementList();
     bool FunctionStatementList();
+    bool Scheme();
+    bool Authority();
+    bool Userinfo();
+    bool Hostname();
+    bool IPv4();
+    bool IPv6();
+    bool Host();
+    bool PathSegments();
+    bool PathAbsolute();
+    bool PathRootless();
+    bool PathNoScheme();
+    bool Port();
+    bool Query();
+    bool Fragment();
+    bool Specifier();
 
     constexpr bool IsBreak() const {
       switch (cursor.Peek()) {
@@ -442,11 +506,13 @@ namespace compiler::input {
     constexpr bool IsHex  () const { return IsHex(cursor.Peek()); }
     constexpr bool IsIdent() const { return IsIdent(cursor.Peek()); }
     constexpr bool IsBinary() const { return IsBinary(cursor.Peek()); }
-    constexpr bool IsURLProtocol() const { return IsURLProtocol(cursor.Peek()); }
+    constexpr bool IsURLScheme() const { return IsURLScheme(cursor.Peek()); }
     constexpr bool IsURLHost() const { return IsURLHost(cursor.Peek()); }
-    constexpr bool IsURLPathname() const { return IsURLPathname(cursor.Peek()); }
+    constexpr bool IsURLSegment() const { return IsURLSegment(cursor.Peek()); }
+    constexpr bool IsURLSegmentNC() const { return IsURLSegmentNC(cursor.Peek()); }
+    constexpr bool IsURLPath() const { return IsURLPath(cursor.Peek()); }
     constexpr bool IsURLSearch() const { return IsURLSearch(cursor.Peek()); }
-    constexpr bool IsURLHash() const { return IsURLHash(cursor.Peek()); }
+    constexpr bool IsURLFragment() const { return IsURLFragment(cursor.Peek()); }
     constexpr bool IsURLAuthority() const { return IsURLAuthority(cursor.Peek()); }
     constexpr bool IsFilePath() const { return IsFilePath(cursor.Peek()); }
     constexpr bool IsBinaryStart() const { return IsBinaryStart(cursor.Peek()); }
@@ -495,11 +561,13 @@ namespace compiler::input {
     constexpr bool IsBinary(size_t i) const { return IsBinary(cursor.Peek(i)); }
     constexpr bool IsBinaryStart(size_t i) const { return IsBinaryStart(cursor.Peek(i)); }
     constexpr bool IsNumberStart(size_t i) const { return IsNumberStart(cursor.Peek(i)); }
-    constexpr bool IsURLProtocol(size_t i) const { return IsURLProtocol(cursor.Peek(i)); }
+    constexpr bool IsURLScheme(size_t i) const { return IsURLScheme(cursor.Peek(i)); }
     constexpr bool IsURLHost(size_t i) const { return IsURLHost(cursor.Peek(i)); }
-    constexpr bool IsURLPathname(size_t i) const { return IsURLPathname(cursor.Peek(i)); }
+    constexpr bool IsURLSegment(size_t i) const { return IsURLSegment(cursor.Peek(i)); }
+    constexpr bool IsURLSegmentNC(size_t i) const { return IsURLSegmentNC(cursor.Peek(i)); }
+    constexpr bool IsURLPath(size_t i) const { return IsURLPath(cursor.Peek(i)); }
     constexpr bool IsURLSearch(size_t i) const { return IsURLSearch(cursor.Peek(i)); }
-    constexpr bool IsURLHash(size_t i) const { return IsURLHash(cursor.Peek(i)); }
+    constexpr bool IsURLFragment(size_t i) const { return IsURLFragment(cursor.Peek(i)); }
     constexpr bool IsURLAuthority(size_t i) const { return IsURLAuthority(cursor.Peek(i)); }
     constexpr bool IsFilePath(size_t i) const { return IsFilePath(cursor.Peek(i)); }
     constexpr bool IsIdentStart(size_t i) const { return IsIdentStart(cursor.Peek(i)); }
@@ -538,11 +606,13 @@ namespace compiler::input {
     constexpr bool IsNumberStart(const char c) const { return NUMBER_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsPossibleSpaceStart(const char c) const { return POSSIBLE_SPACE_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsPossibleIdentifierStart(const char c) const { return POSSIBLE_IDENTIFIER_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLProtocol(const char c) const { return URL_PROTOCOL[static_cast<uint8_t>(c)]; }
+    constexpr bool IsURLScheme(const char c) const { return URL_SCHEME[static_cast<uint8_t>(c)]; }
     constexpr bool IsURLHost(const char c) const { return URL_HOST[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLPathname(const char c) const { return URL_PATHNAME[static_cast<uint8_t>(c)]; }
+    constexpr bool IsURLSegment(const char c) const { return URL_SEGMENT[static_cast<uint8_t>(c)]; }
+    constexpr bool IsURLSegmentNC(const char c) const { return URL_SEGMENT_NC[static_cast<uint8_t>(c)]; }
+    constexpr bool IsURLPath(const char c) const { return URL_PATH[static_cast<uint8_t>(c)]; }
     constexpr bool IsURLSearch(const char c) const { return URL_SEARCH[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLHash(const char c) const { return URL_HASH[static_cast<uint8_t>(c)]; }
+    constexpr bool IsURLFragment(const char c) const { return URL_FRAGMENT[static_cast<uint8_t>(c)]; }
     constexpr bool IsURLAuthority(const char c) const { return URL_AUTHORITY[static_cast<uint8_t>(c)]; }
     constexpr bool IsFilePath(const char c) const { return FILE_PATH[static_cast<uint8_t>(c)]; }
 
