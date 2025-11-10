@@ -1,7 +1,7 @@
-export module utility.print;
+export module compiler.utility.Print;
 
-import utility.to_string;
-import utility.macros;
+import compiler.utility.ToString;
+import compiler.utility.Macros;
 import <mutex>;
 import <atomic>;
 import <iostream>;
@@ -13,7 +13,7 @@ import <stacktrace>;
 import <iomanip>;
 import <sstream>;
 
-namespace utility {
+namespace compiler::utility {
   std::mutex cout_mutex;
   std::atomic<int> indent_count{0};
   // static thread_local int indent_count{0};
@@ -178,7 +178,7 @@ namespace utility {
   // export template<typename... Args>
   // struct Debug {
   //   constexpr Debug(Args&&... args, std::source_location location = std::source_location::current()) {
-  //     if constexpr (!utility::DEBUGGING) return;
+  //     if constexpr (!utility::Macros::DEBUGGING) return;
 
   //     std::cout << Helper(location, std::forward<Args>(args)...) + '\n';
   //   }
@@ -188,7 +188,7 @@ namespace utility {
   // Debug(Args&&...) -> Debug<Args...>;
 
   export void Debug(auto&&... args) {
-    if constexpr (!utility::DEBUGGING) return;
+    if constexpr (!utility::Macros::DEBUGGING) return;
 
     std::cout << Merge(std::forward<decltype(args)>(args)...) + '\n';
   }

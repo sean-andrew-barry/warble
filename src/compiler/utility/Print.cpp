@@ -1,5 +1,5 @@
-import utility.print;
-import utility.to_string;
+import compiler.utility.Print;
+import compiler.utility.ToString;
 
-namespace utility {
+namespace compiler::utility {
 };

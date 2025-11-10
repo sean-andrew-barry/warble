@@ -1,6 +1,6 @@
-export module utility.macros;
+export module compiler.utility.Macros;
 
-namespace utility {
+namespace compiler::utility::Macros {
   #ifndef NDEBUG
   export constexpr bool DEBUGGING = true;
   #else

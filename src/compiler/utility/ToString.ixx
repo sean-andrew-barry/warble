@@ -1,6 +1,6 @@
-export module utility.to_string;
+export module compiler.utility.ToString;
 
-import lexical.unicode;
+import compiler.text.Unicode;
 
 import <algorithm>;
 import <array>;
@@ -184,9 +184,9 @@ export namespace utility {
   std::string ToString(const char* value) { return std::string(value); }
   // std::string ToString(const std::type_info& value) { return RemovePrefix(value.name()); }
   std::string ToString(const std::type_info& value) { return value.name(); }
-  std::string ToString(const char8_t code_point) { return lexical::Unicode::FromU8(code_point); }
-  std::string ToString(const char16_t code_point) { return lexical::Unicode::FromU16(code_point); }
-  std::string ToString(const char32_t code_point) { return lexical::Unicode::FromU32(code_point); }
+  std::string ToString(const char8_t code_point) { return text::Unicode::FromU8(code_point); }
+  std::string ToString(const char16_t code_point) { return text::Unicode::FromU16(code_point); }
+  std::string ToString(const char32_t code_point) { return text::Unicode::FromU32(code_point); }
 
   std::string ToString(uint8_t v) { return std::format(GetLocale(), "{:L}", static_cast<uint16_t>(v)); }
   std::string ToString(uint16_t v) { return std::format(GetLocale(), "{:L}", v); }
