@@ -77,7 +77,7 @@ namespace compiler::ir {
     Redirect5,
     Redirect6,
     Redirect7,
-    EscapeASCII, // Single character escape such as `\n`, not to be confused with an actual line break token like `LineFeed`
+    EscapeASCII, // Single character escape such as `\x`, not to be confused with an actual line break token like `LineFeed`
     EscapeHex, // `\xXX` - A character specified by a hexadecimal value of exactly two digits
     EscapeUnicode, // `\uXXXX` - A Unicode character using exactly four hexadecimal digits
     EscapeUnicodeBraced1, // `\u{H}` - A Unicode character using 1 hexadecimal digit
@@ -201,6 +201,7 @@ namespace compiler::ir {
     BitwiseAssignOr, // `|=`
     Yield, // `yield` - Unary prefix keyword used to yield a value from a generator
     Await, // `await` - Unary prefix keyword used to wait for a promise to resolve
+    Async, // `async` - Marks asynchronous imports and functions
     Expect, // `expect` - Unary prefix keyword used for assertions in tests
     Copy, // `@` - Unary prefix used to create a copy of a value
     Counted, // `#` - Unary prefix used to indicate a counted loop
@@ -236,5 +237,24 @@ namespace compiler::ir {
     Default, // `default` - Used to specify the default case in `when` statements
     Case,
     Let, // `let` - Used to declare a variable
+    Const, // `const` - Used to declare a constant
+    Mut, // `mut` - Used to declare a mutable variable
+    Drive, // Ends with `:`
+    Scheme, // Ends with `:`
+    Authority, // `//` - The authority section of a URL
+    Username, // Ends with `:` if password is present, otherwise ends with `@`
+    Password, // Ends with `@`
+    Hostname, // The full hostname string section
+    IPv4,
+    IPv6,
+    // IPv4Part, // A single part of an IPv4 address, ends with an implicit `.` unless it's the last part
+    // IPv6Part, // A single part of an IPv6 address, ends with `:` unless it's the last part, whole thing wrapped in `[ ]`
+    Slash, // `/` - Used to separate path segments
+    Backslash, // `\` - Used to separate path segments on Windows
+    Port, // A number, be preceded by `:`
+    QueryKey, // Preceded by `?` or `&`
+    QueryValue, // Preceded by `=`
+    Fragment, // Preceded by `#`
+    PercentEscape, // `%XX` - A percent encoded character in a URL
   };
 };
