@@ -1,17 +1,21 @@
-export module utility.os;
+export module compiler.utility.OS;
 
-import utility.macros;
+import compiler.utility.Macros;
 
 import <thread>;
+import <string>;
 import <memory>;
 import <cstdint>;
 import <vector>;
+import <filesystem>;
+import <array>;
+import <cstddef>;
 
-export namespace utility::OS {
+export namespace compiler::utility::OS {
   void Setup();
 
   consteval const char FilePathSeparator() {
-    if constexpr (utility::WINDOWS) {
+    if constexpr (compiler::utility::Macros::WINDOWS) {
       return '\\';
     } else {
       return '/';
@@ -67,4 +71,20 @@ export namespace utility::OS {
   std::unique_ptr<void, ExecutableMemoryDeleter> AllocateExecutableMemory(const std::vector<std::byte>& data);
   extern "C" void ExecuteFunction(void* func);
   void Execute(std::unique_ptr<void, ExecutableMemoryDeleter> uptr);
+
+  // Platform-typed native handle used only through fs::File abstraction.
+  #if defined(_WIN32) || defined(_WIN64)
+    using NativeHandle = void*; // HANDLE
+    constexpr NativeHandle InvalidNativeHandle = nullptr;
+  #else
+    using NativeHandle = int;   // POSIX file descriptor
+    constexpr NativeHandle InvalidNativeHandle = -1;
+  #endif
+
+  // Open / close opaque native handle (implementation interprets platform specifics internally).
+  NativeHandle OpenNativeFile(const std::filesystem::path& path);
+  void CloseNativeFile(NativeHandle handle);
+  // Compute file ID from an already-open native handle.
+  bool GetFileID(NativeHandle handle, std::array<std::uint64_t, 2>& out_id);
+  bool ReadFileToString(NativeHandle handle, std::string& out);
 };

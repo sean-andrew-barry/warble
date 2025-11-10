@@ -1,13 +1,19 @@
-import utility.os;
-import utility.macros;
+import compiler.utility.OS;
+import compiler.utility.Macros;
 import <thread>;
 import <iostream>;
 import <vector>;
 import <cstdint>;
 import <memory>;
 import <stdexcept>;
+import <string>;
+import <filesystem>;
+import <limits>;
+import <utility>;
+import <cstring>;
+import <array>;
 
-namespace utility::OS {
+namespace compiler::utility::OS {
   bool SetThreadPriorityLow(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::LOW); }
   bool SetThreadPriorityNormal(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::NORMAL); }
   bool SetThreadPriorityHigh(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::HIGH); }
@@ -29,7 +35,7 @@ struct Setup {
 // Global static instance
 static const Setup setup{};
 
-namespace utility::OS {
+namespace compiler::utility::OS {
   void Setup() {
     SetConsoleOutputCP(CP_UTF8);
     // std::cout << "Setting up UTF8" << std::endl;
@@ -144,6 +150,101 @@ namespace utility::OS {
   void Execute(std::unique_ptr<void, ExecutableMemoryDeleter> uptr) {
     ExecuteFunction(uptr.get());
   }
+
+  // Open/close opaque native handles and compute ID from them (Windows)
+  NativeHandle OpenNativeFile(const std::filesystem::path& path) {
+    std::wstring wpath = path.wstring();
+    HANDLE h = ::CreateFileW(
+      wpath.c_str(),
+      GENERIC_READ,
+      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+      nullptr,
+      OPEN_EXISTING,
+      FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_SEQUENTIAL_SCAN,
+      nullptr
+    );
+    if (h == INVALID_HANDLE_VALUE) return InvalidNativeHandle;
+    return reinterpret_cast<NativeHandle>(h);
+  }
+
+  void CloseNativeFile(NativeHandle handle) {
+    if (handle != InvalidNativeHandle) {
+      ::CloseHandle(static_cast<HANDLE>(handle));
+    }
+  }
+
+  bool GetFileID(NativeHandle handle, std::array<std::uint64_t, 2>& out_id) {
+    out_id.fill(0);
+    if (handle == InvalidNativeHandle) {
+      return false;
+    }
+
+    BY_HANDLE_FILE_INFORMATION info{};
+    if (!::GetFileInformationByHandle(static_cast<HANDLE>(handle), &info)) {
+      return false;
+    }
+
+    out_id[0] = static_cast<std::uint64_t>(info.dwVolumeSerialNumber);
+    out_id[1] = (static_cast<std::uint64_t>(info.nFileIndexHigh) << 32) | static_cast<std::uint64_t>(info.nFileIndexLow);
+    return true;
+  }
+
+  bool ReadFileToString(NativeHandle handle, std::string& out) {
+    if (handle == InvalidNativeHandle) {
+      return false;
+    }
+
+    HANDLE h = static_cast<HANDLE>(handle);
+
+    LARGE_INTEGER size{};
+    if (!::GetFileSizeEx(h, &size) || size.QuadPart < 0) {
+      return false;
+    }
+
+    LARGE_INTEGER origin{};
+    if (!::SetFilePointerEx(h, origin, nullptr, FILE_BEGIN)) {
+      return false;
+    }
+
+    const auto file_size = static_cast<std::uint64_t>(size.QuadPart);
+    if (file_size == 0) {
+      out.clear();
+      return true;
+    }
+
+    if (file_size > static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
+      return false;
+    }
+
+    const std::size_t target = static_cast<std::size_t>(file_size);
+    std::string buffer(target, '\0');
+
+    std::size_t total_read = 0;
+    char* data = buffer.data();
+
+    while (total_read < target) {
+      std::size_t remaining = target - total_read;
+      DWORD to_read = remaining > static_cast<std::size_t>(std::numeric_limits<DWORD>::max())
+        ? std::numeric_limits<DWORD>::max()
+        : static_cast<DWORD>(remaining);
+
+      DWORD chunk_read = 0;
+      if (!::ReadFile(h, data + total_read, to_read, &chunk_read, nullptr)) {
+        ::SetFilePointerEx(h, origin, nullptr, FILE_BEGIN);
+        return false;
+      }
+
+      if (chunk_read == 0) {
+        buffer.resize(total_read);
+        break;
+      }
+
+      total_read += chunk_read;
+    }
+
+    out = std::move(buffer);
+    return true;
+  }
 };
 
 // POSIX Implementation
@@ -151,11 +252,15 @@ namespace utility::OS {
 #include <pthread.h>
 #include <sched.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
 #include <csignal>
 #include <cstring>
 #include <setjmp.h>
 
-namespace utility::os {
+namespace compiler::utility::OS {
   // Global jump buffer for signal handling
   jmp_buf jumpBuffer;
 
@@ -288,6 +393,90 @@ namespace utility::os {
     } else {
       std::cerr << "Execution failed: Invalid machine code encountered." << std::endl;
     }
+  }
+
+  // Open/close typed native handles and compute ID from them (POSIX)
+  NativeHandle OpenNativeFile(const std::filesystem::path& path) {
+    int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return InvalidNativeHandle;
+    return fd;
+  }
+
+  void CloseNativeFile(NativeHandle handle) {
+    if (handle != InvalidNativeHandle) {
+      ::close(handle);
+    }
+  }
+
+  bool GetFileID(NativeHandle handle, std::array<std::uint64_t, 2>& out_id) {
+    out_id.fill(0);
+    if (handle == InvalidNativeHandle) {
+      return false;
+    }
+
+    struct stat st{};
+    if (::fstat(handle, &st) != 0) {
+      return false;
+    }
+
+    out_id[0] = static_cast<std::uint64_t>(st.st_dev);
+    out_id[1] = static_cast<std::uint64_t>(st.st_ino);
+    return true;
+  }
+
+  bool ReadFileToString(NativeHandle handle, std::string& out) {
+    if (handle == InvalidNativeHandle) {
+      return false;
+    }
+
+    struct stat st{};
+    if (::fstat(handle, &st) != 0 || st.st_size < 0) {
+      return false;
+    }
+
+    if (::lseek(handle, 0, SEEK_SET) == -1) {
+      return false;
+    }
+
+    const auto file_size = static_cast<std::uint64_t>(st.st_size);
+    if (file_size == 0) {
+      out.clear();
+      return true;
+    }
+
+    if (file_size > static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
+      return false;
+    }
+
+#if defined(POSIX_FADV_SEQUENTIAL)
+    ::posix_fadvise(handle, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
+
+    const std::size_t target = static_cast<std::size_t>(file_size);
+    std::string buffer(target, '\0');
+    std::size_t total_read = 0;
+    char* data = buffer.data();
+
+    while (total_read < target) {
+      ssize_t chunk = ::read(handle, data + total_read, target - total_read);
+      if (chunk < 0) {
+        if (errno == EINTR) {
+          continue;
+        }
+        ::lseek(handle, 0, SEEK_SET);
+        return false;
+      }
+
+      if (chunk == 0) {
+        buffer.resize(total_read);
+        break;
+      }
+
+      total_read += static_cast<std::size_t>(chunk);
+    }
+
+    out = std::move(buffer);
+    return true;
   }
 };
 
