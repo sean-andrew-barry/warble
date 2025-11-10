@@ -2502,7 +2502,7 @@ Packages are registered at the top level of the project. The registration includ
 
 ```warble
 register "local_package" from "../relative/path";
-register "absolute_package" from "file:///C:/absolute/path";
+register "absolute_package" from "file:///C:/absolute/path" with ["vector", "string", "math"] in "std";
 register "remote_package" from "https://github.com/user/package" with ["math", "memory"] in "std";
 register "extended_package" from "https://github.com/user/extended_package" with [...compiler.permissions.safe, "filesystem"] in "std";
 ```
