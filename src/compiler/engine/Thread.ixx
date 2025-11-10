@@ -1,8 +1,7 @@
-export module engine.thread;
+export module compiler.engine.Thread;
 
 import <functional>;
 import <thread>;
-import <vector>;
 import <string>;
 import <atomic>;
 import <memory>;
@@ -10,13 +9,10 @@ import <iostream>;
 import <cassert>;
 import <chrono>;
 
-export class Node;
+class Compiler; // forward declaration in global namespace
 
-namespace engine {
-  export class ThreadPool;
-
-  export class Thread
-  {
+namespace compiler::engine {
+  export class Thread {
   private:
     static thread_local engine::Thread* current_thread;
     static std::thread::id main_thread_id;
@@ -28,8 +24,8 @@ namespace engine {
     };
 
     std::thread thread;
-    std::vector<Node*> overflow{};
-    engine::ThreadPool& thread_pool;
+    Compiler& compiler; // Thread checks in with Compiler for work
+    size_t index;      // Index of this thread in the thread pool
     std::atomic<State> state;
 
     int Main();
@@ -42,7 +38,7 @@ namespace engine {
     Thread &operator=(const Thread&) = delete; // Copy assignment
     Thread &operator=(Thread&&) = delete;      // Move assignment
 
-    Thread(engine::ThreadPool& thread_pool);
+    Thread(Compiler& compiler, size_t index);
     ~Thread();
 
     void Work();
@@ -57,4 +53,4 @@ namespace engine {
 
     std::thread::id GetID() const noexcept { return thread.get_id(); }
   };
-};
+}

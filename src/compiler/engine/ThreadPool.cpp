@@ -1,26 +1,26 @@
-import engine.thread_pool;
-import engine.thread;
-import node;
+import compiler.engine.ThreadPool;
+import compiler.engine.Thread;
+import Compiler;
 
 import <iostream>;
 import <thread>;
-import <optional>;
 import <cassert>;
+import <stdexcept>;
 
-namespace engine {
-  ThreadPool::ThreadPool() : active{false} {
-    // auto count = std::thread::hardware_concurrency();
-    // auto count = 1u;
-    auto count = 0u;
-    threads.reserve(count);
-    // extras.reserve(2);
-
-    for (auto i = 0u; i < count; ++i) {
-      threads.emplace_back(std::make_unique<Thread>(*this));
+namespace compiler::engine {
+  ThreadPool::ThreadPool(Compiler& compiler)
+    : compiler{compiler}, active{false}
+  {
+    auto count = std::thread::hardware_concurrency();
+    if (count == 0u) {
+      count = 1u;
     }
 
-    for (auto i = 0u; i < extras.capacity(); ++i) {
-      extras.emplace_back(std::make_unique<Thread>(*this));
+    const auto thread_count = static_cast<size_t>(count);
+    threads.reserve(thread_count);
+
+    for (size_t i = 0u; i < thread_count; ++i) {
+      threads.emplace_back(std::make_unique<engine::Thread>(compiler, i));
     }
   }
 
@@ -32,12 +32,10 @@ namespace engine {
     for (auto& thread : extras) {
       thread->StartClosing();
     }
-
-    buffer.Shutdown();
   }
 
   void ThreadPool::Activate() {
-    if (!engine::Thread::IsMain()) throw std::runtime_error("ThreadPool::Activate must only be called by the main thread");
+    if (!engine::Thread::IsMain()) throw std::runtime_error("ThreadPool::Activate must ONLY be called by the main thread");
     if (active.load()) throw std::runtime_error("ThreadPool::Activate called when already active");
 
     // Have the primary workers start, but don't activate the extras
@@ -51,7 +49,7 @@ namespace engine {
   }
 
   void ThreadPool::Pause() {
-    if (engine::Thread::IsMain()) throw std::runtime_error("ThreadPool::Pause must not be called by the main thread");
+    if (engine::Thread::IsMain()) throw std::runtime_error("ThreadPool::Pause must NOT be called by the main thread");
     if (!active.load()) throw std::runtime_error("ThreadPool::Pause called when not active");
 
     for (auto& thread : threads) {
@@ -68,7 +66,7 @@ namespace engine {
   }
 
   void ThreadPool::Deactivate() {
-    if (engine::Thread::IsMain()) throw std::runtime_error("ThreadPool::Deactivate must not be called by the main thread");
+    if (engine::Thread::IsMain()) throw std::runtime_error("ThreadPool::Deactivate must NOT be called by the main thread");
     if (!active.load()) throw std::runtime_error("ThreadPool::Deactivate called when not active");
 
     for (auto& thread : threads) {
@@ -82,23 +80,5 @@ namespace engine {
     // Alert the main thread it needs to take control again
     active.store(false);
     active.notify_one();
-  }
-
-  void ThreadPool::Work(engine::Thread& thread, bool waited) {
-    std::optional<Node*> task = buffer.Pop();
-
-    if (task) {
-      (*task)->Update(updater); // Perform the task
-      // if (requeue) {
-      //   Push(*task); // The task requested to be requeued
-      // }
-    } else if (!waited) {
-      buffer.Wait(); // Go idle until more tasks are added
-      return Work(thread, true);
-    }
-  }
-
-  bool ThreadPool::Push(Node* node) {
-    return buffer.Push(node);
   }
 };

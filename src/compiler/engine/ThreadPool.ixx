@@ -1,32 +1,28 @@
-export module engine.thread_pool;
-
-import engine.circular_buffer;
-import updater;
+export module compiler.engine.ThreadPool;
 
 import <vector>;
 import <memory>;
 import <atomic>;
 
-export class Node;
+class Compiler; // forward declaration
 
-namespace engine {
+namespace compiler::engine {
   export class Thread;
 
   export class ThreadPool {
   private:
-    CircularBuffer<Node*, 10000> buffer;
-    Updater updater;
+    Compiler& compiler;
     std::vector<std::unique_ptr<engine::Thread>> threads;
     std::vector<std::unique_ptr<engine::Thread>> extras;
     std::atomic<bool> active;
   public:
-    ThreadPool();
+    ThreadPool(Compiler& compiler);
     ~ThreadPool();
 
     void Activate();
     void Pause();
     void Deactivate();
-    void Work(engine::Thread&, bool waited = false);
-    bool Push(Node*);
+
+    const std::vector<std::unique_ptr<engine::Thread>>& Threads() const { return threads; }
   };
-};
+}

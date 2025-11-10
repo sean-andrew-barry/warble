@@ -1,14 +1,13 @@
-import engine.thread;
-import engine.thread_pool;
-import node;
-import utility.print;
-import utility.os;
+import compiler.engine.Thread;
+import Compiler;
+import compiler.utility.Print;
+import compiler.utility.OS;
 
 import <cassert>;
 import <iostream>;
 
-namespace engine {
-  thread_local engine::Thread* Thread::current_thread = nullptr;
+namespace compiler::engine {
+  thread_local compiler::engine::Thread* Thread::current_thread = nullptr;
   std::thread::id Thread::main_thread_id = std::this_thread::get_id();
 
   int Thread::Main() {
@@ -45,8 +44,9 @@ namespace engine {
     return main_thread_id == std::this_thread::get_id();
   }
 
-  Thread::Thread(engine::ThreadPool& thread_pool)
-    : thread_pool{thread_pool}
+  Thread::Thread(Compiler& compiler, size_t index)
+    : compiler{compiler}
+    , index{index}
     , state{State::WAITING}
     , thread{[this]{
       Thread::current_thread = this;
@@ -72,8 +72,8 @@ namespace engine {
   }
 
   void Thread::Work() {
-    // Go to the thread pool and attempt to do a task
-    thread_pool.Work(*this);
+    // Ask the compiler to perform a unit of work
+    (void)compiler.Work(index);
   }
 
   void Thread::StartWaiting() { state.store(State::WAITING, std::memory_order_release); state.notify_one(); }
