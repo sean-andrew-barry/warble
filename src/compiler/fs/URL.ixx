@@ -1,3 +1,5 @@
+// NOTE: This is deprecated and will likely be removed soon.
+
 export module compiler.fs.URL;
 
 import lexical.cursor.string;
@@ -258,6 +260,10 @@ namespace compiler::fs {
     void Parse();
   public:
     URL(const std::string& url) : url{url} {
+      Parse();
+    }
+
+    URL(std::string&& url) : url{std::move(url)} {
       Parse();
     }
 

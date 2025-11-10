@@ -1,4 +1,6 @@
-import compiler.fs.Url;
+// NOTE: This is deprecated and will likely be removed soon.
+
+import compiler.fs.URL;
 import compiler.fs.Path;
 import compiler.utility.Print;
 import compiler.utility.OS;

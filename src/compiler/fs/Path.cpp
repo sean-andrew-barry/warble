@@ -1,3 +1,5 @@
+// NOTE: This is deprecated and will likely be removed soon.
+
 import compiler.fs.Path;
 import compiler.fs.URL;
 import compiler.utility.Print;

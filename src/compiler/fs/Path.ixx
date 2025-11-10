@@ -1,3 +1,5 @@
+// NOTE: This is deprecated and will likely be removed soon.
+
 export module compiler.fs.Path;
 
 import lexical.cursor.string;
@@ -96,6 +98,10 @@ namespace compiler::fs {
 
     void Parse();
   public:
+    Path(std::string&& path) : path{std::move(path)} {
+      Parse();
+    }
+
     Path(const std::string& path) : path{path} {
       Parse();
     }
