@@ -13,22 +13,26 @@ import <filesystem>;
 
 import compiler.fs.File;
 import compiler.fs.ID;
-import compiler.Program;
-import compiler.program.Module;
+
+namespace compiler {
+  export class Program;
+};
 
 namespace compiler::program {
+  export class Module;
+
   export class Package {
   private:
-    Program& program;
-    fs::File root;
+    compiler::Program& program;
+    compiler::fs::File root;
 
     mutable std::shared_mutex modules_mutex; // Guards modules map
-    std::unordered_map<fs::ID, std::unique_ptr<program::Module>> modules; // key: normalized specifier
+    std::unordered_map<compiler::fs::ID, std::unique_ptr<compiler::program::Module>> modules; // key: normalized specifier
   public:
-    Package(Program& program, fs::File&& root);
+    Package(compiler::Program& program, compiler::fs::File&& root);
 
     std::filesystem::path Name() const;
     const std::filesystem::path& Root() const;
-    program::Module& Import(std::filesystem::path&& specifier);
+    compiler::program::Module& Import(std::filesystem::path&& specifier);
   };
 };

@@ -7,10 +7,11 @@ import <unordered_map>;
 import <shared_mutex>;
 import <filesystem>;
 
-import Compiler;
 import compiler.program.Module;
 import compiler.program.Package;
 import compiler.fs.ID;
+
+export class Compiler; // forward declaration
 
 namespace compiler {
   export class Program {

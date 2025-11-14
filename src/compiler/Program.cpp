@@ -1,14 +1,15 @@
 import compiler.Program;
-import compiler.program.Package;
-import compiler.program.Module;
-import compiler.fs.ID;
-import compiler.fs.File;
 import Compiler;
+import compiler.fs.File;
+import compiler.fs.ID;
+import compiler.program.Module;
+import compiler.program.Package;
 
-import <shared_mutex>;
-import <utility>;
-import <stdexcept>;
 import <filesystem>;
+import <memory>;
+import <shared_mutex>;
+import <stdexcept>;
+import <utility>;
 
 namespace compiler {
   Program::Program(Compiler& compiler) : compiler{compiler} {}
