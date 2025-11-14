@@ -7,13 +7,20 @@ import <utility>;
 import <string_view>;
 import <string>;
 import <charconv>;
-import <utility>;
 import <cassert>;
 import <cstddef>;
 import <stdexcept>;
 import <format>;
+import <system_error>;
 
 export namespace compiler::text::Convert {
+  int ToHex(char ch) {
+    if (ch >= '0' && ch <= '9') return ch - '0';
+    if (ch >= 'a' && ch <= 'f') return 10 + (ch - 'a');
+    if (ch >= 'A' && ch <= 'F') return 10 + (ch - 'A');
+    return -1;
+  }
+
   template<typename T>
   std::pair<T, std::errc> ParseNumber(std::string_view view, int base = 10) {
     T value{};
