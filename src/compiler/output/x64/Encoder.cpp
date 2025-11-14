@@ -559,7 +559,8 @@ namespace compiler::output::x64 {
   }
 
   bool Encoder::RDX_RAX_RM64(uint8_t op, uint8_t ext, const ir::Index rdx, const ir::Index rax, const ir::Index rm) {
-    if (!rdx.Is64Bit() || !rax.Is64Bit() || !rm.Is64Bit() || !r1.IsAllocated() || !rax.IsAllocated()) return false;
+    // Validate operand sizes and allocation: rdx and rax must be 64-bit regs; rm must be 64-bit operand
+    if (!rdx.Is64Bit() || !rax.Is64Bit() || !rm.Is64Bit() || !rdx.IsAllocated() || !rax.IsAllocated()) return false;
 
     REX64(rm);
     OP(op);
