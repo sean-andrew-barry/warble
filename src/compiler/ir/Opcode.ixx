@@ -2,8 +2,11 @@ export module compiler.ir.Opcode;
 
 import <cstdint>;
 
+// NOTE: Introducing or removing an opcode should also add/remove it
+// from `Append(Opcode)` in `compiler/text/Builder.ixx`
+
 namespace compiler::ir {
-  enum class Opcode : uint8_t {
+  export enum class Opcode : uint8_t {
     Extension, // A pseudo-instruction, whose operands apply to the **previous** instruction as a way to have more than 3 operands
     Anchor, // A CFG block's anchor point, marking where the block begins
     Label, // A connection to a `Label` symbol, marking its position
