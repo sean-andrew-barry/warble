@@ -1,6 +1,7 @@
 export module compiler.ir.Symbols;
 
 import <cstdint>;
+import <cstddef>;
 import <bitset>;
 import <vector>;
 import compiler.ir.Index;
@@ -80,7 +81,7 @@ namespace compiler::ir {
     }
 
     bool IsValid(ir::Index i) const {
-      return i != 0 && i < Count();
+      return i.Row() < Count();
     }
 
     bool IsScope(ir::Index i) const {
