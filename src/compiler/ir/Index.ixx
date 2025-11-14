@@ -8,13 +8,13 @@ namespace compiler::ir {
   private:
     uint32_t row;
   public:
-    Index() : row{0} {}
-    Index(uint32_t v) : row{v} {}
+    constexpr Index() noexcept : row{0} {}
+    constexpr explicit Index(uint32_t v) noexcept : row{v} {}
 
-    uint32_t Row() const { return row; }
-    explicit operator bool() const { return row != 0; }
+    constexpr uint32_t Row() const noexcept { return row; }
+    constexpr explicit operator bool() const noexcept { return row != 0; }
 
-    friend bool operator==(ir::Index a, ir::Index b) { return a.row == b.row; }
-    friend bool operator!=(ir::Index a, ir::Index b) { return !(a == b); }
+    friend constexpr bool operator==(Index a, Index b) noexcept { return a.row == b.row; }
+    friend constexpr bool operator!=(Index a, Index b) noexcept { return !(a == b); }
   };
 };
