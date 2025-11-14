@@ -2,9 +2,13 @@ export module compiler.ir.Token;
 
 import <cstdint>;
 
+// NOTE: Introducing or removing a token should also add/remove it
+// from `Append(Token)` in `compiler/text/Builder.ixx`
+
 namespace compiler::ir {
   export enum class Token : uint8_t {
     None,
+    Error,
     Spaces0,
     Spaces1,
     Spaces2,
@@ -101,6 +105,8 @@ namespace compiler::ir {
     HexStart, // `0x` or `0X`
     OctalStart, // `0o` or `0O`
     BinaryStart, // `0b` or `0B`
+    Plus,
+    Minus,
     CommentOpen, // `//` - Starts a single line comment
     CommentClose, // Simple marker, doesn't represent any characters
     MultiLineCommentOpen, // `/*` - Starts a multi-line comment
@@ -148,11 +154,11 @@ namespace compiler::ir {
     Or, // `||`
     Wrap, // `!!` - Builds a variant from values
     Unwrap, // `??` - Conditionally unwraps a variant
-    InlineFunctionArrow, // `=>` - Used to mark the body of an inline function
+    Arrow, // `=>` - Used to mark the body of an inline function
     ArrowHead, // A special zero width marker that says the following identifier is an arrow function parameter
     Divide, // `/`
     Equal, // `==`
-    Exponent, // `**`
+    ExponentOperator, // `**`
     GreaterOrEqual, // `>=`
     Greater, // `>`
     ExclusiveRange, // `..`
@@ -223,6 +229,7 @@ namespace compiler::ir {
     Import, // `import` - Used to import modules
     From, // `from` - Used to specify the source of an import and in `when` statements
     If, // `if` - Used for conditional statements
+    Try, // `try` - Used to declare a try block
     Return, // `return` - Used to return a value from a function
     When, // `when` - Used for pattern matching, sometimes known as `match` in other languages
     Is, // `is` - Used for type checking
@@ -247,14 +254,12 @@ namespace compiler::ir {
     Hostname, // The full hostname string section
     IPv4,
     IPv6,
-    // IPv4Part, // A single part of an IPv4 address, ends with an implicit `.` unless it's the last part
-    // IPv6Part, // A single part of an IPv6 address, ends with `:` unless it's the last part, whole thing wrapped in `[ ]`
-    Slash, // `/` - Used to separate path segments
+    Path, // `/` - Used to separate path segments
     Backslash, // `\` - Used to separate path segments on Windows
     Port, // A number, be preceded by `:`
     QueryKey, // Preceded by `?` or `&`
     QueryValue, // Preceded by `=`
     Fragment, // Preceded by `#`
-    PercentEscape, // `%XX` - A percent encoded character in a URL
+    EscapePercent, // `%XX` - A percent encoded character in a URL
   };
-};
+}
