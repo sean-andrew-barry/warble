@@ -108,7 +108,7 @@ namespace compiler::text::cursor {
     constexpr uint32_t Count(const unsigned char ch) const noexcept {
       // `find_if_not` turns into a single auto-vectorised loop that
       // stops as soon as a mismatch is observed.
-      const iterator first_not = std::find_if_not(cbegin(), cend(), [=](unsigned char c) { return c == ch; });
+      const auto first_not = std::find_if_not(cbegin(), cend(), [=](unsigned char c) { return c == ch; });
 
       return static_cast<uint32_t>(first_not - cbegin());
     }
