@@ -11,10 +11,11 @@ import <unordered_map>;
 import <utility>;
 import <array>;
 import <format>;
+import <cstddef>;
 
 namespace compiler::text::cursor {
-  inline constexpr ir::Token end{ir::Token::NONE};
-  constexpr const ir::Token END() { return end; }
+  inline constexpr ir::Token end{ir::Token::None};
+  constexpr ir::Token END() noexcept { return end; }
 
   export class Token : public compiler::text::Cursor<std::vector<ir::Token>, END> {
   private:
@@ -22,13 +23,14 @@ namespace compiler::text::cursor {
     using Super::Super;
     using Super::Peek;
 
-    constexpr void Advance(size_t n = 1) {
+    constexpr void Advance(std::size_t n = 1) {
       while (n > 0 && Valid()) {
         Super::Advance(1);
+        --n;
       }
     }
 
-    void Retreat(Iterator to) {
+   void Retreat(Iterator /*to*/) {
       throw std::runtime_error("Retreat is not valid in a Token cursor");
     }
 
