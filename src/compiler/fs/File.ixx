@@ -13,7 +13,7 @@ namespace compiler::fs {
   private:
     std::filesystem::path path;
     compiler::utility::OS::NativeHandle handle;
-    ID file_id;
+    compiler::fs::ID file_id;
   public:
     File() : path{}, handle{compiler::utility::OS::InvalidNativeHandle}, file_id{} {}
 
@@ -42,7 +42,7 @@ namespace compiler::fs {
       : path{std::move(other.path)}, handle{other.handle}, file_id{std::move(other.file_id)}
     {
       other.handle = compiler::utility::OS::InvalidNativeHandle;
-      other.file_id = fs::ID{};
+      other.file_id = compiler::fs::ID{};
     }
 
     File& operator=(File&& other) noexcept {
@@ -52,7 +52,7 @@ namespace compiler::fs {
         handle = other.handle;
         file_id = std::move(other.file_id);
         other.handle = compiler::utility::OS::InvalidNativeHandle;
-        other.file_id = fs::ID{};
+        other.file_id = compiler::fs::ID{};
       }
 
       return *this;
@@ -63,7 +63,7 @@ namespace compiler::fs {
     bool IsOpen() const { return handle != compiler::utility::OS::InvalidNativeHandle; }
     const std::filesystem::path& Path() const { return path; }
     compiler::utility::OS::NativeHandle NativeHandle() const { return handle; }
-    [[nodiscard]] const fs::ID& ID() const { return file_id; }
+    [[nodiscard]] const compiler::fs::ID& ID() const { return file_id; }
 
     bool ReadToString(std::string& out) const {
       if (!IsOpen()) {
