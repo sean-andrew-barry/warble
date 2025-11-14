@@ -1,6 +1,6 @@
-export module utility.buffer;
+export module compiler.utility.Buffer;
 
-import utility.to_bytes;
+import compiler.utility.ToBytes;
 
 import <cstdint>;
 import <vector>;
@@ -10,7 +10,7 @@ import <bit>;
 import <algorithm>;
 import <limits>;
 
-namespace utility {
+namespace compiler::utility {
   export class Buffer {
   private:
     std::vector<std::byte> bytes;
