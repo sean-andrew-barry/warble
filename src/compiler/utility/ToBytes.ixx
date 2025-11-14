@@ -1,6 +1,4 @@
-export module utility.to_bytes;
-
-import utility.print;
+export module compiler.utility.ToBytes;
 
 import <algorithm>;
 import <array>;
@@ -51,7 +49,7 @@ T From(std::span<std::byte, S> value) {
 template<typename T>
 concept TriviallyCopyable = std::is_trivially_copyable_v<T>;
 
-export namespace utility {
+export namespace compiler::utility {
   // std::span<std::byte, 1> ToBytes(bool v) { return Cast(v); }
   // std::span<std::byte, 1> ToBytes(int8_t v) { return Cast(v); }
   // std::span<std::byte, 1> ToBytes(uint8_t v) { return Cast(v); }

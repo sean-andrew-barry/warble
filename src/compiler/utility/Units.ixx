@@ -1,11 +1,11 @@
-export module utility.units;
+export module compiler.utility.Units;
 
 import <string>;
 import <compare>;
 import <iostream>;
 import <chrono>;
 
-export namespace utility {
+export namespace compiler::utility {
   constexpr uint64_t NANOSECONDS = 1;
   constexpr uint64_t MICROSECONDS = 1'000;
   constexpr uint64_t MILLISECONDS = 1'000'000;

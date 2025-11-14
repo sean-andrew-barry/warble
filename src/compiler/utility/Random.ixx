@@ -1,4 +1,4 @@
-export module utility.random;
+export module compiler.utility.Random;
 
 import <random>;
 import <chrono>;
@@ -51,12 +51,12 @@ public:
 };
 
 static thread_local uint64_t seed = [](){
-  uint64_t seed = 0;
+  uint64_t current_seed = 0;
 
   // Simple hash combine function
-  auto Hash = [&seed](const auto& v){
+  auto Hash = [&current_seed](const auto& v){
     using T = std::decay_t<decltype(v)>;
-    seed ^= std::hash<T>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    current_seed ^= std::hash<T>{}(v) + 0x9e3779b9 + (current_seed << 6) + (current_seed >> 2);
   };
 
   std::random_device device{};
@@ -73,7 +73,7 @@ static thread_local uint64_t seed = [](){
   // Source 4: One more strong one for good measure
   Hash(device());
 
-  return seed;
+  return current_seed;
 }();
 
 static thread_local std::mt19937 mt19937{static_cast<uint32_t>(seed)};
@@ -92,7 +92,7 @@ T RealDistribution(T min, T max, E&& engine) {
   return std::uniform_real_distribution<T>{min, max}(engine);
 }
 
-export namespace utility::Random {
+export namespace compiler::utility::Random {
   uint32_t MT19937() { return mt19937(); }
   uint64_t MT19937_64() { return mt19937_64(); }
   uint32_t XORSHIFT() { return xorshift(); }

@@ -1,8 +1,8 @@
-export module utility.profiler;
+export module compiler.utility.Profiler;
 
-import utility.units;
-import utility.time;
-import utility.print;
+import compiler.utility.Units;
+import compiler.utility.Time;
+import compiler.utility.Print;
 
 import <vector>;
 import <chrono>;
@@ -11,7 +11,7 @@ import <utility>;
 import <functional>;
 import <memory>;
 
-namespace utility {
+namespace compiler::utility {
   export class Profiler {
   private:
     struct Result {

@@ -1,6 +1,6 @@
-export module utility.time;
+export module compiler.utility.Time;
 
-import utility.units;
+import compiler.utility.Units;
 import <chrono>;
 
 #ifdef _MSC_VER
@@ -9,7 +9,7 @@ import <intrin.h>;
 import <x86intrin.h>;
 #endif
 
-namespace utility {
+namespace compiler::utility {
   template<typename Source>
   class Clock {
   private:
