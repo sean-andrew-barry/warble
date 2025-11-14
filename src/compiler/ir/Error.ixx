@@ -2,6 +2,9 @@ export module compiler.ir.Error;
 
 import <cstdint>;
 
+// NOTE: Introducing or removing an error code should also add/remove it
+// from `Append(Error)` in `compiler/text/Builder.ixx`
+
 namespace compiler::ir {
   export enum class Error : uint8_t {
     // Lexical errors
@@ -37,6 +40,19 @@ namespace compiler::ir {
     SelectorOperatorExpectedSelector,
     UnaryPrefixOperatorExpectedSelector,
 
+    SpecifierExpectedHost,
+    SpecifierExpectedAuthority,
+    SpecifierBadPathAfterAuthority,
+    SpecifierBadAbsolutePath,
+    SpecifierBadRootlessOrEmpty,
+
+    IsPatternExpectedCondition,
+    IsPatternExpectedScopeBlock,
+    HasPatternExpectedCondition,
+    HasPatternExpectedScopeBlock,
+    FromPatternExpectedCondition,
+    FromPatternExpectedScopeBlock,
+    
     // Unicode errors
     UnicodeCodePointOutOfRange,
     UnicodeCodePointInvalid,
@@ -50,9 +66,12 @@ namespace compiler::ir {
     DeclarationStatementExpectedIdentifier,
     DeclarationStatementExpectedTypeExpressionAfterColon,
     DeclarationStatementExpectedInitializerExpressionAfterEquals,
+    DeclarationStatementExpectedInitializer,
     DeclarationStatementExpectedSemicolon,
     DeclarationExpectedIdentifier,
     DeclarationExpectedInitializerExpressionAfterEquals,
+    DeclarationPrefixFormCannotHaveInitializer,
+    ExpressionStatementExpectedSemicolon,
     EnumExpectedExpression,
     EnumExpectedClosingAngleBracket,
     ArrayExpectedExpression,
@@ -81,6 +100,7 @@ namespace compiler::ir {
     ElseStatementExpectedScopeBlock,
     IfStatementExpectedCondition,
     IfStatementExpectedScopeBlockOrPatternArms,
+    TryStatementExpectedScopeBlock,
     BreakStatementExpectedSemicolon,
     ContinueStatementExpectedSemicolon,
     ReturnStatementExpectedSemicolon,
