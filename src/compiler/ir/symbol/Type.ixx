@@ -44,6 +44,7 @@ namespace compiler::ir::symbol {
 
     // Statements
     Do,
+    Error,
     If,
     ElseIf,
     Else,
