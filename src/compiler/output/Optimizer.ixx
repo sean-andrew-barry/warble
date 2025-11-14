@@ -8,7 +8,6 @@ import <stdexcept>;
 
 import compiler.program.Module;
 import compiler.ir.Symbols;
-import compiler.ir.Symbol;
 import compiler.ir.Instruction;
 
 namespace compiler::output {
