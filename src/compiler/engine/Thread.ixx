@@ -8,8 +8,9 @@ import <memory>;
 import <iostream>;
 import <cassert>;
 import <chrono>;
+import <cstddef>;
 
-class Compiler; // forward declaration in global namespace
+export class Compiler; // forward declaration
 
 namespace compiler::engine {
   export class Thread {
@@ -30,7 +31,7 @@ namespace compiler::engine {
 
     int Main();
   public:
-    static engine::Thread* Get();
+    static compiler::engine::Thread* Get();
     static bool IsMain();
 
     Thread(Thread&& other) noexcept = delete;  // Disable move-construction
@@ -42,15 +43,16 @@ namespace compiler::engine {
     ~Thread();
 
     void Work();
-
+    
     bool IsWaiting() const;
     bool IsWorking() const;
     bool IsClosing() const;
-
+    
     void StartWaiting();
     void StartWorking();
     void StartClosing();
-
+    
+    size_t Index() const noexcept { return index; }
     std::thread::id GetID() const noexcept { return thread.get_id(); }
   };
 }

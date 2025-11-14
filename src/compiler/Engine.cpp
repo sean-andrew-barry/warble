@@ -1,6 +1,6 @@
 import compiler.Engine;
-import <thread>;
-import <chrono>;
+import Compiler;
+import compiler.engine.ThreadPool;
 
 namespace compiler {
   Engine::Engine(Compiler& compiler)

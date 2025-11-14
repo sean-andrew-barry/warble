@@ -2,7 +2,7 @@ export module compiler.Engine;
 
 import compiler.engine.ThreadPool;
 
-class Compiler; // forward declaration for constructor parameter
+export class Compiler; // forward declaration
 
 namespace compiler {
   // Engine owns the thread pool and connects it to the Compiler.

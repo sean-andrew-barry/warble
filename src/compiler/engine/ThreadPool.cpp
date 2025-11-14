@@ -1,11 +1,14 @@
 import compiler.engine.ThreadPool;
 import compiler.engine.Thread;
 import Compiler;
+import compiler.utility.Print;
 
-import <iostream>;
-import <thread>;
 import <cassert>;
+import <exception>;
 import <stdexcept>;
+import <thread>;
+import <memory>;
+import <vector>;
 
 namespace compiler::engine {
   ThreadPool::ThreadPool(Compiler& compiler)
@@ -16,6 +19,8 @@ namespace compiler::engine {
       count = 1u;
     }
 
+    count = 1u; // Just for testing, use a single thread
+
     const auto thread_count = static_cast<size_t>(count);
     threads.reserve(thread_count);
 
@@ -25,6 +30,8 @@ namespace compiler::engine {
   }
 
   ThreadPool::~ThreadPool() {
+    utility::Print("Shutting down thread pool with", threads.size(), "threads and", extras.size(), "extra threads");
+
     for (auto& thread : threads) {
       thread->StartClosing();
     }

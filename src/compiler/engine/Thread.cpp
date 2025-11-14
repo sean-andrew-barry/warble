@@ -1,17 +1,20 @@
 import compiler.engine.Thread;
 import Compiler;
-import compiler.utility.Print;
 import compiler.utility.OS;
+import compiler.utility.Print;
 
 import <cassert>;
+import <exception>;
 import <iostream>;
+import <thread>;
+import <atomic>;
 
 namespace compiler::engine {
   thread_local compiler::engine::Thread* Thread::current_thread = nullptr;
   std::thread::id Thread::main_thread_id = std::this_thread::get_id();
 
   int Thread::Main() {
-    utility::OS::SetThreadPriorityLow(thread.native_handle());
+    compiler::utility::OS::SetThreadPriorityLow(thread.native_handle());
 
     try {
       // We'll stay in this loop until told to close
@@ -52,7 +55,7 @@ namespace compiler::engine {
       Thread::current_thread = this;
 
       utility::Debug("Worker", GetID(), "begin");
-
+      
       auto result = Main();
       assert(result == 0);
 
@@ -73,7 +76,12 @@ namespace compiler::engine {
 
   void Thread::Work() {
     // Ask the compiler to perform a unit of work
-    (void)compiler.Work(index);
+    if (!compiler.Work(index)) {
+      // utility::Debug("Worker", GetID(), "idle");
+
+      // Idle briefly to avoid busy-waiting when there's no work
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
   }
 
   void Thread::StartWaiting() { state.store(State::WAITING, std::memory_order_release); state.notify_one(); }
