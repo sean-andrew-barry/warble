@@ -7,16 +7,19 @@ import <string_view>;
 import <atomic>;
 import <filesystem>;
 
-import compiler.Program;
-import compiler.program.Package;
 import compiler.ir.Token;
 import compiler.ir.Symbols;
-import compiler.ir.Symbol;
 import compiler.ir.Instruction;
 import compiler.utility.DualBuffer;
 import compiler.fs.File;
 
+namespace compiler {
+  export class Program;
+};
+
 namespace compiler::program {
+  export class Package;
+
   export class Module {
   private:
     static constexpr bool IsOdd(std::size_t v) noexcept { return (v & 1u) != 0u; }
@@ -42,21 +45,21 @@ namespace compiler::program {
       Merged,
     };
   private:
-    Program& program;
-    program::Package& package;
-    fs::File file;
+    compiler::Program& program;
+    compiler::program::Package& package;
+    compiler::fs::File file;
     
     std::atomic<size_t> cycle{0}; // The current processing cycle for dependency tracking
     std::string source; // The raw source text of the module
-    std::vector<program::Module*> dependencies; // Every imported module, possibly including self and/or a prelude module first
+    std::vector<compiler::program::Module*> dependencies; // Every imported module, possibly including self and/or a prelude module first
     
     std::vector<ir::Token> tokens;
     std::vector<std::pair<uint32_t, uint32_t>> lines; // The token index for each line start and the `characters` checkpoint
     std::vector<uint32_t> data; // The UTF-32 characters and bigint limbs captured during lexing 
     
-    ir::Symbols symbols; // All the symbols defined in this module
+    compiler::ir::Symbols symbols; // All the symbols defined in this module
 
-    std::vector<ir::Instruction> instructions;
+    std::vector<compiler::ir::Instruction> instructions;
   private:
     static Stage RequiredDependencyStageFor(Stage next);
     static bool StageAtLeast(size_t dep_cycle, Stage required);
@@ -72,14 +75,14 @@ namespace compiler::program {
 
     bool Step(Stage stage);
   public:
-    Module(Program& program, program::Package& package, fs::File&& file);
+    Module(compiler::Program& program, compiler::program::Package& package, compiler::fs::File&& file);
 
-    bool Run(utility::DualBuffer<program::Module*>& buffer);
+    bool Run(compiler::utility::DualBuffer<compiler::program::Module*>& buffer);
 
     // Register a package with the program
-    program::Package& Register(std::filesystem::path&& specifier);
+    compiler::program::Package& Register(std::filesystem::path&& specifier);
 
     // Import a module from the package
-    program::Module& Import(std::filesystem::path&& specifier);
+    compiler::program::Module& Import(std::filesystem::path&& specifier);
   };
 }

@@ -1,11 +1,15 @@
-module compiler.program.Module;
+import compiler.program.Module;
+import compiler.Program;
+import compiler.program.Package;
+import compiler.utility.DualBuffer;
 
 import <atomic>;
 import <unordered_map>;
 import <utility>;
 import <vector>;
-import <utility>;
-import compiler.utility.DualBuffer;
+import <filesystem>;
+import <cstdint>;
+import <cstddef>;
 
 namespace compiler::program {
 	// ----- Helper mapping from next stage to required dependency stage -----
@@ -39,7 +43,7 @@ namespace compiler::program {
 	}
 
 	// ----- Stage bodies (placeholders for now) -----
-	Module::Module(Program& program, program::Package& package, fs::File&& file)
+	Module::Module(compiler::Program& program, compiler::program::Package& package, compiler::fs::File&& file)
 		: program{program}
 		, package{package}
 		, file{std::move(file)}
@@ -153,7 +157,7 @@ namespace compiler::program {
 		}
 	}
 
-	bool Module::Run(utility::DualBuffer<program::Module*>& buffer) {
+	bool Module::Run(compiler::utility::DualBuffer<Module*>& buffer) {
 		auto mc = cycle.load(std::memory_order_acquire);
 		if (IsOdd(mc)) return false; // Already claimed elsewhere; forget it
 
@@ -206,6 +210,6 @@ namespace compiler::program {
 		return false;
 	}
 
-  program::Package& Module::Register(std::filesystem::path&& specifier) { return program.Register(std::move(specifier)); }
-  program::Module& Module::Import(std::filesystem::path&& specifier) { return package.Import(std::move(specifier)); }
+  compiler::program::Package& Module::Register(std::filesystem::path&& specifier) { return program.Register(std::move(specifier)); }
+  compiler::program::Module& Module::Import(std::filesystem::path&& specifier) { return package.Import(std::move(specifier)); }
 }
