@@ -3,6 +3,7 @@ export module compiler.input.Lexer;
 import <cstdint>;
 import <bitset>;
 import <vector>;
+import <array>;
 import <string>;
 import <stdexcept>;
 import <expected>;
@@ -69,12 +70,12 @@ namespace compiler::input {
 
   inline constexpr auto IDENTIFIER = IDENTIFIER_START | DIGIT;
 
-  inline constexpr auto VALUE_START = MakeBitset([](auto& bs){
-    for (char c : "tfnu'\"`+-([{<.") bs.set(c);
+  inline constexpr auto TERM_START = MakeBitset([](auto& bs){
+    for (char c : "tfnua'\"`+-([{<.") bs.set(c);
   }) | DIGIT;
 
   inline constexpr auto STATEMENT_START = MakeBitset([](auto& bs){
-    for (char c : "bcdefirw") bs.set(c);
+    for (char c : "bcdefirwt;") bs.set(c);
   });
 
   inline constexpr auto UNARY_PREFIX_START = MakeBitset([](auto& bs){
@@ -174,18 +175,19 @@ namespace compiler::input {
   protected:
     std::string source;
     std::vector<ir::Token> tokens;
-    std::vector<uint32_t> data; // Unified side table for UTF-32 code points and other literal payloads
+    std::vector<char32_t> characters; // UTF-32 code points captured from source text
+    std::vector<uint32_t> limbs; // Numeric limbs and other non-text payloads
     std::vector<uint32_t> temp_le; // Shared little-endian workspace for numeric accumulation
     std::vector<uint8_t> hex_le; // little-endian nibbles buffer
     std::vector<ir::Error> errors; // emitted error codes in encounter order
 
     text::cursor::String cursor;
     std::string::const_iterator furthest; // Highest source iterator reached to suppress duplicate side-effects after rollback.
+    bool has_backtracked{false}; // Indicates whether a rollback has occurred.
   protected:
     struct Position {
       std::string::const_iterator cursor;
       size_t token;
-      size_t data;
       size_t error;
     };
 
@@ -203,7 +205,7 @@ namespace compiler::input {
     bool EmitAndAdvance(ir::Token token, size_t count = 1);
     bool Keyword(const std::string_view text);
     bool Keyword(const std::string_view text, ir::Token token);
-    bool IsBacktracked() const { return furthest > cursor.cbegin(); }
+    bool IsBacktracked() const { return has_backtracked && cursor.cbegin() <= furthest; }
 
     // Emit the given count as big-endian hexadecimal nibbles using Characters0..F tokens.
     // Returns true if any tokens were emitted (count > 0).
@@ -214,21 +216,16 @@ namespace compiler::input {
     // Handle a single non-ASCII whitespace code point. Returns true if whitespace was consumed and tokens emitted.
     bool HandleNonASCIIWhitespace();
 
-    void Push(uint32_t word) {
-      if (IsBacktracked()) return; // Don't add data words when backtracked
-      data.push_back(word);
-    }
+    void PushCharacter(char32_t cp);
 
-    void Push(char32_t cp) {
-      Push(static_cast<uint32_t>(cp));
-    }
+    void PushLimb(uint32_t word);
 
     bool CaptureCharacters(const auto& fn) {
       uint32_t count = 0;
       while (!cursor.Done() && fn()) {
         auto cp = cursor.CodePoint();
 
-        Push(cp);
+        PushCharacter(cp);
         ++count;
       }
 
@@ -302,6 +299,18 @@ namespace compiler::input {
 
     virtual ~Lexer() = default;
 
+    std::string Source() && { return std::move(source); }
+    std::vector<ir::Token> Tokens() && { return std::move(tokens); }
+    std::vector<char32_t> Characters() && { return std::move(characters); }
+    std::vector<uint32_t> Limbs() && { return std::move(limbs); }
+    std::vector<ir::Error> Errors() && { return std::move(errors); }
+
+    const std::string& Source() const & { return source; }
+    const std::vector<ir::Token>& Tokens() const & { return tokens; }
+    const std::vector<char32_t>& Characters() const & { return characters; }
+    const std::vector<uint32_t>& Limbs() const & { return limbs; }
+    const std::vector<ir::Error>& Errors() const & { return errors; }
+
     bool WhiteSpace();
 
     bool WS();
@@ -314,6 +323,7 @@ namespace compiler::input {
     bool True();
     bool False();
     bool This();
+    bool That();
     bool Import();
     bool Export();
     bool Register();
@@ -321,6 +331,7 @@ namespace compiler::input {
     bool With();
     bool Has();
     bool If();
+    bool Try();
     bool Else();
     bool Do();
     bool While();
@@ -342,6 +353,8 @@ namespace compiler::input {
     bool Case();
     bool Yield();
     bool Let();
+    bool Const();
+    bool Mut();
 
     bool CaptureOpen();
     bool CaptureClose();
@@ -372,6 +385,10 @@ namespace compiler::input {
     bool Wildcard();
     bool Comma();
     bool Semicolon();
+    bool Pipeline();
+    bool Arrow();
+    bool Path();
+    bool TypeStart();
     bool CommentOpen();
     bool CommentClose();
     bool MultiLineCommentOpen();
@@ -430,13 +447,13 @@ namespace compiler::input {
     bool Identifier();
     bool IdentifierOrArrowFunction();
     bool TemplateStringLiteral();
-    bool BinaryOperatorHelper(bool in_enum, bool in_type);
     bool BinaryOperator(bool in_enum, bool in_type);
-    bool ParameterDeclaration();
-    bool ParameterDeclarationList();
+    bool SelectorOperator();
     bool Parameters();
+    bool Captures();
     bool ArrowFunction();
-    bool FunctionLiteral();
+    bool ParameterFunctionLiteral();
+    bool CaptureFunctionLiteral();
     bool EnumLiteral();
     bool ObjectLiteral();
     bool ArrayLiteral();
@@ -445,20 +462,24 @@ namespace compiler::input {
     bool CallablePostfixLiteralHelper();
     bool CallablePrefixLiteral();
     bool CallablePostfixLiteral();
-    bool AtomShortcut();
-    bool Atom();
+    bool TermShortcut();
+    bool Term();
     bool Selector();
     bool Expression(bool in_enum = false, bool in_type = false);
+    bool ExpressionStatement();
+    bool DeclarationInternal(bool require_keyword, bool allow_prefix, bool allow_initializer, bool emit_errors);
+    bool DeclarationPrefixed();
+    bool DeclarationMember();
+    bool DeclarationKeyword();
     bool DeclarationStatement();
+    bool Declaration();
     bool StatementShortcut();
     bool Statement();
     bool Condition();
     bool Block();
-    bool IsPattern();
-    bool HasPattern();
-    bool FromPattern();
     bool StatementList();
-    bool FunctionStatementList();
+    bool EscapePercent();
+    bool EscapeURL();
     bool Scheme();
     bool Authority();
     bool Userinfo();
@@ -474,6 +495,24 @@ namespace compiler::input {
     bool Query();
     bool Fragment();
     bool Specifier();
+
+    bool ImportStatement();
+    bool RegisterStatement();
+    bool BreakStatement();
+    bool ContinueStatement();
+    bool ReturnStatement();
+    bool YieldStatement();
+    bool DoStatement();
+    bool IfStatement();
+    bool TryStatement();
+    bool ElseStatement();
+    bool ForStatement();
+    bool RepeatStatement();
+    bool WhileStatement();
+    bool IsPattern();
+    bool HasPattern();
+    bool FromPattern();
+    bool Pattern();
 
     constexpr bool IsBreak() const {
       switch (cursor.Peek()) {
@@ -518,7 +557,7 @@ namespace compiler::input {
     constexpr bool IsBinaryStart() const { return IsBinaryStart(cursor.Peek()); }
     constexpr bool IsNumberStart() const { return IsNumberStart(cursor.Peek()); }
     constexpr bool IsIdentStart() const { return IsIdentStart(cursor.Peek()); }
-    constexpr bool IsValueStart() const { return IsValueStart(cursor.Peek()); }
+    constexpr bool IsTermStart() const { return IsTermStart(cursor.Peek()); }
     constexpr bool IsStatementStart() const { return IsStatementStart(cursor.Peek()); }
     constexpr bool IsUnaryPrefixStart() const { return IsUnaryPrefixStart(cursor.Peek()); }
     constexpr bool IsUnaryPostfixStart() const { return IsUnaryPostfixStart(cursor.Peek()); }
@@ -571,7 +610,7 @@ namespace compiler::input {
     constexpr bool IsURLAuthority(size_t i) const { return IsURLAuthority(cursor.Peek(i)); }
     constexpr bool IsFilePath(size_t i) const { return IsFilePath(cursor.Peek(i)); }
     constexpr bool IsIdentStart(size_t i) const { return IsIdentStart(cursor.Peek(i)); }
-    constexpr bool IsValueStart(size_t i) const { return IsValueStart(cursor.Peek(i)); }
+    constexpr bool IsTermStart(size_t i) const { return IsTermStart(cursor.Peek(i)); }
     constexpr bool IsStatementStart(size_t i) const { return IsStatementStart(cursor.Peek(i)); }
     constexpr bool IsUnaryPrefixStart(size_t i) const { return IsUnaryPrefixStart(cursor.Peek(i)); }
     constexpr bool IsUnaryPostfixStart(size_t i) const { return IsUnaryPostfixStart(cursor.Peek(i)); }
@@ -595,7 +634,7 @@ namespace compiler::input {
     constexpr bool IsIdent(const char c) const { return IDENTIFIER[static_cast<uint8_t>(c)]; }
     constexpr bool IsBinary(const char c) const { return c == '0'|| c == '1'; }
     constexpr bool IsIdentStart(const char c) const { return IDENTIFIER_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsValueStart(const char c) const { return VALUE_START[static_cast<uint8_t>(c)]; }
+    constexpr bool IsTermStart(const char c) const { return TERM_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsStatementStart(const char c) const { return STATEMENT_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsUnaryPrefixStart(const char c) const { return UNARY_PREFIX_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsUnaryPostfixStart(const char c) const { return UNARY_POSTFIX_START[static_cast<uint8_t>(c)]; }
