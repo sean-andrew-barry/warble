@@ -1,28 +1,44 @@
-import compiler.utility.OS;
+module;
+
+#if defined(_WIN32) || defined(_WIN64)
+#  include <windows.h>
+#elif defined(__unix__) || defined(__unix) || defined(unix) || defined(__APPLE__) || defined(__MACH__)
+#  include <pthread.h>
+#  include <sched.h>
+#  include <sys/mman.h>
+#  include <sys/stat.h>
+#  include <fcntl.h>
+#  include <unistd.h>
+#  include <errno.h>
+#  include <csignal>
+#  include <cstring>
+#  include <setjmp.h>
+#endif
+
+module compiler.utility.OS;
+
 import compiler.utility.Macros;
-import <thread>;
-import <iostream>;
-import <vector>;
+import <array>;
 import <cstdint>;
+import <cstring>;
+import <filesystem>;
+import <iostream>;
+import <limits>;
 import <memory>;
 import <stdexcept>;
 import <string>;
-import <filesystem>;
-import <limits>;
+import <thread>;
 import <utility>;
-import <cstring>;
-import <array>;
+import <vector>;
 
 namespace compiler::utility::OS {
   bool SetThreadPriorityLow(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::LOW); }
   bool SetThreadPriorityNormal(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::NORMAL); }
   bool SetThreadPriorityHigh(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::HIGH); }
-};
+}
 
 // Windows Implementation
 #if defined(_WIN32) || defined(_WIN64)
-// Annoyingly these have to be #includes because the compiler won't allow the modules unless they are already imported from a module file.
-#include <windows.h>
 
 struct Setup {
   Setup() {
@@ -45,13 +61,13 @@ namespace compiler::utility::OS {
     return true;
   }
 
-  bool SetThreadPriority(std::thread::native_handle_type handle, utility::OS::Priority priority) {
+  bool SetThreadPriority(std::thread::native_handle_type handle, Priority priority) {
     int winPriority;
     
     switch (priority) {
-      case utility::OS::Priority::LOW: winPriority = THREAD_PRIORITY_BELOW_NORMAL; break;
-      case utility::OS::Priority::NORMAL: winPriority = THREAD_PRIORITY_NORMAL; break;
-      case utility::OS::Priority::HIGH: winPriority = THREAD_PRIORITY_ABOVE_NORMAL; break;
+      case Priority::LOW: winPriority = THREAD_PRIORITY_BELOW_NORMAL; break;
+      case Priority::NORMAL: winPriority = THREAD_PRIORITY_NORMAL; break;
+      case Priority::HIGH: winPriority = THREAD_PRIORITY_ABOVE_NORMAL; break;
       default: return false;
     }
 
@@ -249,16 +265,6 @@ namespace compiler::utility::OS {
 
 // POSIX Implementation
 #elif defined(__unix__) || defined(__unix) || defined(unix) || defined(__APPLE__) || defined(__MACH__)
-#include <pthread.h>
-#include <sched.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <csignal>
-#include <cstring>
-#include <setjmp.h>
 
 namespace compiler::utility::OS {
   // Global jump buffer for signal handling
@@ -273,7 +279,7 @@ namespace compiler::utility::OS {
     return true;
   }
 
-  bool SetThreadPriority(std::thread::native_handle_type handle, utility::OS::Priority priority) {
+  bool SetThreadPriority(std::thread::native_handle_type handle, Priority priority) {
     int policy;
     sched_param param;
     if (pthread_getschedparam(handle, &policy, &param) != 0) {
@@ -284,9 +290,9 @@ namespace compiler::utility::OS {
     int minPriority = sched_get_priority_min(policy);
     int maxPriority = sched_get_priority_max(policy);
     switch (priority) {
-      case utility::OS::Priority::LOW: param.sched_priority = minPriority + (maxPriority - minPriority) / 3; break;
-      case utility::OS::Priority::NORMAL: param.sched_priority = (minPriority + maxPriority) / 2; break;
-      case utility::OS::Priority::HIGH: param.sched_priority = maxPriority - (maxPriority - minPriority) / 3; break;
+      case Priority::LOW: param.sched_priority = minPriority + (maxPriority - minPriority) / 3; break;
+      case Priority::NORMAL: param.sched_priority = (minPriority + maxPriority) / 2; break;
+      case Priority::HIGH: param.sched_priority = maxPriority - (maxPriority - minPriority) / 3; break;
       default: return false;
     }
 
