@@ -60,7 +60,7 @@ namespace compiler::input::wbl {
         case ir::Token::Yield: // yield x (when treated unary)
           return 17;
 
-        case ir::Token::Exponent: // x ** y
+        case ir::Token::ExponentOperator: // x ** y
           return 16;
 
         // Multiplicative
