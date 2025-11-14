@@ -1893,7 +1893,7 @@ type expectation<Expected, Unexpected> = variant<Expected, Unexpected>;
   let value = compiler.unwrap_expected(__tmp);
   ```
 
-* `assume` inserts an `unreachable` IR node, enabling additional optimisation
+* `assume` inserts an `unreachable` IR node, enabling additional optimization
   while guaranteeing a hard stop if the assumption is violated.
 
 > **Guideline:** Default to `expect`.  Reach for `assume` only when recovery is
