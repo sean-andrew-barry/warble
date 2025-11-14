@@ -2,6 +2,5 @@
 - The `docs/spec.md` file contains the Warble language specification and is a useful reference for understanding the language features and syntax.
 - The codebase uses `snake_case` for variable names, and `PascalCase` for class/function names.
 - The namespace system is a straight forward mapping to the directory structure, excluding the initial `src` directory. For example, `src/compiler/input/Lexer.ixx` can be referenced as `compiler::input::Lexer` or imported with `import compiler.input.Lexer;`. Obviously this goes both ways, so you can always convert from namespace to path and vice versa.
-- The `node` and `lexical` directories are legacy and will be deleted. Most of their logic is being ported out to various other modules.
-- Currently the codebase does not compile or run, it is in the middle of a large refactor.
+- The project now compiles and runs. Use the VS Code tasks "Compile (Debug)" or "Compile (Release)" to build via MSBuild for x64.
 - Currently there is no testing system, so no tests to run.
