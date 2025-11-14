@@ -5,11 +5,10 @@ import compiler.Program;
 import compiler.program.Package;
 import compiler.program.Module;
 import compiler.utility.DualBuffer;
-import <memory>;
+import <filesystem>;
 import <vector>;
 import <string>;
-import <filesystem>;
-import <stdexcept>;
+import <memory>;
 
 export class Compiler {
 private:
