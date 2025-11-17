@@ -9,6 +9,7 @@ import <vector>;
 import <string>;
 import <thread>;
 import <filesystem>;
+import <string_view>;
 
 // Temporary just for fast experiments without running the whole pipeline
 void Test() {

@@ -18,20 +18,7 @@ namespace compiler::fs {
   public:
     File() : path{}, handle{compiler::utility::OS::InvalidNativeHandle}, file_id{} {}
 
-    explicit File(const std::filesystem::path& p)
-      : path{p}, handle{compiler::utility::OS::InvalidNativeHandle}, file_id{}
-    {
-      handle = compiler::utility::OS::OpenNativeFile(path);
-      if (IsOpen()) {
-        (void)compiler::utility::OS::GetFileID(handle, file_id.Data());
-      }
-    }
-
-    explicit File(std::string_view p)
-      : File(std::filesystem::path{p})
-    {}
-
-    explicit File(std::filesystem::path&& p)
+    explicit File(std::filesystem::path p)
       : path{std::move(p)}, handle{compiler::utility::OS::InvalidNativeHandle}, file_id{}
     {
       handle = compiler::utility::OS::OpenNativeFile(path);
