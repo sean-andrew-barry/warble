@@ -30,6 +30,7 @@ namespace compiler::input {
     std::vector<ir::Instruction> instructions;
 
     text::cursor::Token cursor;
+    std::vector<ir::Index> declarations; // Stack of active named declarations
     std::vector<ir::Index> break_targets; // Stack of active loop exit labels
     std::vector<ir::Index> continue_targets; // Stack of active loop continue labels
     std::vector<ir::Index> topics; // Stack of active topics
@@ -83,7 +84,7 @@ namespace compiler::input {
     ir::Index ParseUnary(ir::Index parent);
     ir::Index ParseBinary(ir::Index parent, int min_precedence);
 
-    ir::Index Open(ir::symbol::Type type, ir::Index parent);
+    ir::Index Open(ir::symbol::Kind type, ir::Index parent);
     ir::Index Close(ir::Index index);
   public:
     Parser(std::vector<ir::Token>&& tokens, std::vector<uint32_t>&& data);
@@ -92,7 +93,7 @@ namespace compiler::input {
 
     uint32_t Instruct(ir::Opcode opcode, ir::Index res = ir::Index{}, ir::Index lhs = ir::Index{}, ir::Index rhs = ir::Index{});
 
-    ir::Index Create(ir::symbol::Type type, ir::Index parent);
+    ir::Index Create(ir::symbol::Kind type, ir::Index parent);
 
     ir::Index Expect(ir::Token token, ir::Error error, ir::Index parent);
 

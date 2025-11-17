@@ -2,7 +2,7 @@ import compiler.input.Parser;
 import compiler.ir.Symbols;
 import compiler.ir.Error;
 import compiler.ir.Opcode;
-import compiler.ir.symbol.Type;
+import compiler.ir.symbol.Kind;
 import compiler.ir.Token;
 import compiler.ir.Index;
 import compiler.text.cursor.String;
@@ -408,7 +408,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::ReportError(ir::Error error, ir::Index parent) {
-  //   return Create(ir::symbol::Type::Error, parent, static_cast<uint64_t>(error));
+  //   return Create(ir::symbol::Kind::Error, parent, static_cast<uint64_t>(error));
   // }
 
   int Parser::Precedence(ir::Token token) const {
@@ -686,7 +686,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::MakeTemporary(ir::Index parent, ir::Index lhs, ir::Index rhs) {
-  //   ir::Index result = Create(ir::symbol::Type::Auto, parent);
+  //   ir::Index result = Create(ir::symbol::Kind::Auto, parent);
 
   //   size_t lhs_row = static_cast<size_t>(lhs.Row());
   //   if (lhs_row < symbols.Count()) {
@@ -754,7 +754,7 @@ namespace compiler::input {
   // }
 
   // // `Create` is for symbols that don't have children and don't need to be closed later
-  // ir::Index Parser::Create(ir::symbol::Type type, ir::Index parent) {
+  // ir::Index Parser::Create(ir::symbol::Kind type, ir::Index parent) {
   //   ir::Index index = symbols.Add(type);
   //   symbols.Parent(index, parent);
   //   symbols.FirstToken(index, static_cast<uint32_t>(std::distance(tokens.cbegin(), cursor.cbegin())));
@@ -763,7 +763,7 @@ namespace compiler::input {
   //   return index;
   // }
 
-  // ir::Index Parser::Open(ir::symbol::Type type, ir::Index parent) {
+  // ir::Index Parser::Open(ir::symbol::Kind type, ir::Index parent) {
   //   ir::Index index = symbols.Add(type);
   //   symbols.Parent(index, parent);
   //   symbols.FirstToken(index, static_cast<uint32_t>(std::distance(tokens.cbegin(), cursor.cbegin())));
@@ -899,7 +899,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::Undefined(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::Undefined, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::Undefined, parent);
 
   //   if (Match(ir::Token::Undefined)) {
   //     Close(symbol);
@@ -914,7 +914,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::Null(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::Void, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::Void, parent);
 
   //   if (cursor.Match(ir::Token::Null)) {
   //     Close(symbol); // Don't include the whitespace as a child
@@ -929,7 +929,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::Boolean(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::Boolean, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::Boolean, parent);
 
   //   if (cursor.Match(ir::Token::True)) {
   //     symbols.Payload(symbol, static_cast<uint64_t>(true));
@@ -947,7 +947,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::Character(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::Character, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::Character, parent);
 
   //   if (!cursor.Match(ir::Token::CharOpen)) {
   //     return ReportError(ir::Error::ParserExpectedCharacterOpenQuote, symbol);
@@ -1003,7 +1003,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::Hex(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::Integer, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::Integer, parent);
 
   //   if (!cursor.Match(ir::Token::HexStart)) {
   //     return ReportError(ir::Error::ParserExpectedHexStart, symbol);
@@ -1021,7 +1021,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::Octal(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::Integer, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::Integer, parent);
 
   //   if (!cursor.Match(ir::Token::OctalStart)) {
   //     return ReportError(ir::Error::ParserExpectedOctalStart, symbol);
@@ -1040,7 +1040,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::Binary(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::Integer, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::Integer, parent);
 
   //   if (!cursor.Match(ir::Token::BinaryStart)) {
   //     return ReportError(ir::Error::ParserExpectedBinaryStart, symbol);
@@ -1059,7 +1059,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::Decimal(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::Integer, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::Integer, parent);
   //   std::vector<uint32_t> significand;
   //   bool has_digits = false;
   //   size_t fractional_digits = 0;
@@ -1312,7 +1312,7 @@ namespace compiler::input {
   //     return symbol;
   //   }
 
-  //   symbols.Type(symbol, ir::symbol::Type::Float);
+  //   symbols.Type(symbol, ir::symbol::Kind::Float);
 
   //   int64_t exponent_total = 0;
   //   if (exponent_abs > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) + (exponent_negative ? 1ull : 0ull)) {
@@ -1338,7 +1338,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::String(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::String, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::String, parent);
 
   //   if (!cursor.Match(ir::Token::StringOpen)) {
   //     return ReportError(ir::Error::ParserExpectedStringOpenQuote, symbol);
@@ -1409,7 +1409,7 @@ namespace compiler::input {
   //   // A required `ArrayClose` token
   //   // Return the symbol
 
-  //   ir::Index symbol = Create(ir::symbol::Type::Array, parent);
+  //   ir::Index symbol = Create(ir::symbol::Kind::Array, parent);
   //   Push(symbol);
     
   //   if (!Match(ir::Token::ArrayOpen)) {
@@ -1447,7 +1447,7 @@ namespace compiler::input {
   //   // A required `EnumClose` token
   //   // Return the symbol
 
-  //   ir::Index symbol = Create(ir::symbol::Type::Enum, parent);
+  //   ir::Index symbol = Create(ir::symbol::Kind::Enum, parent);
   //   Push(symbol);
 
   //   if (!Match(ir::Token::EnumOpen)) {
@@ -1485,7 +1485,7 @@ namespace compiler::input {
   //   // A required `TupleClose` token
   //   // Return the symbol
 
-  //   ir::Index symbol = Create(ir::symbol::Type::Tuple, parent);
+  //   ir::Index symbol = Create(ir::symbol::Kind::Tuple, parent);
   //   Push(symbol);
 
   //   if (!Match(ir::Token::TupleOpen)) {
@@ -1523,7 +1523,7 @@ namespace compiler::input {
   //   // A required `ObjectClose` token
   //   // Return the symbol
 
-  //   ir::Index symbol = Create(ir::symbol::Type::Object, parent);
+  //   ir::Index symbol = Create(ir::symbol::Kind::Object, parent);
   //   Push(symbol);
 
   //   if (!Match(ir::Token::ObjectOpen)) {
@@ -1559,7 +1559,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::TemplateString(ir::Index parent) {
-  //   ir::Index tpl = Open(ir::symbol::Type::TemplateString, parent);
+  //   ir::Index tpl = Open(ir::symbol::Kind::TemplateString, parent);
 
   //   if (!cursor.Match(ir::Token::TemplateStringOpen)) {
   //     return ReportError(ir::Error::TemplateStringLiteralExpectedClosingBacktick, tpl);
@@ -1574,7 +1574,7 @@ namespace compiler::input {
   //       return;
   //     }
 
-  //     ir::Index str = Create(ir::symbol::Type::String, tpl);
+  //     ir::Index str = Create(ir::symbol::Kind::String, tpl);
   //     symbols.Payload(str, segment_start, segment_length);
   //     Instruct(ir::Opcode::Construct, str, str);
   //     Instruct(ir::Opcode::Destruct, str, str);
@@ -1740,7 +1740,7 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::Identifier(ir::Index parent) {
-  //   ir::Index symbol = Open(ir::symbol::Type::Identifier, parent);
+  //   ir::Index symbol = Open(ir::symbol::Kind::Identifier, parent);
 
   //   uint32_t slice_start = character_position;
   //   uint32_t local_position = slice_start;
@@ -1887,7 +1887,7 @@ namespace compiler::input {
   //   // An optional `In` token, followed by a required `String` group for a target package
   //   // A required `Semicolon` token
 
-  //   ir::Index symbol = Create(ir::symbol::Type::Import, parent);
+  //   ir::Index symbol = Create(ir::symbol::Kind::Import, parent);
   //   Push(symbol);
 
   //   if (!Match(ir::Token::Import)) {
@@ -1945,7 +1945,7 @@ namespace compiler::input {
   //   // Zero or more `Permissions` groups
   //   // A required `Semicolon` token
 
-  //   ir::Index symbol = Create(ir::symbol::Type::Register, parent);
+  //   ir::Index symbol = Create(ir::symbol::Kind::Register, parent);
   //   Push(symbol);
 
   //   if (!Match(ir::Token::Register)) {
@@ -2071,7 +2071,7 @@ namespace compiler::input {
   //   // They do not have any looping behavior like in some other languages.
   //   // A Warble `do` is equivalent to an optimized `if (true) { ... }` statement.
   //   // This is because Warble interprets a plain `{ ... }` as an object literal, *not* a scope block.
-  //   ir::Index statement = Open(ir::symbol::Type::Do, parent);
+  //   ir::Index statement = Open(ir::symbol::Kind::Do, parent);
 
   //   if (!cursor.Match(ir::Token::Do)) {
   //     return ReportError(ir::Error::ParserExpectedDoKeyword, statement);
@@ -2088,7 +2088,7 @@ namespace compiler::input {
 
   // ir::Index Parser::WhileStatement(ir::Index parent) {
   //   // while (condition) { body } [;]
-  //   ir::Index statement = Open(ir::symbol::Type::While, parent);
+  //   ir::Index statement = Open(ir::symbol::Kind::While, parent);
 
   //   if (!cursor.Match(ir::Token::While)) {
   //     return ReportError(ir::Error::ParserExpectedWhileKeyword, statement);
@@ -2096,8 +2096,8 @@ namespace compiler::input {
 
   //   WhiteSpace(statement);
 
-  //   ir::Index condition_label = Create(ir::symbol::Type::Label, statement);
-  //   ir::Index exit = Create(ir::symbol::Type::Label, statement);
+  //   ir::Index condition_label = Create(ir::symbol::Kind::Label, statement);
+  //   ir::Index exit = Create(ir::symbol::Kind::Label, statement);
 
   //   break_targets.push_back(exit);
   //   continue_targets.push_back(condition_label);
@@ -2128,7 +2128,7 @@ namespace compiler::input {
 
   // ir::Index Parser::RepeatStatement(ir::Index parent) {
   //   // repeat { body } [while (condition)] [;]
-  //   ir::Index statement = Open(ir::symbol::Type::Repeat, parent);
+  //   ir::Index statement = Open(ir::symbol::Kind::Repeat, parent);
 
   //   if (!cursor.Match(ir::Token::Repeat)) {
   //     return ReportError(ir::Error::ParserExpectedRepeatKeyword, statement);
@@ -2137,9 +2137,9 @@ namespace compiler::input {
   //   WhiteSpace(statement);
 
   //   // Loop entry/exit labels — continue label initially matches loop entry
-  //   ir::Index entry = Create(ir::symbol::Type::Label, statement);
-  //   ir::Index exit = Create(ir::symbol::Type::Label, statement);
-  //   ir::Index continue_label = Create(ir::symbol::Type::Label, statement);
+  //   ir::Index entry = Create(ir::symbol::Kind::Label, statement);
+  //   ir::Index exit = Create(ir::symbol::Kind::Label, statement);
+  //   ir::Index continue_label = Create(ir::symbol::Kind::Label, statement);
 
   //   break_targets.push_back(exit);
   //   continue_targets.push_back(continue_label);
@@ -2153,7 +2153,7 @@ namespace compiler::input {
 
   //   if (cursor.Match(ir::Token::While)) {
   //     // repeat ... while (condition) — condition executes after the body
-  //     symbols.Type(statement, ir::symbol::Type::RepeatWhile);
+  //     symbols.Type(statement, ir::symbol::Kind::RepeatWhile);
   //     WhiteSpace(statement);
 
   //     if (continue_label_instruction < instructions.size()) {
@@ -2186,7 +2186,7 @@ namespace compiler::input {
   // ir::Index Parser::ForStatement(ir::Index parent) {
   //   // NOTE: Iteration protocol wiring is pending. This implementation focuses on
   //   // parsing structure so we can revisit the instruction emission later.
-  //   ir::Index statement = Open(ir::symbol::Type::For, parent);
+  //   ir::Index statement = Open(ir::symbol::Kind::For, parent);
 
   //   if (!cursor.Match(ir::Token::For)) {
   //     return ReportError(ir::Error::ParserExpectedForKeyword, statement);
@@ -2222,8 +2222,8 @@ namespace compiler::input {
 
   //   WhiteSpace(statement);
 
-  //   ir::Index body = Create(ir::symbol::Type::Label, statement);
-  //   ir::Index exit = Create(ir::symbol::Type::Label, statement);
+  //   ir::Index body = Create(ir::symbol::Kind::Label, statement);
+  //   ir::Index exit = Create(ir::symbol::Kind::Label, statement);
 
   //   break_targets.push_back(exit);
   //   continue_targets.push_back(body);
@@ -2245,8 +2245,8 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::ElseStatement(ir::Index parent) {
-  //   ir::Index statement = Open(ir::symbol::Type::Else, parent);
-  //   ir::Index exit = Create(ir::symbol::Type::Label, statement); // Create the exit label upfront
+  //   ir::Index statement = Open(ir::symbol::Kind::Else, parent);
+  //   ir::Index exit = Create(ir::symbol::Kind::Label, statement); // Create the exit label upfront
 
   //   if (cursor.Match(ir::Token::Else)) {
   //     WhiteSpace(statement);
@@ -2258,7 +2258,7 @@ namespace compiler::input {
   //   if (cursor.Match(ir::Token::If)) {
   //     has_if = true;
   //     WhiteSpace(statement);
-  //     symbols.Type(statement, ir::symbol::Type::ElseIf); // Upgrade to ElseIf
+  //     symbols.Type(statement, ir::symbol::Kind::ElseIf); // Upgrade to ElseIf
 
   //     ir::Index cond = Condition(statement);
   //     // Branch semantics here: jump to `exit` when condition is falsy (skip this else-if block)
@@ -2290,8 +2290,8 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::IfStatement(ir::Index parent) {
-  //   ir::Index statement = Open(ir::symbol::Type::If, parent);
-  //   ir::Index exit = Create(ir::symbol::Type::Label, statement); // Create the exit label upfront
+  //   ir::Index statement = Open(ir::symbol::Kind::If, parent);
+  //   ir::Index exit = Create(ir::symbol::Kind::Label, statement); // Create the exit label upfront
 
   //   if (cursor.Match(ir::Token::If)) {
   //     WhiteSpace(statement);
@@ -2321,8 +2321,8 @@ namespace compiler::input {
   // }
 
   // ir::Index Parser::IsStatement(ir::Index parent, ir::Index subject, ir::Index when_end) {
-  //   ir::Index entry = Create(ir::symbol::Type::Label, parent);
-  //   ir::Index exit = Create(ir::symbol::Type::Label, parent);
+  //   ir::Index entry = Create(ir::symbol::Kind::Label, parent);
+  //   ir::Index exit = Create(ir::symbol::Kind::Label, parent);
 
   //   if (cursor.Match(ir::Token::Is)) {
   //     WhiteSpace(parent);
@@ -2362,8 +2362,8 @@ namespace compiler::input {
 
   // ir::Index Parser::HasStatement(ir::Index parent, ir::Index subject, ir::Index when_end) {
   //   // has (cond1) [has|is|from (condN)] { body }
-  //   ir::Index entry = Create(ir::symbol::Type::Label, parent);
-  //   ir::Index exit = Create(ir::symbol::Type::Label, parent);
+  //   ir::Index entry = Create(ir::symbol::Kind::Label, parent);
+  //   ir::Index exit = Create(ir::symbol::Kind::Label, parent);
 
   //   if (cursor.Match(ir::Token::Has)) {
   //     WhiteSpace(parent);
@@ -2402,8 +2402,8 @@ namespace compiler::input {
 
   // ir::Index Parser::FromStatement(ir::Index parent, ir::Index subject, ir::Index when_end) {
   //   // from (cond1) [has|is|from (condN)] { body }
-  //   ir::Index entry = Create(ir::symbol::Type::Label, parent);
-  //   ir::Index exit = Create(ir::symbol::Type::Label, parent);
+  //   ir::Index entry = Create(ir::symbol::Kind::Label, parent);
+  //   ir::Index exit = Create(ir::symbol::Kind::Label, parent);
 
   //   if (cursor.Match(ir::Token::From)) {
   //     WhiteSpace(parent);
@@ -2456,7 +2456,7 @@ namespace compiler::input {
 
   // ir::Index Parser::WhenStatement(ir::Index parent) {
   //   // Simplified: default must be last; each arm has a body; no cross-arm fallthrough.
-  //   ir::Index statement = Open(ir::symbol::Type::When, parent);
+  //   ir::Index statement = Open(ir::symbol::Kind::When, parent);
 
   //   if (!cursor.Match(ir::Token::When)) {
   //     return ReportError(ir::Error::ParserExpectedWhenKeyword, statement);
@@ -2472,7 +2472,7 @@ namespace compiler::input {
   //   }
   //   WhiteSpace(statement);
 
-  //   ir::Index when_end = Create(ir::symbol::Type::Label, statement);
+  //   ir::Index when_end = Create(ir::symbol::Kind::Label, statement);
   //   bool default_seen = false;
 
   //   while (!cursor.Done() && cursor.Peek() != ir::Token::ScopeClose) {

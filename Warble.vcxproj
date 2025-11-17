@@ -73,7 +73,7 @@
     <ClCompile Include="src\compiler\ir\Token.ixx" />
     <ClCompile Include="src\compiler\ir\symbol\Flag.ixx" />
     <ClCompile Include="src\compiler\ir\symbol\Registers.ixx" />
-    <ClCompile Include="src\compiler\ir\symbol\Type.ixx" />
+    <ClCompile Include="src\compiler\ir\symbol\Kind.ixx" />
 
     <ClCompile Include="src\compiler\output\Allocator.ixx" />
     <ClCompile Include="src\compiler\output\Encoder.ixx" />

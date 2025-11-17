@@ -5,7 +5,7 @@ import <cstddef>;
 import <bitset>;
 import <vector>;
 import compiler.ir.Index;
-import compiler.ir.symbol.Type;
+import compiler.ir.symbol.Kind;
 
 // ────────────────────────────────────────────────────────────────
 //  Symbols table: columnar (SoA) style representation of Symbol data
@@ -22,14 +22,13 @@ import compiler.ir.symbol.Type;
 
 // TODO:
 // - Subdivide `flags` into multiple columns for better cache locality
-// - Get rid of `last_tokens`, it can always be inferred via iterating tokens or looking at the subtree end's first token
 // - Get rid of `names`, only declarations need names, and they can be stored in the payload
 // - The `parents` could be shrunk to be a `uint8_t` if `255` means it's out of range, fall back to a search.
 namespace compiler::ir {
   export class Symbols {
   private:
     std::vector<uint64_t> registers; // Live-range bitset
-    std::vector<ir::symbol::Type> types; // Symbol types
+    std::vector<ir::symbol::Kind> types; // Symbol types
     std::vector<uint64_t> flags; // Modifiers, type information, etc
     std::vector<uint64_t> payloads; // A generic typeless field: immediate literal, pointer/index, etc
     std::vector<int32_t> displacements; // Byte offset from the parent for runtime memory layout
@@ -37,8 +36,7 @@ namespace compiler::ir {
     std::vector<ir::Index> parents;
     std::vector<ir::Index> names; // A string or enum literal symbol or 0 for undefined
 
-    std::vector<uint32_t> first_tokens; // The index of the first token that defined this symbol
-    std::vector<uint32_t> last_tokens; // The index of the last token that defined this symbol
+    std::vector<uint32_t> tokens; // The index of the first token that defined this symbol
   public:
     Symbols() = default;
     Symbols(Symbols&&) noexcept = default;
@@ -47,22 +45,17 @@ namespace compiler::ir {
     Symbols& operator=(const Symbols&) = delete;
 
     uint64_t Registers(ir::Index i) const { return registers[i.Row()]; }
+    ir::symbol::Kind Type(ir::Index i) const { return types[i.Row()]; }
     uint64_t Flags(ir::Index i) const { return flags[i.Row()]; }
     uint64_t Payload(ir::Index i) const { return payloads[i.Row()]; }
     uint32_t Size(ir::Index i) const { return static_cast<uint32_t>(Payload(i) & 0xFFFFFFFFu); }
     int32_t Displacement(ir::Index i) const { return displacements[i.Row()]; }
     ir::Index Parent(ir::Index i) const { return parents[i.Row()]; }
     ir::Index Name(ir::Index i) const { return names[i.Row()]; }
-    uint32_t FirstToken(ir::Index i) const { return first_tokens[i.Row()]; }
-    uint32_t LastToken(ir::Index i) const { return last_tokens[i.Row()]; }
-
-    ir::symbol::Type Type(ir::Index i) const {
-      // First byte of flags stores the Type enum value; mask low 8 bits
-      auto v = Flags(i);
-      return static_cast<ir::symbol::Type>(static_cast<uint8_t>(v & 0xFFull));
-    }
+    uint32_t Token(ir::Index i) const { return tokens[i.Row()]; }
 
     void Registers(ir::Index i, uint64_t v) { registers[i.Row()] = v; }
+    void Type(ir::Index i, ir::symbol::Kind v) { types[i.Row()] = v; }
     void Flags(ir::Index i, uint64_t v) { flags[i.Row()] = v; }
     void Payload(ir::Index i, uint64_t v) { payloads[i.Row()] = v; }
     void Payload(ir::Index i, uint32_t a, uint32_t b) { Payload(i, (static_cast<uint64_t>(a) << 32) | b); }
@@ -70,15 +63,7 @@ namespace compiler::ir {
     void Displacement(ir::Index i, int32_t v) { displacements[i.Row()] = v; }
     void Parent(ir::Index i, ir::Index v) { parents[i.Row()] = v; }
     void Name(ir::Index i, ir::Index v) { names[i.Row()] = v; }
-    void FirstToken(ir::Index i, uint32_t v) { first_tokens[i.Row()] = v; }
-    void LastToken(ir::Index i, uint32_t v) { last_tokens[i.Row()] = v; }
-
-    void Type(ir::Index i, ir::symbol::Type v) {
-      // Replace the first byte of flags with the Type
-      auto current = Flags(i);
-      auto updated = (current & ~0xFFull) | static_cast<uint8_t>(v);
-      Flags(i, updated);
-    }
+    void Token(ir::Index i, uint32_t v) { tokens[i.Row()] = v; }
 
     bool IsValid(ir::Index i) const {
       return i.Row() < Count();
@@ -86,20 +71,16 @@ namespace compiler::ir {
 
     bool IsScope(ir::Index i) const {
       switch (Type(i)) {
-        case ir::symbol::Type::IfHeader:
-        case ir::symbol::Type::IfThen:
-        case ir::symbol::Type::IfElse:
-        case ir::symbol::Type::IfJoin:
-        case ir::symbol::Type::Function:
-        case ir::symbol::Type::Module:
-        case ir::symbol::Type::If:
-        case ir::symbol::Type::ElseIf:
-        case ir::symbol::Type::Else:
-        case ir::symbol::Type::When:
-        case ir::symbol::Type::For:
-        case ir::symbol::Type::Repeat:
-        case ir::symbol::Type::While:
-        case ir::symbol::Type::Do:
+        case ir::symbol::Kind::Function:
+        case ir::symbol::Kind::Module:
+        case ir::symbol::Kind::If:
+        case ir::symbol::Kind::ElseIf:
+        case ir::symbol::Kind::Else:
+        case ir::symbol::Kind::When:
+        case ir::symbol::Kind::For:
+        case ir::symbol::Kind::Repeat:
+        case ir::symbol::Kind::While:
+        case ir::symbol::Kind::Do:
           return true;
         default:
           return false;
@@ -108,9 +89,9 @@ namespace compiler::ir {
 
     bool IsLoop(ir::Index i) const {
       switch (Type(i)) {
-        case ir::symbol::Type::For:
-        case ir::symbol::Type::While:
-        case ir::symbol::Type::Repeat:
+        case ir::symbol::Kind::For:
+        case ir::symbol::Kind::While:
+        case ir::symbol::Kind::Repeat:
           return true;
         default:
           return false;
@@ -119,8 +100,8 @@ namespace compiler::ir {
 
     bool IsContext(ir::Index i) const {
       switch (Type(i)) {
-        case ir::symbol::Type::Function:
-        case ir::symbol::Type::Module:
+        case ir::symbol::Kind::Function:
+        case ir::symbol::Kind::Module:
           return true;
         default:
           return false;
@@ -129,26 +110,22 @@ namespace compiler::ir {
 
     bool IsStructured(ir::Index i) const {
       switch (Type(i)) {
-        case ir::symbol::Type::IfHeader:
-        case ir::symbol::Type::IfThen:
-        case ir::symbol::Type::IfElse:
-        case ir::symbol::Type::IfJoin:
-        case ir::symbol::Type::Function:
-        case ir::symbol::Type::Module:
-        case ir::symbol::Type::Object:
-        case ir::symbol::Type::Array:
-        case ir::symbol::Type::Enum:
-        case ir::symbol::Type::Tuple:
-        case ir::symbol::Type::TemplateString:
-        case ir::symbol::Type::Error:
-        case ir::symbol::Type::If:
-        case ir::symbol::Type::ElseIf:
-        case ir::symbol::Type::Else:
-        case ir::symbol::Type::When:
-        case ir::symbol::Type::For:
-        case ir::symbol::Type::Repeat:
-        case ir::symbol::Type::While:
-        case ir::symbol::Type::Do:
+        case ir::symbol::Kind::Function:
+        case ir::symbol::Kind::Module:
+        case ir::symbol::Kind::Object:
+        case ir::symbol::Kind::Array:
+        case ir::symbol::Kind::Enum:
+        case ir::symbol::Kind::Tuple:
+        case ir::symbol::Kind::TemplateString:
+        case ir::symbol::Kind::Error:
+        case ir::symbol::Kind::If:
+        case ir::symbol::Kind::ElseIf:
+        case ir::symbol::Kind::Else:
+        case ir::symbol::Kind::When:
+        case ir::symbol::Kind::For:
+        case ir::symbol::Kind::Repeat:
+        case ir::symbol::Kind::While:
+        case ir::symbol::Kind::Do:
           return true;
         default:
           return false;
@@ -158,15 +135,15 @@ namespace compiler::ir {
     ir::Index FirstChild(ir::Index i) const {
       if (!IsStructured(i)) return ir::Index{};
 
-      ir::Index next{index + 1};
+      ir::Index next{i.Row() + 1};
+      if (IsValid(next)) return next;
 
-      if (!next.IsValid(i) || next.Parent(i) != *this) return ir::Index{};
-
-      return next;
+      return ir::Index{};
     }
 
     ir::Index LastChild(ir::Index i) const {
       if (!IsStructured(i)) return ir::Index{};
+
       uint64_t value = Payload(i);
       uint32_t end = static_cast<uint32_t>(value >> 32);
 
@@ -174,43 +151,43 @@ namespace compiler::ir {
     }
 
     ir::Index Scope(ir::Index i) const {
-      if (IsScope(i)) return *this;
+      if (IsScope(i)) return i;
 
-      auto parent = Parent(i);
-      if (parent.IsValid(i)) return parent.Scope(i);
+      ir::Index parent = Parent(i);
+      if (parent) return Scope(parent);
 
       return ir::Index{};
     }
 
     ir::Index Loop(ir::Index i) const {
-      if (IsLoop(i)) return *this;
+      if (IsLoop(i)) return i;
 
       auto parent = Parent(i);
-      if (parent.IsValid(i)) return parent.Loop(i);
+      if (parent) return Loop(parent);
 
       return ir::Index{};
     }
 
     ir::Index Context(ir::Index i) const {
-      if (IsContext(i)) return *this;
+      if (IsContext(i)) return i;
 
       auto parent = Parent(i);
-      if (parent.IsValid(i)) return parent.Context(i);
+      if (parent) return Context(parent);
 
       return ir::Index{};
     }
 
-    ir::Index Add(ir::symbol::Type type) {
-      ir::Index index = static_cast<uint32_t>(payloads.size()); // Take the size of any column, they should all be the same
+    ir::Index Add(ir::symbol::Kind type) {
+      ir::Index index{static_cast<uint32_t>(payloads.size())}; // Take the size of any column, they should all be the same
 
       registers.emplace_back(0);
-      flags.emplace_back(static_cast<uint64_t>(type));
+      types.emplace_back(type);
+      flags.emplace_back(0);
       payloads.push_back(0);
       displacements.push_back(0);
       parents.push_back({});
       names.push_back({});
-      first_tokens.push_back(0);
-      last_tokens.push_back(0);
+      tokens.push_back(0);
 
       return index;
     }
@@ -219,13 +196,13 @@ namespace compiler::ir {
 
     void Resize(size_t n) {
       registers.resize(n);
+      types.resize(n);
       flags.resize(n);
       payloads.resize(n);
       displacements.resize(n);
       parents.resize(n);
       names.resize(n);
-      first_tokens.resize(n);
-      last_tokens.resize(n);
+      tokens.resize(n);
     }
   };
 };
