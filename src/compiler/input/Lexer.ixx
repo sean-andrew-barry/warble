@@ -75,7 +75,7 @@ namespace compiler::input {
   }) | DIGIT;
 
   inline constexpr auto STATEMENT_START = MakeBitset([](auto& bs){
-    for (char c : "bcdefirwt;") bs.set(c);
+    for (char c : "bcdefilrwt;") bs.set(c);
   });
 
   inline constexpr auto UNARY_PREFIX_START = MakeBitset([](auto& bs){
@@ -335,6 +335,7 @@ namespace compiler::input {
     bool Else();
     bool Do();
     bool While();
+    bool Loop();
     bool Repeat();
     bool Is();
     bool In();
@@ -507,6 +508,7 @@ namespace compiler::input {
     bool TryStatement();
     bool ElseStatement();
     bool ForStatement();
+    bool LoopStatement();
     bool RepeatStatement();
     bool WhileStatement();
     bool IsPattern();

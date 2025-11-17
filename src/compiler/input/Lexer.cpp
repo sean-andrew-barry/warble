@@ -348,6 +348,7 @@ namespace compiler::input {
   bool Lexer::Else() { return Keyword("else", ir::Token::Else); }
   bool Lexer::Do() { return Keyword("do", ir::Token::Do); }
   bool Lexer::While() { return Keyword("while", ir::Token::While); }
+  bool Lexer::Loop() { return Keyword("loop", ir::Token::Loop); }
   bool Lexer::Repeat() { return Keyword("repeat", ir::Token::Repeat); }
   bool Lexer::Is() { return Keyword("is", ir::Token::Is); }
   bool Lexer::In() { return Keyword("in", ir::Token::In); }
@@ -2164,6 +2165,14 @@ namespace compiler::input {
     return true;
   }
 
+  bool Lexer::LoopStatement() {
+    if (!Loop()) return false;
+
+    if (!Block()) return Error(ir::Error::LoopExpectedScopeBlock);
+
+    return true;
+  }
+
   bool Lexer::ElseStatement() {
     if (!Else()) return false;
 
@@ -2257,9 +2266,9 @@ namespace compiler::input {
 
     if (!Block()) return Error(ir::Error::RepeatExpectedScopeBlock);
 
-    if (While()) {
-      if (!Condition()) return Error(ir::Error::RepeatExpectedWhileCondition);
-    }
+    if (!While()) return Error(ir::Error::RepeatExpectedWhileKeyword);
+
+    if (!Condition()) return Error(ir::Error::RepeatExpectedWhileCondition);
 
     return true;
   }
@@ -2289,6 +2298,7 @@ namespace compiler::input {
       case 'd': return DoStatement();
       case 'f': return ForStatement();
       case 'i': return IfStatement() || ImportStatement();
+      case 'l': return LoopStatement();
       case 't': return TryStatement();
       case 'r': return ReturnStatement() || RegisterStatement() || RepeatStatement();
       case 'w': return WhileStatement();

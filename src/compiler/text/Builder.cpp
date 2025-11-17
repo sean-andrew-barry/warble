@@ -319,6 +319,7 @@ namespace compiler::text {
       case compiler::ir::Token::Export: output += "Export"; return;
       case compiler::ir::Token::For: output += "For"; return;
       case compiler::ir::Token::While: output += "While"; return;
+      case compiler::ir::Token::Loop: output += "Loop"; return;
       case compiler::ir::Token::Repeat: output += "Repeat"; return;
       case compiler::ir::Token::In: output += "In"; return;
       case compiler::ir::Token::Break: output += "Break"; return;
@@ -427,6 +428,7 @@ namespace compiler::text {
       case compiler::ir::Error::RegisterExpectedIdentifierAfterWith: output += "RegisterExpectedIdentifierAfterWith"; return;
       case compiler::ir::Error::RegisterExpectedSemicolon: output += "RegisterExpectedSemicolon"; return;
       case compiler::ir::Error::DoExpectedScopeBlock: output += "DoExpectedScopeBlock"; return;
+      case compiler::ir::Error::LoopExpectedScopeBlock: output += "LoopExpectedScopeBlock"; return;
       case compiler::ir::Error::WhileExpectedCondition: output += "WhileExpectedCondition"; return;
       case compiler::ir::Error::WhileExpectedScopeBlock: output += "WhileExpectedScopeBlock"; return;
       case compiler::ir::Error::IfExpectedCondition: output += "IfExpectedCondition"; return;
@@ -444,6 +446,7 @@ namespace compiler::text {
       case compiler::ir::Error::UnaryPrefixOperatorExpectedExpression: output += "UnaryPrefixOperatorExpectedExpression"; return;
       case compiler::ir::Error::BinaryOperatorExpectedExpression: output += "BinaryOperatorExpectedExpression"; return;
       case compiler::ir::Error::RepeatExpectedScopeBlock: output += "RepeatExpectedScopeBlock"; return;
+      case compiler::ir::Error::RepeatExpectedWhileKeyword: output += "RepeatExpectedWhileKeyword"; return;
       case compiler::ir::Error::RepeatExpectedWhileCondition: output += "RepeatExpectedWhileCondition"; return;
       case compiler::ir::Error::ForExpectedConditionOpen: output += "ForExpectedConditionOpen"; return;
       case compiler::ir::Error::ForExpectedBinding: output += "ForExpectedBinding"; return;

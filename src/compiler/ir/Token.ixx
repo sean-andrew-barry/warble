@@ -237,7 +237,8 @@ namespace compiler::ir {
     Export, // `export` - Modifier applied to declarations to make them available to `import` statements
     For, // `for` - Used for iterating over collections
     While, // `while` - Used for conditional loops
-    Repeat, // `repeat` - Used for unconditional loops, or can be augmented with a trailing `while` condition
+    Loop, // `loop` - Used for unconditional loops
+    Repeat, // `repeat` - Used for post-checked loops that require a trailing `while` condition
     In, // `in` - Used inside `for` loops
     Break, // `break` - Used to exit loops, can be stacked
     Continue, // `continue` - Used to skip the current iteration of a loop, can be stacked
