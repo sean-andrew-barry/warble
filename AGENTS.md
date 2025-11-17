@@ -4,3 +4,4 @@
 - The namespace system is a straight forward mapping to the directory structure, excluding the initial `src` directory. For example, `src/compiler/input/Lexer.ixx` can be referenced as `compiler::input::Lexer` or imported with `import compiler.input.Lexer;`. Obviously this goes both ways, so you can always convert from namespace to path and vice versa.
 - The project now compiles and runs. Use the VS Code tasks "Compile (Debug)" or "Compile (Release)" to build via MSBuild for x64.
 - Currently there is no testing system, so no tests to run.
+- Known issue (Nov 2025): VS Code task runs triggered by the agent can occasionally report success even when `msbuild` fails. Always skim the tail of the `Compile (Debug)` terminal output or rerun the command manually before assuming a build passed, until this bug is fixed.
