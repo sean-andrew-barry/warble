@@ -2286,15 +2286,11 @@ namespace compiler::input {
   bool Lexer::ForStatement() {
     if (!For()) return false;
 
-    if (!ConditionOpen()) return Error(ir::Error::ForExpectedConditionOpen);
-
     if (!Declaration()) return Error(ir::Error::ForExpectedBinding);
 
     if (!In()) return Error(ir::Error::ForExpectedInKeyword);
 
-    if (!Expression()) return Error(ir::Error::ForExpectedExpression);
-
-    if (!ConditionClose()) return Error(ir::Error::ForExpectedConditionClose);
+    if (!Condition()) return Error(ir::Error::ForExpectedCondition);
 
     if (!Block()) return Error(ir::Error::ForExpectedScopeBlock);
 

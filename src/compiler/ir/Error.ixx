@@ -112,11 +112,9 @@ namespace compiler::ir {
     RepeatExpectedScopeBlock,
     RepeatExpectedWhileKeyword,
     RepeatExpectedWhileCondition,
-    ForExpectedConditionOpen,
     ForExpectedBinding,
     ForExpectedInKeyword,
-    ForExpectedExpression,
-    ForExpectedConditionClose,
+    ForExpectedCondition,
     ForExpectedScopeBlock,
 
     // Parser errors

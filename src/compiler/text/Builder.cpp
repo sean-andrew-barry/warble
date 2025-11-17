@@ -450,11 +450,9 @@ namespace compiler::text {
       case compiler::ir::Error::RepeatExpectedScopeBlock: output += "RepeatExpectedScopeBlock"; return;
       case compiler::ir::Error::RepeatExpectedWhileKeyword: output += "RepeatExpectedWhileKeyword"; return;
       case compiler::ir::Error::RepeatExpectedWhileCondition: output += "RepeatExpectedWhileCondition"; return;
-      case compiler::ir::Error::ForExpectedConditionOpen: output += "ForExpectedConditionOpen"; return;
       case compiler::ir::Error::ForExpectedBinding: output += "ForExpectedBinding"; return;
       case compiler::ir::Error::ForExpectedInKeyword: output += "ForExpectedInKeyword"; return;
-      case compiler::ir::Error::ForExpectedExpression: output += "ForExpectedExpression"; return;
-      case compiler::ir::Error::ForExpectedConditionClose: output += "ForExpectedConditionClose"; return;
+      case compiler::ir::Error::ForExpectedCondition: output += "ForExpectedCondition"; return;
       case compiler::ir::Error::ForExpectedScopeBlock: output += "ForExpectedScopeBlock"; return;
       case compiler::ir::Error::ParserExpectedObjectDeclaration: output += "ParserExpectedObjectDeclaration"; return;
       case compiler::ir::Error::ParserBreakOutsideLoop: output += "ParserBreakOutsideLoop"; return;
