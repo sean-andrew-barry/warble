@@ -75,7 +75,7 @@ namespace compiler::input {
   }) | DIGIT;
 
   inline constexpr auto STATEMENT_START = MakeBitset([](auto& bs){
-    for (char c : "bcdefilrwt;") bs.set(c);
+    for (char c : "bcdefilprwt;") bs.set(c);
   });
 
   inline constexpr auto UNARY_PREFIX_START = MakeBitset([](auto& bs){
@@ -351,6 +351,7 @@ namespace compiler::input {
     bool Break();
     bool Continue();
     bool Return();
+    bool Panic();
     bool Case();
     bool Yield();
     bool Let();
@@ -502,6 +503,7 @@ namespace compiler::input {
     bool BreakStatement();
     bool ContinueStatement();
     bool ReturnStatement();
+    bool PanicStatement();
     bool YieldStatement();
     bool DoStatement();
     bool IfStatement();

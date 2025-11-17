@@ -105,6 +105,7 @@ namespace compiler::ir {
     BreakStatementExpectedSemicolon,
     ContinueStatementExpectedSemicolon,
     ReturnStatementExpectedSemicolon,
+    PanicStatementExpectedSemicolon,
     YieldStatementExpectedSemicolon,
     UnaryPrefixOperatorExpectedExpression,
     BinaryOperatorExpectedExpression,

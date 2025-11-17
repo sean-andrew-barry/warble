@@ -231,6 +231,7 @@ namespace compiler::ir {
     If, // `if` - Used for conditional statements
     Try, // `try` - Used to declare a try block
     Return, // `return` - Used to return a value from a function
+    Panic, // `panic` - Used to abort the current execution path with an error
     When, // `when` - Used for pattern matching, sometimes known as `match` in other languages
     Is, // `is` - Used for type checking
     Has, // `has` - Used in `when` statements

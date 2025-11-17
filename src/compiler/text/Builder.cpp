@@ -313,6 +313,7 @@ namespace compiler::text {
       case compiler::ir::Token::If: output += "If"; return;
       case compiler::ir::Token::Try: output += "Try"; return;
       case compiler::ir::Token::Return: output += "Return"; return;
+      case compiler::ir::Token::Panic: output += "Panic"; return;
       case compiler::ir::Token::When: output += "When"; return;
       case compiler::ir::Token::Is: output += "Is"; return;
       case compiler::ir::Token::Has: output += "Has"; return;
@@ -442,6 +443,7 @@ namespace compiler::text {
       case compiler::ir::Error::BreakStatementExpectedSemicolon: output += "BreakStatementExpectedSemicolon"; return;
       case compiler::ir::Error::ContinueStatementExpectedSemicolon: output += "ContinueStatementExpectedSemicolon"; return;
       case compiler::ir::Error::ReturnStatementExpectedSemicolon: output += "ReturnStatementExpectedSemicolon"; return;
+      case compiler::ir::Error::PanicStatementExpectedSemicolon: output += "PanicStatementExpectedSemicolon"; return;
       case compiler::ir::Error::YieldStatementExpectedSemicolon: output += "YieldStatementExpectedSemicolon"; return;
       case compiler::ir::Error::UnaryPrefixOperatorExpectedExpression: output += "UnaryPrefixOperatorExpectedExpression"; return;
       case compiler::ir::Error::BinaryOperatorExpectedExpression: output += "BinaryOperatorExpectedExpression"; return;

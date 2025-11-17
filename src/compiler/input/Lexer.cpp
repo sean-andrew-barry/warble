@@ -364,6 +364,7 @@ namespace compiler::input {
   bool Lexer::Break() { return Keyword("break", ir::Token::Break); }
   bool Lexer::Continue() { return Keyword("continue", ir::Token::Continue); }
   bool Lexer::Return() { return Keyword("return", ir::Token::Return); }
+  bool Lexer::Panic() { return Keyword("panic", ir::Token::Panic); }
   bool Lexer::Case() { return Keyword("case", ir::Token::Case); }
   bool Lexer::Yield() { return Keyword("yield", ir::Token::Yield); }
   bool Lexer::Let() { return Keyword("let", ir::Token::Let); }
@@ -2148,6 +2149,15 @@ namespace compiler::input {
     return true;
   }
 
+  bool Lexer::PanicStatement() {
+    if (!Panic()) return false;
+    Expression(); // optional
+
+    if (!Semicolon()) return Error(ir::Error::PanicStatementExpectedSemicolon);
+
+    return true;
+  }
+
   bool Lexer::YieldStatement() {
     if (!Yield()) return false;
     Expression(); // optional
@@ -2299,6 +2309,7 @@ namespace compiler::input {
       case 'f': return ForStatement();
       case 'i': return IfStatement() || ImportStatement();
       case 'l': return LoopStatement();
+      case 'p': return PanicStatement();
       case 't': return TryStatement();
       case 'r': return ReturnStatement() || RegisterStatement() || RepeatStatement();
       case 'w': return WhileStatement();
