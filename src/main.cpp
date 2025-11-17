@@ -12,7 +12,7 @@ import <filesystem>;
 
 // Temporary just for fast experiments without running the whole pipeline
 void Test() {
-	compiler::fs::File file{std::filesystem::path{"E:/Users/Sean/Source/Repos/warble/local/tests/main.wbl"}};
+	compiler::fs::File file{"E:/Users/Sean/Source/Repos/warble/local/tests/main.wbl"};
 
 	compiler::utility::Print("Starting compiler engine loop... ", std::this_thread::get_id());
 
