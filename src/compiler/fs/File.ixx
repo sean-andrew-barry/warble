@@ -5,6 +5,7 @@ import compiler.fs.ID;
 
 import <filesystem>;
 import <string>;
+import <string_view>;
 import <utility>;
 
 namespace compiler::fs {
@@ -25,6 +26,10 @@ namespace compiler::fs {
         (void)compiler::utility::OS::GetFileID(handle, file_id.Data());
       }
     }
+
+    explicit File(std::string_view p)
+      : File(std::filesystem::path{p})
+    {}
 
     explicit File(std::filesystem::path&& p)
       : path{std::move(p)}, handle{compiler::utility::OS::InvalidNativeHandle}, file_id{}
