@@ -21,28 +21,7 @@ void Test() {
 
 	compiler::utility::Print(result ? "Lexing succeeded: " : "Lexing failed: ", lexer.Tokens().size(), " tokens and ", lexer.Errors().size(), " errors and ", lexer.Characters().size(), " characters.");
 
-	compiler::text::Builder builder{};
-	builder.Append(lexer);
-
-	// compiler::utility::Print(lexer);
-	compiler::utility::Print(builder.ToString());
-
-	// compiler::utility::Print(lexer.Characters());
-
-	// auto tokens = std::move(lexer).Tokens();
-	// compiler::utility::Print(tokens);
-	// compiler::utility::Print("Errors:", std::move(lexer).Errors());
-	// // for (auto t : tokens) {
-	// // 	compiler::utility::Print(t);
-	// // }
-
-	// auto characters = std::move(lexer).Characters();
-	// auto limbs = std::move(lexer).Limbs();
-	// // compiler::utility::Print(characters);
-	// for (auto cp : characters) {
-	// 	compiler::utility::Write(cp);
-	// }
-	// compiler::utility::Print("\nlimbs:", limbs.size());
+	compiler::utility::Print(lexer);
 }
 
 int main(int argc, char* argv[]) {
