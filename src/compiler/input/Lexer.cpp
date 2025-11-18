@@ -2063,7 +2063,7 @@ namespace compiler::input {
   bool Lexer::Captures() {
     if (!CaptureOpen()) return false;
 
-    ZeroOrMore([&]{ return Declaration(); }, [&]{ return Comma(); });
+    ZeroOrMore([&]{ return ThisLiteral() || ThatLiteral() || Declaration(); }, [&]{ return Comma(); });
 
     // TODO: Wrong error, need to make a new one for captures
     if (!CaptureClose()) return Error(ir::Error::TupleExpectedClosingParenthesis);
