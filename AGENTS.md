@@ -5,3 +5,5 @@
 - The project now compiles and runs. Use the VS Code tasks "Compile (Debug)" or "Compile (Release)" to build via MSBuild for x64.
 - Currently there is no testing system, so no tests to run.
 - Known issue (Nov 2025): VS Code task runs triggered by the agent can occasionally report success even when `msbuild` fails. Always skim the tail of the `Compile (Debug)` terminal output or rerun the command manually before assuming a build passed, until this bug is fixed.
+- After adding a new file, it must be included in `Warble.vcxproj` to be included in the build. When a file is removed, it must be removed from `Warble.vcxproj` as well.
+- The default indentation should be 2 spaces. Tabs are not used.
