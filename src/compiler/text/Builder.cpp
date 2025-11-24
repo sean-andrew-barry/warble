@@ -595,11 +595,11 @@ namespace compiler::text {
   void Builder::Append(const compiler::ir::Instruction& instruction) {
     Append(instruction.Opcode());
     output += '(';
-    Append(instruction.Dest());
+    Append(instruction.Result());
     output += ", ";
-    Append(instruction.LHS());
+    Append(instruction.Primary());
     output += ", ";
-    Append(instruction.RHS());
+    Append(instruction.Secondary());
     output += ')';
   }
 

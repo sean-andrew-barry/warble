@@ -42,9 +42,9 @@ namespace compiler::ir {
       registers[1] = r1;
       registers[2] = r2;
     }
-    constexpr void SetDest(Index value) noexcept { operands[0] = value; }
-    constexpr void SetLHS(Index value) noexcept { operands[1] = value; }
-    constexpr void SetRHS(Index value) noexcept { operands[2] = value; }
+    constexpr void SetResult(Index value) noexcept { operands[0] = value; }
+    constexpr void SetPrimary(Index value) noexcept { operands[1] = value; }
+    constexpr void SetSecondary(Index value) noexcept { operands[2] = value; }
     constexpr void SetOperand(std::size_t index, Index value) noexcept { operands[index] = value; }
 
     // --- Accessors (existing + added) ---
@@ -67,9 +67,9 @@ namespace compiler::ir {
     constexpr compiler::ir::Opcode Opcode() const noexcept { return opcode; }
     constexpr Register Reg(std::size_t index) const noexcept { return registers[index]; }
     constexpr Index Operand(std::size_t index) const noexcept { return operands[index]; }
-    constexpr Index Dest() const noexcept { return operands[0]; }
-    constexpr Index LHS() const noexcept { return operands[1]; }
-    constexpr Index RHS() const noexcept { return operands[2]; }
+    constexpr Index Result() const noexcept { return operands[0]; }
+    constexpr Index Primary() const noexcept { return operands[1]; }
+    constexpr Index Secondary() const noexcept { return operands[2]; }
 
     constexpr bool Is(compiler::ir::Opcode value) const noexcept { return opcode == value; }
   };

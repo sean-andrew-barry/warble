@@ -672,7 +672,7 @@ namespace compiler::input {
   //   int found = -1;
   //   for (int i = static_cast<int>(instructions.size()) - 1; i >= 0; --i) {
   //     const auto& ins = instructions[static_cast<size_t>(i)];
-  //     if (ins.Is(ir::Opcode::Destruct) && (ins.LHS() == symbol || ins.RHS() == symbol || ins.Dest() == symbol)) {
+  //     if (ins.Is(ir::Opcode::Destruct) && (ins.Primary() == symbol || ins.Secondary() == symbol || ins.Result() == symbol)) {
   //       found = i;
   //       break;
   //     }
