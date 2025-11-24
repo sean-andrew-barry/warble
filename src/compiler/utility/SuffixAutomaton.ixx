@@ -10,14 +10,6 @@ import <concepts>;
 namespace compiler::utility {
   export template<typename Symbol>
   class SuffixAutomaton {
-  private:
-    std::vector<State> states;
-    int last_state;
-    std::size_t text_length;
-
-    [[nodiscard]] bool HasTransition(int state_index, const Symbol& symbol) const {
-      return states[state_index].next.contains(symbol);
-    }
   public:
     static_assert(std::default_initializable<Symbol>, "Symbol must be default-constructible");
     static_assert(std::copy_constructible<Symbol>, "Symbol must be copy-constructible");
@@ -34,7 +26,15 @@ namespace compiler::utility {
       int first_pos = -1;          // End position of the representative substring
       std::unordered_map<Symbol, int> next; // Transitions
     };
+  private:
+    std::vector<State> states;
+    int last_state;
+    std::size_t text_length;
 
+    [[nodiscard]] bool HasTransition(int state_index, const Symbol& symbol) const {
+      return states[state_index].next.contains(symbol);
+    }
+  public:
     explicit SuffixAutomaton(std::size_t reserve_states = 0) : states{}, last_state{0}, text_length{0} {
       states.reserve(reserve_states > 0 ? reserve_states : 2ULL);
       states.emplace_back();
