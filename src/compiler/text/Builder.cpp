@@ -303,7 +303,7 @@ namespace compiler::text {
       case compiler::ir::Token::Positive: output += "Positive"; return;
       case compiler::ir::Token::Not: output += "Not"; return;
       case compiler::ir::Token::BitwiseNot: output += "BitwiseNot"; return;
-      case compiler::ir::Token::As: output += "As"; return;
+      case compiler::ir::Token::To: output += "To"; return;
       case compiler::ir::Token::Do: output += "Do"; return;
       case compiler::ir::Token::Else: output += "Else"; return;
       case compiler::ir::Token::Register: output += "Register"; return;

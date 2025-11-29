@@ -205,6 +205,7 @@ namespace compiler::ir {
     BitwiseAssignAnd, // `&=`
     BitwiseAssignXor, // `^=`
     BitwiseAssignOr, // `|=`
+    To, // `to` - Binary operator used for type conversions
     Await, // `await` - Unary prefix keyword used to wait for a promise to resolve
     Async, // `async` - Marks asynchronous imports and functions
     Expect, // `expect` - Unary prefix keyword used for assertions in tests
@@ -220,7 +221,6 @@ namespace compiler::ir {
     Positive, // `+` - Unary prefix used to indicate a positive value
     Not, // `!` - Unary prefix used for logical NOT
     BitwiseNot, // `~` - Unary prefix used for bitwise NOT
-    As, // `as` - Used for aliasing
     Do, // `do` - Used to declare an unconditional scope block
     Else, // `else` - Used for conditional statements
     Register, // `register` - Used to define a new package

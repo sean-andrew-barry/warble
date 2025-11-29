@@ -354,7 +354,6 @@ namespace compiler::input {
   bool Lexer::Is() { return Keyword("is", ir::Token::Is); }
   bool Lexer::In() { return Keyword("in", ir::Token::In); }
   bool Lexer::For() { return Keyword("for", ir::Token::For); }
-  bool Lexer::As() { return Keyword("as", ir::Token::As); }
   bool Lexer::Default() { return Keyword("default", ir::Token::Default); }
   bool Lexer::Auto() { return Keyword("auto", ir::Token::Auto); }
   bool Lexer::Void() { return Keyword("void", ir::Token::Void); }
@@ -1535,6 +1534,15 @@ namespace compiler::input {
           case ':': return EmitAndAdvance(ir::Token::MemberAccessStatic, 2);
           default:  return false;
         }
+      }
+      case 't': {
+        if (cursor.Peek(1) == 'o') {
+          const char trailing = cursor.Peek(2);
+          if (!IsIdent(trailing)) {
+            return EmitAndAdvance(ir::Token::To, 2);
+          }
+        }
+        return false;
       }
       default: return false;
     }

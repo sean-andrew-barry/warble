@@ -95,7 +95,7 @@ namespace compiler::input {
   });
 
   inline constexpr auto BINARY_START = MakeBitset([](auto& bs){
-    for (char c : "!=<>+-*/%^?&|oawu.:") bs.set(c);
+    for (char c : "!=<>+-*/%^?&|oawut.:") bs.set(c);
   });
 
   inline constexpr auto MODIFIER_START = MakeBitset([](auto& bs){
@@ -341,7 +341,6 @@ namespace compiler::input {
     bool Is();
     bool In();
     bool For();
-    bool As();
     bool Default();
     bool Auto();
     bool Void();
