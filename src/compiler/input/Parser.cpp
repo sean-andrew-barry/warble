@@ -414,10 +414,10 @@ namespace compiler::input {
   int Parser::Precedence(ir::Token token) const {
     switch (token) {
       // Property / member access (highest)
-      case ir::Token::MemberAccess: // x.y
-      case ir::Token::MemberAccessStatic: // x:y
-      case ir::Token::MemberAccessOptional: // x?.y
-      case ir::Token::MemberAccessStaticOptional: // x?:y
+      case ir::Token::MemberReference: // x.y
+      case ir::Token::MutableMemberReference: // x:y
+      case ir::Token::OptionalMemberReference: // x?.y
+      case ir::Token::OptionalMutableMemberReference: // x?:y
         return 20;
 
       // Function calls

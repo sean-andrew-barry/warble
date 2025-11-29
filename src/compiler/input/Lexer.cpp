@@ -1483,8 +1483,8 @@ namespace compiler::input {
       }
       case '?': {
         switch (cursor.Peek(1)) {
-          case '.': return EmitAndAdvance(ir::Token::MemberAccessOptional, 2);
-          case ':': return EmitAndAdvance(ir::Token::MemberAccessStaticOptional, 2);
+          case '.': return EmitAndAdvance(ir::Token::OptionalMemberReference, 2);
+          case ':': return EmitAndAdvance(ir::Token::OptionalMutableMemberReference, 2);
           case '?': {
             switch (cursor.Peek(2)) {
               case '=': return EmitAndAdvance(ir::Token::AssignTruthyOr, 3);
@@ -1521,23 +1521,14 @@ namespace compiler::input {
       case '.': {
         switch (cursor.Peek(1)) {
           case '.': return EmitAndAdvance(ir::Token::Range, 2);
-          default: return EmitAndAdvance(ir::Token::MemberAccess, 1);
+          default: return EmitAndAdvance(ir::Token::MemberReference, 1);
         }
       }
       case ':': {
-        switch (cursor.Peek(1)) {
-          case ':': return EmitAndAdvance(ir::Token::MemberAccessStatic, 2);
-          default:  return false;
-        }
+        return EmitAndAdvance(ir::Token::MutableMemberReference, 1);
       }
       case 't': {
-        if (cursor.Peek(1) == 'o') {
-          const char trailing = cursor.Peek(2);
-          if (!IsIdent(trailing)) {
-            return EmitAndAdvance(ir::Token::To, 2);
-          }
-        }
-        return false;
+        return Keyword("to", ir::Token::To);
       }
       default: return false;
     }

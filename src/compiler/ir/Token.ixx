@@ -162,10 +162,10 @@ namespace compiler::ir {
     Range, // `..`
     LesserOrEqual, // `<=`
     Lesser, // `<`
-    MemberAccess, // `.` - Standard identifier based lookup
-    MemberAccessOptional, // `?.` - Returns an optional for the member
-    MemberAccessStatic, // `:` - Used to access static members via a symbol
-    MemberAccessStaticOptional, // `?:` - Returns an optional for the static member
+    MemberReference, // `.` - Standard identifier based lookup
+    OptionalMemberReference, // `?.` - Returns an optional for the member
+    MutableMemberReference, // `:` - Used to access mutable members via a symbol
+    OptionalMutableMemberReference, // `?:` - Returns an optional for the mutable member
     Modulo, // `%`
     Multiply, // `*`
     NotEqual, // `!=`

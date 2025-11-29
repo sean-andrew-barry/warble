@@ -244,10 +244,10 @@ namespace compiler::text {
       case compiler::ir::Token::Range: output += "Range"; return;
       case compiler::ir::Token::LesserOrEqual: output += "LesserOrEqual"; return;
       case compiler::ir::Token::Lesser: output += "Lesser"; return;
-      case compiler::ir::Token::MemberAccess: output += "MemberAccess"; return;
-      case compiler::ir::Token::MemberAccessOptional: output += "MemberAccessOptional"; return;
-      case compiler::ir::Token::MemberAccessStatic: output += "MemberAccessStatic"; return;
-      case compiler::ir::Token::MemberAccessStaticOptional: output += "MemberAccessStaticOptional"; return;
+      case compiler::ir::Token::MemberReference: output += "MemberReference"; return;
+      case compiler::ir::Token::OptionalMemberReference: output += "OptionalMemberReference"; return;
+      case compiler::ir::Token::MutableMemberReference: output += "MutableMemberReference"; return;
+      case compiler::ir::Token::OptionalMutableMemberReference: output += "OptionalMutableMemberReference"; return;
       case compiler::ir::Token::Modulo: output += "Modulo"; return;
       case compiler::ir::Token::Multiply: output += "Multiply"; return;
       case compiler::ir::Token::NotEqual: output += "NotEqual"; return;
