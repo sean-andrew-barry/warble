@@ -187,8 +187,6 @@ namespace compiler::text {
       case compiler::ir::Token::HexStart: output += "HexStart"; return;
       case compiler::ir::Token::OctalStart: output += "OctalStart"; return;
       case compiler::ir::Token::BinaryStart: output += "BinaryStart"; return;
-      case compiler::ir::Token::Plus: output += "Plus"; return;
-      case compiler::ir::Token::Minus: output += "Minus"; return;
       case compiler::ir::Token::CommentOpen: output += "CommentOpen"; return;
       case compiler::ir::Token::CommentClose: output += "CommentClose"; return;
       case compiler::ir::Token::MultiLineCommentOpen: output += "MultiLineCommentOpen"; return;

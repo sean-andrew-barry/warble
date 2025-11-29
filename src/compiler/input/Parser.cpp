@@ -1195,9 +1195,9 @@ namespace compiler::input {
   //     is_float = true;
   //     cursor.Advance();
 
-  //     if (cursor.Peek() == ir::Token::Plus) {
+  //     if (cursor.Peek() == ir::Token::Positive) {
   //       cursor.Advance();
-  //     } else if (cursor.Peek() == ir::Token::Minus) {
+  //     } else if (cursor.Peek() == ir::Token::Negative) {
   //       exponent_negative = true;
   //       cursor.Advance();
   //     }

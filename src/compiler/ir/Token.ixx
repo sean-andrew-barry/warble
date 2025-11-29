@@ -105,8 +105,6 @@ namespace compiler::ir {
     HexStart, // `0x` or `0X`
     OctalStart, // `0o` or `0O`
     BinaryStart, // `0b` or `0B`
-    Plus,
-    Minus,
     CommentOpen, // `//` - Starts a single line comment
     CommentClose, // Simple marker, doesn't represent any characters
     MultiLineCommentOpen, // `/*` - Starts a multi-line comment

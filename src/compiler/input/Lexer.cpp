@@ -1076,10 +1076,10 @@ namespace compiler::input {
         if (!cursor.Done()) {
           if (cursor.Peek() == '+') {
             cursor.Advance();
-            Emit(ir::Token::Plus);
+            Emit(ir::Token::Positive);
           } else if (cursor.Peek() == '-') {
             cursor.Advance();
-            Emit(ir::Token::Minus);
+            Emit(ir::Token::Negative);
             exponent_negative = true;
           }
         }
