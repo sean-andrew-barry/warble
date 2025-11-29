@@ -333,6 +333,7 @@ namespace compiler::input {
 
   bool Lexer::Null() { return Keyword("null", ir::Token::Null); }
   bool Lexer::Undefined() { return Keyword("undefined", ir::Token::Undefined); }
+  bool Lexer::Readonly() { return Keyword("readonly", ir::Token::Readonly); }
   bool Lexer::True() { return Keyword("true", ir::Token::True); }
   bool Lexer::False() { return Keyword("false", ir::Token::False); }
   bool Lexer::This() { return Keyword("this", ir::Token::This); }
@@ -446,6 +447,7 @@ namespace compiler::input {
   bool Lexer::ThisLiteral() { return This(); }
   bool Lexer::ThatLiteral() { return That(); }
   bool Lexer::NullLiteral() { return Null(); }
+  bool Lexer::ReadonlyLiteral() { return Readonly(); }
   bool Lexer::UndefinedLiteral() { return Undefined(); }
 
   bool Lexer::Escape() {
@@ -1897,6 +1899,7 @@ namespace compiler::input {
       case 't': return TrueLiteral() || ThisLiteral() || ThatLiteral();
       case 'f': return FalseLiteral();
       case 'n': return NullLiteral();
+      case 'r': return ReadonlyLiteral();
       case 'u': return UndefinedLiteral();
       case '\'': return CharacterLiteral();
       case '"': return StringLiteral();

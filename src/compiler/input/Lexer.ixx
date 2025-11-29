@@ -71,7 +71,7 @@ namespace compiler::input {
   inline constexpr auto IDENTIFIER = IDENTIFIER_START | DIGIT;
 
   inline constexpr auto TERM_START = MakeBitset([](auto& bs){
-    for (char c : "tfnua'\"`+-([{<.") bs.set(c);
+    for (char c : "tfnrua'\"`+-([{<.") bs.set(c);
   }) | DIGIT;
 
   inline constexpr auto STATEMENT_START = MakeBitset([](auto& bs){
@@ -320,6 +320,7 @@ namespace compiler::input {
 
     bool Null();
     bool Undefined();
+    bool Readonly();
     bool True();
     bool False();
     bool This();
@@ -438,6 +439,7 @@ namespace compiler::input {
     bool ThatLiteral();
     bool NullLiteral();
     bool UndefinedLiteral();
+    bool ReadonlyLiteral();
     bool CharacterLiteral();
     bool StringLiteral();
     bool HexLiteral();

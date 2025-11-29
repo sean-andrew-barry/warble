@@ -225,6 +225,7 @@ namespace compiler::text {
       case compiler::ir::Token::Void: output += "Void"; return;
       case compiler::ir::Token::Undefined: output += "Undefined"; return;
       case compiler::ir::Token::Null: output += "Null"; return;
+      case compiler::ir::Token::Readonly: output += "Readonly"; return;
       case compiler::ir::Token::True: output += "True"; return;
       case compiler::ir::Token::False: output += "False"; return;
       case compiler::ir::Token::This: output += "This"; return;

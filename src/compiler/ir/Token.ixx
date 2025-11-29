@@ -143,6 +143,7 @@ namespace compiler::ir {
     Void, // `void` - Used as the type of `null`
     Undefined, // `undefined`
     Null, // `null`
+    Readonly, // `readonly`
     True, // `true`
     False, // `false`
     This, // `this` - Used in object literals and some statements to refer to the top of the topic stack
