@@ -192,8 +192,7 @@ MemberOperator ::= '.' ;
 ConditionalMemberOperator ::= '?.' ;
 StaticMemberOperator ::= '::' ;
 
-ExclusiveRangeOperator ::= '..';
-InclusiveRangeOperator ::= '...';
+RangeOperator ::= '..';
 
 WrapOperator ::= '!!';
 UnwrapOperator ::= '??';

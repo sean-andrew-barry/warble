@@ -506,8 +506,7 @@ namespace compiler::input {
         return 5;
 
       // Range construction
-      case ir::Token::ExclusiveRange: // x..y
-      case ir::Token::InclusiveRange: // x...y
+      case ir::Token::Range: // x..y
         return 4;
 
       // Assignment family

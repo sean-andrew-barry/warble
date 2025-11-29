@@ -243,8 +243,7 @@ namespace compiler::text {
       case compiler::ir::Token::ExponentOperator: output += "ExponentOperator"; return;
       case compiler::ir::Token::GreaterOrEqual: output += "GreaterOrEqual"; return;
       case compiler::ir::Token::Greater: output += "Greater"; return;
-      case compiler::ir::Token::ExclusiveRange: output += "ExclusiveRange"; return;
-      case compiler::ir::Token::InclusiveRange: output += "InclusiveRange"; return;
+      case compiler::ir::Token::Range: output += "Range"; return;
       case compiler::ir::Token::LesserOrEqual: output += "LesserOrEqual"; return;
       case compiler::ir::Token::Lesser: output += "Lesser"; return;
       case compiler::ir::Token::MemberAccess: output += "MemberAccess"; return;

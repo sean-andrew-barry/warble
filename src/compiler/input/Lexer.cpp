@@ -1520,12 +1520,7 @@ namespace compiler::input {
       }
       case '.': {
         switch (cursor.Peek(1)) {
-          case '.': {
-            switch (cursor.Peek(2)) {
-              case '.': return EmitAndAdvance(ir::Token::InclusiveRange, 3);
-              default:  return EmitAndAdvance(ir::Token::ExclusiveRange, 2);
-            }
-          }
+          case '.': return EmitAndAdvance(ir::Token::Range, 2);
           default: return EmitAndAdvance(ir::Token::MemberAccess, 1);
         }
       }

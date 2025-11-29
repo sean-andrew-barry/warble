@@ -161,8 +161,7 @@ namespace compiler::ir {
     ExponentOperator, // `**`
     GreaterOrEqual, // `>=`
     Greater, // `>`
-    ExclusiveRange, // `..`
-    InclusiveRange, // `...`
+    Range, // `..`
     LesserOrEqual, // `<=`
     Lesser, // `<`
     MemberAccess, // `.` - Standard identifier based lookup
