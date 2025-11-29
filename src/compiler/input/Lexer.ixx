@@ -452,7 +452,6 @@ namespace compiler::input {
     bool IdentifierOrArrowFunction();
     bool TemplateStringLiteral();
     bool BinaryOperator(bool in_enum, bool in_type);
-    bool SelectorOperator();
     bool Parameters();
     bool Captures();
     bool ArrowFunction();
@@ -470,7 +469,6 @@ namespace compiler::input {
     bool CallablePostfixLiteral();
     bool TermShortcut();
     bool Term();
-    bool Selector();
     bool Expression(bool in_enum = false, bool in_type = false);
     bool ExpressionStatement();
     bool DeclarationInternal(bool require_keyword, bool allow_prefix, bool allow_initializer, bool emit_errors);

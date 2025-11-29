@@ -1541,30 +1541,6 @@ namespace compiler::input {
     }
   }
 
-  bool Lexer::SelectorOperator() {
-    if (!IsBinaryStart()) return false;
-
-    switch (cursor.Peek()) {
-      case '?': {
-        switch (cursor.Peek(1)) {
-          case '.': return EmitAndAdvance(ir::Token::MemberAccessOptional, 2);
-          case ':': return EmitAndAdvance(ir::Token::MemberAccessStaticOptional, 2);
-          default:  return false;
-        }
-      }
-      case '.': {
-        return EmitAndAdvance(ir::Token::MemberAccess, 1);
-      }
-      case ':': {
-        switch (cursor.Peek(1)) {
-          case ':': return EmitAndAdvance(ir::Token::MemberAccessStatic, 2);
-          default:  return false;
-        }
-      }
-      default: return false;
-    }
-  }
-
   bool Lexer::FunctionHeader() { return Const(); } // Currently just 'const' modifier
   bool Lexer::FunctionBody() { return (FunctionHeader() || true) && (ArrowFunction() || Block()); }
   bool Lexer::ParameterFunctionLiteral() { return Try([&]{ return Parameters() && FunctionBody(); }); }
@@ -1573,8 +1549,8 @@ namespace compiler::input {
   bool Lexer::EnumLiteral() {
     if (!EnumOpen()) return false;
 
-    // Parse zero or more selectors separated by commas; trailing comma allowed.
-    ZeroOrMore([&]{ return Selector(); }, [&]{ return Comma(); });
+    // Parse zero or more expressions separated by commas; trailing comma allowed.
+    ZeroOrMore([&]{ return Expression(true, false); }, [&]{ return Comma(); });
 
     if (!EnumClose()) return Error(ir::Error::EnumExpectedClosingAngleBracket);
     return true;
@@ -1931,28 +1907,6 @@ namespace compiler::input {
   }
 
   bool Lexer::Term() { return (IsTermStart() && TermShortcut()) || IdentifierOrArrowFunction(); }
-
-  bool Lexer::Selector() {
-    if (UnaryPrefixOperator()) {
-      if (!Selector()) {
-        return Error(ir::Error::UnaryPrefixOperatorExpectedSelector);
-      } else {
-        return true;
-      }
-    }
-
-    if (!Term()) return false;
-
-    while (CallablePostfixLiteral()) {}
-
-    if (SelectorOperator()) {
-      if (!Selector()) {
-        return Error(ir::Error::SelectorOperatorExpectedSelector);
-      }
-    }
-
-    return true;
-  }
 
   bool Lexer::Expression(bool in_enum, bool in_type) {
     if (UnaryPrefixOperator()) {
