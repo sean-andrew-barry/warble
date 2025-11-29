@@ -1587,8 +1587,14 @@ namespace compiler::input {
   bool Lexer::ArrayLiteral() {
     if (!ArrayOpen()) return false;
 
-    // Parse zero or more expressions separated by commas; trailing comma allowed.
-    ZeroOrMore([&]{ return Expression(); }, [&]{ return Comma(); });
+    if (Expression()) {
+      if (Semicolon()) {
+        if (!Expression()) return Error(ir::Error::ArrayExpectedCountExpression);
+      } else if (Comma()) {
+        // Parse zero or more expressions separated by commas; trailing comma allowed.
+        ZeroOrMore([&]{ return Expression(); }, [&]{ return Comma(); });
+      }
+    }
 
     if (!ArrayClose()) return Error(ir::Error::ArrayExpectedClosingBracket);
     return true;

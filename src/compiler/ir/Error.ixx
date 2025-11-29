@@ -75,6 +75,7 @@ namespace compiler::ir {
     EnumExpectedExpression,
     EnumExpectedClosingAngleBracket,
     ArrayExpectedExpression,
+    ArrayExpectedCountExpression,
     ArrayExpectedClosingBracket,
     TupleExpectedExpression,
     TupleExpectedClosingParenthesis,

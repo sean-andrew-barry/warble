@@ -413,6 +413,7 @@ namespace compiler::text {
       case compiler::ir::Error::EnumExpectedExpression: output += "EnumExpectedExpression"; return;
       case compiler::ir::Error::EnumExpectedClosingAngleBracket: output += "EnumExpectedClosingAngleBracket"; return;
       case compiler::ir::Error::ArrayExpectedExpression: output += "ArrayExpectedExpression"; return;
+      case compiler::ir::Error::ArrayExpectedCountExpression: output += "ArrayExpectedCountExpression"; return;
       case compiler::ir::Error::ArrayExpectedClosingBracket: output += "ArrayExpectedClosingBracket"; return;
       case compiler::ir::Error::TupleExpectedExpression: output += "TupleExpectedExpression"; return;
       case compiler::ir::Error::TupleExpectedClosingParenthesis: output += "TupleExpectedClosingParenthesis"; return;
