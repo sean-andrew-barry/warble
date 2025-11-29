@@ -456,6 +456,8 @@ namespace compiler::input {
     bool Parameters();
     bool Captures();
     bool ArrowFunction();
+    bool FunctionHeader();
+    bool FunctionBody();
     bool ParameterFunctionLiteral();
     bool CaptureFunctionLiteral();
     bool EnumLiteral();

@@ -1263,8 +1263,12 @@ namespace compiler::input {
       return false;
     }
 
-    // Check for inline function arrow '=>'
-    if (!Arrow()) return true;
+    if (FunctionHeader()) {
+      if (!Arrow()) return Error(ir::Error::ArrowFunctionExpectedArrowAfterFunctionHeader);
+    } else {
+      // Check for inline function arrow '=>'
+      if (!Arrow()) return true;
+    }
 
     if (Expression()) {
       // A special zero width marker to tell the parser the identifier is an arrow function parameter
@@ -1561,8 +1565,10 @@ namespace compiler::input {
     }
   }
 
-  bool Lexer::ParameterFunctionLiteral() { return Try([&]{ return Parameters() && (ArrowFunction() || Block()); }); }
-  bool Lexer::CaptureFunctionLiteral() { return Try([&]{ return Captures() && (Parameters() || true) && (ArrowFunction() || Block()); }); }
+  bool Lexer::FunctionHeader() { return Const(); } // Currently just 'const' modifier
+  bool Lexer::FunctionBody() { return (FunctionHeader() || true) && (ArrowFunction() || Block()); }
+  bool Lexer::ParameterFunctionLiteral() { return Try([&]{ return Parameters() && FunctionBody(); }); }
+  bool Lexer::CaptureFunctionLiteral() { return Try([&]{ return Captures() && (Parameters() || true) && FunctionBody(); }); }
 
   bool Lexer::EnumLiteral() {
     if (!EnumOpen()) return false;

@@ -32,6 +32,7 @@ namespace compiler::ir {
     BinaryOperatorExpectedLHS,
     MultiLineCommentExpectedClosingAsteriskSlash,
     ArrowFunctionExpectedExpression,
+    ArrowFunctionExpectedArrowAfterFunctionHeader,
     SpecifierExpectedPathAfterScheme,
     SpecifierExpectedHostAfterAuthority,
     ConditionExpectedExpression,

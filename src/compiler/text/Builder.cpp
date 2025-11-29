@@ -376,6 +376,7 @@ namespace compiler::text {
       case compiler::ir::Error::BinaryOperatorExpectedLHS: output += "BinaryOperatorExpectedLHS"; return;
       case compiler::ir::Error::MultiLineCommentExpectedClosingAsteriskSlash: output += "MultiLineCommentExpectedClosingAsteriskSlash"; return;
       case compiler::ir::Error::ArrowFunctionExpectedExpression: output += "ArrowFunctionExpectedExpression"; return;
+      case compiler::ir::Error::ArrowFunctionExpectedArrowAfterFunctionHeader: output += "ArrowFunctionExpectedArrowAfterFunctionHeader"; return;
       case compiler::ir::Error::SpecifierExpectedPathAfterScheme: output += "SpecifierExpectedPathAfterScheme"; return;
       case compiler::ir::Error::SpecifierExpectedHostAfterAuthority: output += "SpecifierExpectedHostAfterAuthority"; return;
       case compiler::ir::Error::ConditionExpectedExpression: output += "ConditionExpectedExpression"; return;
