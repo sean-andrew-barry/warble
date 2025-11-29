@@ -257,7 +257,6 @@ namespace compiler::ir {
     IPv4,
     IPv6,
     Path, // `/` - Used to separate path segments
-    Backslash, // `\` - Used to separate path segments on Windows
     Port, // A number, be preceded by `:`
     QueryKey, // Preceded by `?` or `&`
     QueryValue, // Preceded by `=`
