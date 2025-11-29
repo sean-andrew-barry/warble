@@ -7,8 +7,11 @@ import <cstdint>;
 
 namespace compiler::ir {
   export enum class Token : uint8_t {
+    // General / sentinel
     None,
     Error,
+
+    // Character classes and low-level scanning
     Spaces0,
     Spaces1,
     Spaces2,
@@ -81,6 +84,8 @@ namespace compiler::ir {
     Redirect5,
     Redirect6,
     Redirect7,
+
+    // Escapes and line terminators
     EscapeASCII, // Single character escape such as `\x`, not to be confused with an actual line break token like `LineFeed`
     EscapeHex, // `\xXX` - A character specified by a hexadecimal value of exactly two digits
     EscapeUnicode, // `\uXXXX` - A Unicode character using exactly four hexadecimal digits
@@ -97,6 +102,8 @@ namespace compiler::ir {
     ParagraphSeparator, // `\u2029`
     VerticalTab, // `\v`
     FormFeed, // `\f`
+
+    // Numeric literals and prefixes
     Underscore, // `_` - Used as a spacer in numeric literals
     Dot, // `.` - Used in decimal literals
     Exponent, // `e` or `E` - Used in decimal literals
@@ -105,11 +112,15 @@ namespace compiler::ir {
     HexStart, // `0x` or `0X`
     OctalStart, // `0o` or `0O`
     BinaryStart, // `0b` or `0B`
+
+    // Comments
     CommentOpen, // `//` - Starts a single line comment
     CommentClose, // Simple marker, doesn't represent any characters
     MultiLineCommentOpen, // `/*` - Starts a multi-line comment
     MultiLineCommentClose, // `*/` - Ends a multi-line comment
-    ArrayOpen, // `[`
+
+    // Delimiters and punctuation used in expressions/statements
+    ArrayOpen, // `[` 
     ArrayClose, // `]`
     EnumOpen, // `<`
     EnumClose, // `>`
@@ -122,8 +133,7 @@ namespace compiler::ir {
     Comma, // `,`
     ConditionOpen, // `(`
     ConditionClose, // `)`
-    Pipeline, // `->`
-    CaptureOpen, // `[`
+    CaptureOpen, // `[` 
     CaptureClose, // `]`
     ParameterOpen, // `(`
     ParameterClose, // `)`
@@ -136,6 +146,8 @@ namespace compiler::ir {
     TemplateStringExpressionClose, // `}`
     StringOpen, // `"`
     StringClose, // `"`
+
+    // Expression-term keywords and primitive-like terms
     Compiler, // `compiler` - Used to access compiler built-ins
     Auto, // `auto` - Used for type inference
     Void, // `void` - Used as the type of `null`
@@ -146,65 +158,72 @@ namespace compiler::ir {
     False, // `false`
     This, // `this` - Used in object literals and some statements to refer to the top of the topic stack
     That, // `that` - Used in object literals and some statements to refer to the second item on the topic stack
+
+    // Declaration-related punctuation and modifiers
     TypeStart, // `:` - Used to denote the start of a type annotation in a declaration
     Wildcard, // `*` - Used in aggregating export statements
+
+    // Binary operators (including assignment and relational)
     Add, // `+`
-    And, // `&&`
-    Or, // `||`
-    Unwrap, // `??` - Conditionally unwraps a variant
-    Arrow, // `=>` - Used to mark the body of an inline function
-    ArrowHead, // A special zero width marker that says the following identifier is an arrow function parameter
+    Subtract, // `-`
+    Multiply, // `*`
     Divide, // `/`
-    Equal, // `==`
-    ExponentOperator, // `**`
-    GreaterOrEqual, // `>=`
-    Greater, // `>`
+    Modulo, // `%`
     Range, // `..`
-    LesserOrEqual, // `<=`
-    Lesser, // `<`
     MemberReference, // `.` - Standard identifier based lookup
     OptionalMemberReference, // `?.` - Returns an optional for the member
     MutableMemberReference, // `:` - Used to access mutable members via a symbol
     OptionalMutableMemberReference, // `?:` - Returns an optional for the mutable member
-    Modulo, // `%`
-    Multiply, // `*`
+    And, // `&&`
+    Or, // `||`
+    Unwrap, // `??` - Conditionally unwraps a variant
+    Pipeline, // `->` - Binary operator used to pipe a value into a function call
+    Equal, // `==`
     NotEqual, // `!=`
-    Subtract, // `-`
-    TripleLeftShift, // `<<<`
-    TripleRightShift, // `>>>`
-    AssignOptional, // `?=` - Conditional assignment
+    GreaterOrEqual, // `>=`
+    Greater, // `>`
+    LesserOrEqual, // `<=`
+    Lesser, // `<`
     AssertEqual, // `===`
     AssertGreaterOrEqual, // `>==`
     AssertLesserOrEqual, // `<==`
     AssertNotEqual, // `!==`
+    BitwiseLeftShift, // `<<`
+    BitwiseRightShift, // `>>`
+    TripleLeftShift, // `<<<`
+    TripleRightShift, // `>>>`
+    BitwiseTripleLeftShift, // `<<<`
+    BitwiseTripleRightShift, // `>>>`
+    BitwiseAnd, // `&`
+    BitwiseXor, // `^`
+    BitwiseOr, // `|`
+    ExponentOperator, // `**`
+    To, // `to` - Binary operator used for type conversions
+    Arrow, // `=>` - Used to mark the body of an inline function
+
+    // Assignment and compound assignment operators
     Assign, // `=`
+    AssignOptional, // `?=` - Conditional assignment
     AssignAdd, // `+=`
-    AssignDivide, // `/=`
-    AssignExponent, // `**=`
-    AssignModulo, // `%=`
-    AssignMultiply, // `*=`
     AssignSubtract, // `-=`
+    AssignMultiply, // `*=`
+    AssignDivide, // `/=`
+    AssignModulo, // `%=`
+    AssignExponent, // `**=`
     AssignAnd, // `&&=`
     AssignOr, // `||=`
     AssignTruthyAnd, // `!!=`
     AssignTruthyOr, // `??=`
-    BitwiseLeftShift, // `<<`
-    BitwiseRightShift, // `>>`
-    BitwiseTripleLeftShift, // `<<<`
-    BitwiseTripleRightShift, // `>>>`
-    BitwiseAssignTripleLeftShift, // `<<<=`
-    BitwiseAssignTripleRightShift, // `>>>=`
     BitwiseAssignLeftShift, // `<<=`
     BitwiseAssignRightShift, // `>>=`
-    BitwiseAnd, // `&`
-    BitwiseXor, // `^`
-    BitwiseOr, // `|`
+    BitwiseAssignTripleLeftShift, // `<<<=`
+    BitwiseAssignTripleRightShift, // `>>>=`
     BitwiseAssignAnd, // `&=`
     BitwiseAssignXor, // `^=`
     BitwiseAssignOr, // `|=`
-    To, // `to` - Binary operator used for type conversions
+
+    // Unary operators (including keyword forms)
     Await, // `await` - Unary prefix keyword used to wait for a promise to resolve
-    Async, // `async` - Marks asynchronous imports and functions
     Expect, // `expect` - Unary prefix keyword used for assertions in tests
     Copy, // `@` - Unary prefix used to create a copy of a value
     Counted, // `#` - Unary prefix used to indicate a counted loop
@@ -214,25 +233,26 @@ namespace compiler::ir {
     Spread, // `...` - Unary prefix used to spread elements from one structured literal to another
     Decrement, // `--` - Unary prefix used for decrementing a value
     Increment, // `++` - Unary prefix used for incrementing a value
-    Negative, // `-` - Unary prefix used to indicate a negative value
-    Positive, // `+` - Unary prefix used to indicate a positive value
+    Negative, // `-` - Unary prefix used to indicate a negative value, also used in floating point literals
+    Positive, // `+` - Unary prefix used to indicate a positive value, also used in floating point literals
     Not, // `!` - Unary prefix used for logical NOT
     BitwiseNot, // `~` - Unary prefix used for bitwise NOT
+    ArrowHead, // A special zero width marker that says the following identifier is an arrow function parameter
+
+    // Statement keywords (flow control and blocks)
     Do, // `do` - Used to declare an unconditional scope block
     Else, // `else` - Used for conditional statements
-    Register, // `register` - Used to define a new package
-    With, // `with` - Used in `register` statements to specify the allow list
-    Import, // `import` - Used to import modules
-    From, // `from` - Used to specify the source of an import and in `when` statements
     If, // `if` - Used for conditional statements
     Try, // `try` - Used to declare a try block
     Yield, // `yield` - Used to yield a value from a generator
     Return, // `return` - Used to return a value from a function
     Panic, // `panic` - Used to abort the current execution path with an error
+    Async, // `async` - Marks asynchronous imports and functions (modifier for exits)
+    Case,
+    Default, // `default` - Used to specify the default case in `when` statements
     When, // `when` - Used for pattern matching, sometimes known as `match` in other languages
     Is, // `is` - Used for type checking
     Has, // `has` - Used in `when` statements
-    Export, // `export` - Modifier applied to declarations to make them available to `import` statements
     For, // `for` - Used for iterating over collections
     While, // `while` - Used for conditional loops
     Loop, // `loop` - Used for unconditional loops
@@ -240,10 +260,17 @@ namespace compiler::ir {
     In, // `in` - Used inside `for` loops
     Break, // `break` - Used to exit loops, can be stacked
     Continue, // `continue` - Used to skip the current iteration of a loop, can be stacked
-    Default, // `default` - Used to specify the default case in `when` statements
-    Case,
+
+    // Module / import / declaration modifiers
+    Register, // `register` - Used to define a new package
+    With, // `with` - Used in `register` statements to specify the allow list
+    Import, // `import` - Used to import modules
+    From, // `from` - Used to specify the source of an import and in `when` statements
+    Export, // `export` - Modifier applied to declarations to make them available to `import` statements
     Let, // `let` - Used to declare a variable
     Const, // `const` - Used to declare a constant
+
+    // URL / path-like tokens
     Drive, // Ends with `:`
     Scheme, // Ends with `:`
     Authority, // `//` - The authority section of a URL
