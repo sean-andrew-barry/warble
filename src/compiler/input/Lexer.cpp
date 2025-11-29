@@ -370,7 +370,6 @@ namespace compiler::input {
   bool Lexer::Yield() { return Keyword("yield", ir::Token::Yield); }
   bool Lexer::Let() { return Keyword("let", ir::Token::Let); }
   bool Lexer::Const() { return Keyword("const", ir::Token::Const); }
-  bool Lexer::Mut() { return Keyword("mut", ir::Token::Mut); }
 
   bool Lexer::CaptureOpen() { return Match('[', ir::Token::CaptureOpen); }
   bool Lexer::CaptureClose() { return Match(']', ir::Token::CaptureClose); }
@@ -1371,7 +1370,7 @@ namespace compiler::input {
           case '!': {
             switch (cursor.Peek(2)) {
               case '=': return EmitAndAdvance(ir::Token::AssignTruthyAnd, 3);
-              default:  return EmitAndAdvance(ir::Token::Wrap, 2);
+              default:  return false;
             }
           }
           case '=': {
@@ -1985,7 +1984,7 @@ namespace compiler::input {
 
   bool Lexer::DeclarationKeyword() {
     // Keyword form MUST have leading keyword.
-    if (!(Let() || Const() || Mut())) {
+    if (!(Let() || Const())) {
       return false;
     }
     

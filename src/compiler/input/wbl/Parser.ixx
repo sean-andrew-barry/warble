@@ -107,7 +107,6 @@ namespace compiler::input::wbl {
 
         // Logical
         case ir::Token::And: // x && y
-        case ir::Token::Wrap: // x !! y (truthy and)
           return 6;
         case ir::Token::Or: // x || y
         case ir::Token::Unwrap: // x ?? y (truthy or / unwrap)

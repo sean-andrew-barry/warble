@@ -500,7 +500,6 @@ namespace compiler::input {
 
       // Logical
       case ir::Token::And: // x && y
-      case ir::Token::Wrap: // x !! y (truthy and)
         return 6;
       case ir::Token::Or: // x || y
       case ir::Token::Unwrap: // x ?? y (truthy or / unwrap)
@@ -737,7 +736,6 @@ namespace compiler::input {
   //     case ir::Token::BitwiseRightShift: return ir::Opcode::BitwiseShiftRight;
   //     case ir::Token::And: return ir::Opcode::And;
   //     case ir::Token::Or: return ir::Opcode::Or;
-  //     case ir::Token::Wrap: return ir::Opcode::CompareTruthy;
   //     case ir::Token::Unwrap: return ir::Opcode::CompareFalsy;
   //     case ir::Token::Equal:
   //     case ir::Token::AssertEqual: return ir::Opcode::CompareEqual;

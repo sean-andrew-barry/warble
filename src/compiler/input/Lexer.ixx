@@ -357,7 +357,6 @@ namespace compiler::input {
     bool Yield();
     bool Let();
     bool Const();
-    bool Mut();
 
     bool CaptureOpen();
     bool CaptureClose();

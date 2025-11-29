@@ -235,7 +235,6 @@ namespace compiler::text {
       case compiler::ir::Token::Add: output += "Add"; return;
       case compiler::ir::Token::And: output += "And"; return;
       case compiler::ir::Token::Or: output += "Or"; return;
-      case compiler::ir::Token::Wrap: output += "Wrap"; return;
       case compiler::ir::Token::Unwrap: output += "Unwrap"; return;
       case compiler::ir::Token::Arrow: output += "Arrow"; return;
       case compiler::ir::Token::ArrowHead: output += "ArrowHead"; return;
@@ -330,7 +329,6 @@ namespace compiler::text {
       case compiler::ir::Token::Case: output += "Case"; return;
       case compiler::ir::Token::Let: output += "Let"; return;
       case compiler::ir::Token::Const: output += "Const"; return;
-      case compiler::ir::Token::Mut: output += "Mut"; return;
       case compiler::ir::Token::Drive: output += "Drive"; return;
       case compiler::ir::Token::Scheme: output += "Scheme"; return;
       case compiler::ir::Token::Authority: output += "Authority"; return;

@@ -153,7 +153,6 @@ namespace compiler::ir {
     Add, // `+`
     And, // `&&`
     Or, // `||`
-    Wrap, // `!!` - Builds a variant from values
     Unwrap, // `??` - Conditionally unwraps a variant
     Arrow, // `=>` - Used to mark the body of an inline function
     ArrowHead, // A special zero width marker that says the following identifier is an arrow function parameter
@@ -206,7 +205,6 @@ namespace compiler::ir {
     BitwiseAssignAnd, // `&=`
     BitwiseAssignXor, // `^=`
     BitwiseAssignOr, // `|=`
-    Yield, // `yield` - Unary prefix keyword used to yield a value from a generator
     Await, // `await` - Unary prefix keyword used to wait for a promise to resolve
     Async, // `async` - Marks asynchronous imports and functions
     Expect, // `expect` - Unary prefix keyword used for assertions in tests
@@ -231,6 +229,7 @@ namespace compiler::ir {
     From, // `from` - Used to specify the source of an import and in `when` statements
     If, // `if` - Used for conditional statements
     Try, // `try` - Used to declare a try block
+    Yield, // `yield` - Used to yield a value from a generator
     Return, // `return` - Used to return a value from a function
     Panic, // `panic` - Used to abort the current execution path with an error
     When, // `when` - Used for pattern matching, sometimes known as `match` in other languages
@@ -248,7 +247,6 @@ namespace compiler::ir {
     Case,
     Let, // `let` - Used to declare a variable
     Const, // `const` - Used to declare a constant
-    Mut, // `mut` - Used to declare a mutable variable
     Drive, // Ends with `:`
     Scheme, // Ends with `:`
     Authority, // `//` - The authority section of a URL
