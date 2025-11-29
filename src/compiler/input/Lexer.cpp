@@ -1058,6 +1058,9 @@ namespace compiler::input {
       }
 
       if (stage != Stage::Exponent && c == '.') {
+        // A decimal point must be followed by a digit; otherwise, leave the dot
+        // for other lexing paths (e.g., range or member access operators).
+        if (!IsDigit(1)) break;
         seen_fraction = true;
         stage = Stage::Fraction;
         cursor.Advance();
