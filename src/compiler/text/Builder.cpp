@@ -340,7 +340,6 @@ namespace compiler::text {
       case compiler::ir::Token::IPv4: output += "IPv4"; return;
       case compiler::ir::Token::IPv6: output += "IPv6"; return;
       case compiler::ir::Token::Path: output += "Path"; return;
-      case compiler::ir::Token::Backslash: output += "Backslash"; return;
       case compiler::ir::Token::Port: output += "Port"; return;
       case compiler::ir::Token::QueryKey: output += "QueryKey"; return;
       case compiler::ir::Token::QueryValue: output += "QueryValue"; return;
