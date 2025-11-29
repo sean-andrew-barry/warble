@@ -1028,28 +1028,29 @@ namespace compiler::input {
     };
 
     while (!cursor.Done()) {
-      if (!IsDigit()) break;
+      char c = cursor.Peek();
 
-      auto run_begin = cursor.cbegin();
-      while (!cursor.Done() && IsDigit()) cursor.Advance();
-      auto run_end = cursor.cbegin();
+      if (IsDigit()) {
+        auto run_begin = cursor.cbegin();
+        while (!cursor.Done() && IsDigit()) cursor.Advance();
+        auto run_end = cursor.cbegin();
 
-      if (run_begin != run_end) {
-        std::string_view run{&*run_begin, static_cast<size_t>(std::distance(run_begin, run_end))};
+        if (run_begin != run_end) {
+          std::string_view run{&*run_begin, static_cast<size_t>(std::distance(run_begin, run_end))};
 
-        emit_run_tokens(run);
+          emit_run_tokens(run);
 
-        switch (stage) {
-          case Stage::Integer: process_mantissa_run(run, false); break;
-          case Stage::Fraction: process_mantissa_run(run, true); break;
-          case Stage::Exponent: process_exponent_run(run); break;
+          switch (stage) {
+            case Stage::Integer: process_mantissa_run(run, false); break;
+            case Stage::Fraction: process_mantissa_run(run, true); break;
+            case Stage::Exponent: process_exponent_run(run); break;
+          }
+
+          consumed = true;
         }
 
-        consumed = true;
+        continue;
       }
-
-      if (cursor.Done()) break;
-      char c = cursor.Peek();
 
       if (c == '_') {
         cursor.Advance();
@@ -1058,9 +1059,10 @@ namespace compiler::input {
       }
 
       if (stage != Stage::Exponent && c == '.') {
-        // A decimal point must be followed by a digit; otherwise, leave the dot
-        // for other lexing paths (e.g., range or member access operators).
-        if (!IsDigit(1)) break;
+        // A decimal point must be followed by a digit or an exponent marker; otherwise,
+        // leave the dot for other lexing paths (e.g., range or member access operators).
+        char next = cursor.Peek(1);
+        if (!IsDigit(next) && next != 'e' && next != 'E') break;
         seen_fraction = true;
         stage = Stage::Fraction;
         cursor.Advance();
@@ -1085,6 +1087,7 @@ namespace compiler::input {
         }
         continue;
       }
+
       break;
     }
 
