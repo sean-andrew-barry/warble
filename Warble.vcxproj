@@ -79,6 +79,8 @@
     <ClCompile Include="src\compiler\output\Encoder.ixx" />
     <ClCompile Include="src\compiler\output\Legalizer.ixx" />
     <ClCompile Include="src\compiler\output\Optimizer.ixx" />
+    <ClCompile Include="src\compiler\output\Interpreter.cpp" />
+    <ClCompile Include="src\compiler\output\Interpreter.ixx" />
     <!-- <ClCompile Include="src\compiler\output\x64\Encoder.cpp" /> -->
     <!-- <ClCompile Include="src\compiler\output\x64\Encoder.ixx" /> -->
 
