@@ -2,9 +2,6 @@ export module compiler.ir.Opcode;
 
 import <cstdint>;
 
-// NOTE: Introducing or removing an opcode should also add/remove it
-// from `Append(Opcode)` in `compiler/text/Builder.ixx`
-
 namespace compiler::ir {
   export enum class Opcode : uint8_t {
     Extension, // A pseudo-instruction, whose operands apply to the **previous** instruction as a way to have more than 3 operands
@@ -137,4 +134,123 @@ namespace compiler::ir {
 
     Prefetch, // Very niche but sometimes useful
   };
+
+  export constexpr std::string_view ToString(Opcode opcode) {
+    switch (opcode) {
+      case Opcode::Extension: return "Extension";
+      case Opcode::Anchor: return "Anchor";
+      case Opcode::Label: return "Label";
+      case Opcode::NoOperation: return "NoOperation";
+      case Opcode::Unreachable: return "Unreachable";
+      case Opcode::Abort: return "Abort";
+      case Opcode::Panic: return "Panic";
+      case Opcode::Assume: return "Assume";
+      case Opcode::Call: return "Call";
+      case Opcode::CallWithArray: return "CallWithArray";
+      case Opcode::CallWithTuple: return "CallWithTuple";
+      case Opcode::CallWithObject: return "CallWithObject";
+      case Opcode::CallWithEnum: return "CallWithEnum";
+      case Opcode::CallWithString: return "CallWithString";
+      case Opcode::CallWithTemplateString: return "CallWithTemplateString";
+      case Opcode::Return: return "Return";
+      case Opcode::Jump: return "Jump";
+      case Opcode::Branch: return "Branch";
+      case Opcode::Fork: return "Fork";
+      case Opcode::BranchIs: return "BranchIs";
+      case Opcode::BranchHas: return "BranchHas";
+      case Opcode::BranchFrom: return "BranchFrom";
+      case Opcode::BranchNotIs: return "BranchNotIs";
+      case Opcode::BranchNotHas: return "BranchNotHas";
+      case Opcode::BranchNotFrom: return "BranchNotFrom";
+      case Opcode::Allocate: return "Allocate";
+      case Opcode::Deallocate: return "Deallocate";
+      case Opcode::Move: return "Move";
+      case Opcode::Load: return "Load";
+      case Opcode::Store: return "Store";
+      case Opcode::Index: return "Index";
+      case Opcode::Select: return "Select";
+      case Opcode::Spill: return "Spill";
+      case Opcode::Restore: return "Restore";
+      case Opcode::Construct: return "Construct";
+      case Opcode::Destruct: return "Destruct";
+      case Opcode::AddressOf: return "AddressOf";
+      case Opcode::SymbolOf: return "SymbolOf";
+      case Opcode::CopyOf: return "CopyOf";
+      case Opcode::Exchange: return "Exchange";
+      case Opcode::CompareAndExchange: return "CompareAndExchange";
+      case Opcode::Fence: return "Fence";
+      case Opcode::Barrier: return "Barrier";
+      case Opcode::Spread: return "Spread";
+      case Opcode::Add: return "Add";
+      case Opcode::AddFloat: return "AddFloat";
+      case Opcode::AddWithCarry: return "AddWithCarry";
+      case Opcode::AddExchange: return "AddExchange";
+      case Opcode::Subtract: return "Subtract";
+      case Opcode::SubtractFloat: return "SubtractFloat";
+      case Opcode::SubtractWithBorrow: return "SubtractWithBorrow";
+      case Opcode::Multiply: return "Multiply";
+      case Opcode::MultiplyFloat: return "MultiplyFloat";
+      case Opcode::Divide: return "Divide";
+      case Opcode::DivideSigned: return "DivideSigned";
+      case Opcode::DivideFloat: return "DivideFloat";
+      case Opcode::Modulo: return "Modulo";
+      case Opcode::ModuloSigned: return "ModuloSigned";
+      case Opcode::ModuloFloat: return "ModuloFloat";
+      case Opcode::Exponent: return "Exponent";
+      case Opcode::Absolute: return "Absolute";
+      case Opcode::Negate: return "Negate";
+      case Opcode::FusedMultiplyAdd: return "FusedMultiplyAdd";
+      case Opcode::CompareTrue: return "CompareTrue";
+      case Opcode::CompareFalse: return "CompareFalse";
+      case Opcode::CompareTruthy: return "CompareTruthy";
+      case Opcode::CompareFalsy: return "CompareFalsy";
+      case Opcode::CompareZero: return "CompareZero";
+      case Opcode::CompareNotZero: return "CompareNotZero";
+      case Opcode::ComparePositive: return "ComparePositive";
+      case Opcode::CompareNegative: return "CompareNegative";
+      case Opcode::CompareEqual: return "CompareEqual";
+      case Opcode::CompareNotEqual: return "CompareNotEqual";
+      case Opcode::CompareGreater: return "CompareGreater";
+      case Opcode::CompareGreaterOrEqual: return "CompareGreaterOrEqual";
+      case Opcode::CompareLess: return "CompareLess";
+      case Opcode::CompareLessOrEqual: return "CompareLessOrEqual";
+      case Opcode::Test: return "Test";
+      case Opcode::And: return "And";
+      case Opcode::Or: return "Or";
+      case Opcode::Not: return "Not";
+      case Opcode::NotAnd: return "NotAnd";
+      case Opcode::NotOr: return "NotOr";
+      case Opcode::BitwiseAnd: return "BitwiseAnd";
+      case Opcode::BitwiseOr: return "BitwiseOr";
+      case Opcode::BitwiseExclusiveOr: return "BitwiseExclusiveOr";
+      case Opcode::BitwiseNot: return "BitwiseNot";
+      case Opcode::BitwiseShiftLeft: return "BitwiseShiftLeft";
+      case Opcode::BitwiseShiftRight: return "BitwiseShiftRight";
+      case Opcode::BitwiseShiftRightSigned: return "BitwiseShiftRightSigned";
+      case Opcode::BitwiseRotateLeft: return "BitwiseRotateLeft";
+      case Opcode::BitwiseRotateRight: return "BitwiseRotateRight";
+      case Opcode::BitwiseShiftLeftWithCarry: return "BitwiseShiftLeftWithCarry";
+      case Opcode::BitwiseShiftRightWithCarry: return "BitwiseShiftRightWithCarry";
+      case Opcode::BitwiseRotateLeftWithCarry: return "BitwiseRotateLeftWithCarry";
+      case Opcode::BitwiseRotateRightWithCarry: return "BitwiseRotateRightWithCarry";
+      case Opcode::BitwiseLowestSetIsolate: return "BitwiseLowestSetIsolate";
+      case Opcode::BitwiseLowestSetReset: return "BitwiseLowestSetReset";
+      case Opcode::BitwiseLowestSetMask: return "BitwiseLowestSetMask";
+      case Opcode::CheckBit: return "CheckBit";
+      case Opcode::CheckBitAndToggle: return "CheckBitAndToggle";
+      case Opcode::CheckBitAndReset: return "CheckBitAndReset";
+      case Opcode::CheckBitAndSet: return "CheckBitAndSet";
+      case Opcode::CountLeadingZeros: return "CountLeadingZeros";
+      case Opcode::CountTrailingZeros: return "CountTrailingZeros";
+      case Opcode::CountPopulation: return "CountPopulation";
+      case Opcode::SwapEndian: return "SwapEndian";
+      case Opcode::SwapEndianToBig: return "SwapEndianToBig";
+      case Opcode::SwapEndianToLittle: return "SwapEndianToLittle";
+      case Opcode::Cast: return "Cast";
+      case Opcode::Convert: return "Convert";
+      case Opcode::Prefetch: return "Prefetch";
+    }
+  
+    return "Unknown";
+  }
 }
