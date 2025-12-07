@@ -73,6 +73,6 @@ namespace compiler::ir {
 
     constexpr bool Is(compiler::ir::Opcode value) const noexcept { return opcode == value; }
   };
-};
+}
 
 static_assert(sizeof(compiler::ir::Instruction) == 16, "ir::Instruction must remain 16 bytes");

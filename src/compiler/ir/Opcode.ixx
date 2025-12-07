@@ -137,4 +137,4 @@ namespace compiler::ir {
 
     Prefetch, // Very niche but sometimes useful
   };
-};
+}
