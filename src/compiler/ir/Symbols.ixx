@@ -31,7 +31,8 @@ namespace compiler::ir {
     std::vector<ir::symbol::Kind> types; // Symbol types
     std::vector<uint64_t> flags; // Modifiers, type information, etc
     std::vector<uint64_t> payloads; // A generic typeless field: immediate literal, pointer/index, etc
-    std::vector<int32_t> displacements; // Byte offset from the parent for runtime memory layout
+    std::vector<uint32_t> offsets; // Byte offset from the parent for runtime memory layout
+    std::vector<uint32_t> displacements; // Byte offset from the stack pointer for runtime memory layout
 
     std::vector<ir::Index> parents;
     std::vector<ir::Index> names; // A string or enum literal symbol or 0 for undefined
@@ -49,7 +50,8 @@ namespace compiler::ir {
     uint64_t Flags(ir::Index i) const { return flags[i.Row()]; }
     uint64_t Payload(ir::Index i) const { return payloads[i.Row()]; }
     uint32_t Size(ir::Index i) const { return static_cast<uint32_t>(Payload(i) & 0xFFFFFFFFu); }
-    int32_t Displacement(ir::Index i) const { return displacements[i.Row()]; }
+    uint32_t Offset(ir::Index i) const { return offsets[i.Row()]; }
+    uint32_t Displacement(ir::Index i) const { return displacements[i.Row()]; }
     ir::Index Parent(ir::Index i) const { return parents[i.Row()]; }
     ir::Index Name(ir::Index i) const { return names[i.Row()]; }
     uint32_t Token(ir::Index i) const { return tokens[i.Row()]; }
@@ -60,7 +62,8 @@ namespace compiler::ir {
     void Payload(ir::Index i, uint64_t v) { payloads[i.Row()] = v; }
     void Payload(ir::Index i, uint32_t a, uint32_t b) { Payload(i, (static_cast<uint64_t>(a) << 32) | b); }
     void Size(ir::Index i, uint32_t v) { Payload(i, static_cast<uint32_t>(Payload(i) >> 32), static_cast<uint32_t>(v)); }
-    void Displacement(ir::Index i, int32_t v) { displacements[i.Row()] = v; }
+    void Offset(ir::Index i, uint32_t v) { offsets[i.Row()] = v; }
+    void Displacement(ir::Index i, uint32_t v) { displacements[i.Row()] = v; }
     void Parent(ir::Index i, ir::Index v) { parents[i.Row()] = v; }
     void Name(ir::Index i, ir::Index v) { names[i.Row()] = v; }
     void Token(ir::Index i, uint32_t v) { tokens[i.Row()] = v; }
@@ -184,6 +187,7 @@ namespace compiler::ir {
       types.emplace_back(type);
       flags.emplace_back(0);
       payloads.push_back(0);
+      offsets.push_back(0);
       displacements.push_back(0);
       parents.push_back({});
       names.push_back({});
@@ -199,6 +203,7 @@ namespace compiler::ir {
       types.resize(n);
       flags.resize(n);
       payloads.resize(n);
+      offsets.resize(n);
       displacements.resize(n);
       parents.resize(n);
       names.resize(n);
