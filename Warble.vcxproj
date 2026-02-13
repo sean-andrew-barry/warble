@@ -57,19 +57,20 @@
 
     <ClCompile Include="src\compiler\input\Lexer.cpp" />
     <ClCompile Include="src\compiler\input\Lexer.ixx" />
-    <!-- <ClCompile Include="src\compiler\input\Parser.cpp" /> -->
-    <!-- <ClCompile Include="src\compiler\input\Parser.ixx" /> -->
+    <ClCompile Include="src\compiler\input\Parser.cpp" />
+    <ClCompile Include="src\compiler\input\Parser.ixx" />
     <!-- <ClCompile Include="src\compiler\input\wbl\Lexer.ixx" /> -->
     <!-- <ClCompile Include="src\compiler\input\wbl\Parser.ixx" /> -->
 
     <ClCompile Include="src\compiler\ir\Error.ixx" />
-    <ClCompile Include="src\compiler\ir\Index.cpp" />
-    <ClCompile Include="src\compiler\ir\Index.ixx" />
+    <ClCompile Include="src\compiler\ir\Function.ixx" />
+    <ClCompile Include="src\compiler\ir\Symbol.ixx" />
     <ClCompile Include="src\compiler\ir\Instruction.ixx" />
     <ClCompile Include="src\compiler\ir\Opcode.ixx" />
     <ClCompile Include="src\compiler\ir\Register.ixx" />
     <ClCompile Include="src\compiler\ir\Symbols.cpp" />
     <ClCompile Include="src\compiler\ir\Symbols.ixx" />
+    <ClCompile Include="src\compiler\ir\Functions.ixx" />
     <ClCompile Include="src\compiler\ir\Token.ixx" />
     <ClCompile Include="src\compiler\ir\symbol\Flag.ixx" />
     <ClCompile Include="src\compiler\ir\symbol\Registers.ixx" />

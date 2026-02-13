@@ -1,9 +1,9 @@
 - This project uses C++23 features, including modules, `auto` parameters in normal functions, and more. Do not replace these features with older C++ constructs, such as replacing modules with header files or `auto` parameters with traditional templates.
 - The `docs/spec.md` file contains the Warble language specification and is a useful reference for understanding the language features and syntax.
+- When updating the spec, do not bother documenting how things used to be. Warble is not currently released, so there is no need to maintain backwards compatibility or document old features. Just update the spec to reflect the current state of the language. For example, there's no need to say "such and such feature has been deprecated", instead just remove the old feature and update the spec to describe the new way of doing things.
 - The codebase uses `snake_case` for variable names, and `PascalCase` for class/function names.
 - The namespace system is a straight forward mapping to the directory structure, excluding the initial `src` directory. For example, `src/compiler/input/Lexer.ixx` can be referenced as `compiler::input::Lexer` or imported with `import compiler.input.Lexer;`. Obviously this goes both ways, so you can always convert from namespace to path and vice versa.
 - The project now compiles and runs. Use the VS Code tasks "Compile (Debug)" or "Compile (Release)" to build via MSBuild for x64.
 - Currently there is no testing system, so no tests to run.
-- Known issue (Nov 2025): VS Code task runs triggered by the agent can occasionally report success even when `msbuild` fails. Always skim the tail of the `Compile (Debug)` terminal output or rerun the command manually before assuming a build passed, until this bug is fixed.
 - After adding a new file, it must be included in `Warble.vcxproj` to be included in the build. When a file is removed, it must be removed from `Warble.vcxproj` as well.
 - The default indentation should be 2 spaces. Tabs are not used.

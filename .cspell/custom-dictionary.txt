@@ -21,7 +21,9 @@ NOMINMAX
 oawu
 objs
 Pointee
+preorder
 relock
+significand
 srcs
 stdcpp
 stdcpplatest
