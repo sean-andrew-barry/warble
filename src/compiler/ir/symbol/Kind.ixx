@@ -8,9 +8,7 @@ namespace compiler::ir::symbol {
     Undefined,
     Unresolved,
     Auto,
-    Void,
     Null,
-    Raw,
     Boolean, // Payload is a `bool`
     Character, // Payload is a `char32_t`
     Integer, // Payload is a `uint64_t` or `std::pair<uint32_t, uint32_t>` depending on flags
@@ -30,11 +28,6 @@ namespace compiler::ir::symbol {
     Function, // Is the payload a slice of the instructions? But what about the end marker?
     Module, // Payload is a `compiler::program::Module*` during compilation
     Label, // Payload is a `std::pair<uint32_t, uint32_t>` of the instruction index and length
-    Optional, // TODO: Remove this, it's now just a Union
-    Variant, // TODO: Remove this, it's now just a Union
-    Expectation, // TODO: Remove this, it's now just a Union
-    Promise, // TODO: Remove this, it's now just a Union
-    Declaration, // TODO: Remove this
 
     // Statements
     Do,
@@ -60,10 +53,8 @@ namespace compiler::ir::symbol {
       case Kind::Undefined: return "Undefined";
       case Kind::Unresolved: return "Unresolved";
       case Kind::Auto: return "Auto";
-      case Kind::Void: return "Void";
       case Kind::Null: return "Null";
       case Kind::Boolean: return "Boolean";
-      case Kind::Raw: return "Raw";
       case Kind::Character: return "Character";
       case Kind::Integer: return "Integer";
       case Kind::Float: return "Float";
@@ -76,16 +67,11 @@ namespace compiler::ir::symbol {
       case Kind::Tuple: return "Tuple";
       case Kind::TemplateString: return "TemplateString";
       case Kind::Object: return "Object";
-      case Kind::Variant: return "Variant";
-      case Kind::Promise: return "Promise";
-      case Kind::Expectation: return "Expectation";
-      case Kind::Optional: return "Optional";
       case Kind::Range: return "Range";
       case Kind::Phi: return "Phi";
       case Kind::Function: return "Function";
       case Kind::Module: return "Module";
       case Kind::Label: return "Label";
-      case Kind::Declaration: return "Declaration";
 
       case Kind::Do: return "Do";
       case Kind::Error: return "Error";
