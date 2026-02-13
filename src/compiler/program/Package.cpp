@@ -12,12 +12,17 @@ import <utility>;
 
 namespace compiler::program {
   Package::Package(compiler::Program& program, compiler::fs::File&& root)
-    : program{program}, root{std::move(root)} {}
+    : program{program}, root{std::move(root)}
+  {}
 
   std::filesystem::path Package::Name() const { return root.Path().filename(); }
   const std::filesystem::path& Package::Root() const { return root.Path(); }
 
   compiler::program::Module& Package::Import(std::filesystem::path&& specifier) {
+    if (specifier.extension().empty()) {
+      specifier.replace_extension(".wbl");
+    }
+
     compiler::fs::File file{root.Path() / specifier};
 
     if (!file) {
