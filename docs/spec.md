@@ -95,14 +95,14 @@ else { print("Unknown result."); }
 Easily handle optional or uncertain data:
 
 ```warble
-let optionalValue = 42 || null; // Create a union of integer or void
+let optionalValue = 42 || null; // Create a union with a `null` absence state
 
 optionalValue = null;   // now represents no value
 optionalValue = 7;      // set to integer
 
 if (optionalValue)
 is (compiler.integer) { print("Got an integer: {this}"); }
-is (compiler.void) { print("No value available."); }
+is (null) { print("No value available."); }
 ```
 
 ---
@@ -228,7 +228,7 @@ Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct ident
 Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
 
 ```
-let, mut, const, private, protected, public, export, do, null, undefined, true, false, return, yield, panic, await, async, pass, fail, try, if, else, is, from, has, as, this, that
+let, mut, const, private, protected, public, export, do, null, undefined, readonly, true, false, return, yield, panic, await, async, pass, fail, try, if, else, is, from, has, as, this, that
 ```
 
 A full list of reserved keywords is available in Appendix 18.2.
@@ -244,8 +244,7 @@ Literals represent fixed values directly embedded in Warble source code. They fo
   * Numeric literals:
     * Integer: `42`, `0x2A`, `0b101010`
     * Float: `3.14`, `1.0e3`
-  * Void literal: `null`
-  * Undefined literal: `undefined`
+  * Marker symbol literals: `undefined`, `null`, `readonly`
 
 * **Structured Literals**: Represent complex data structures.
 
@@ -564,45 +563,72 @@ let isReady = true;
 let hasFailed = false;
 ```
 
-#### 4.1.2 Void
+#### 4.1.2 Marker Symbols (`undefined`, `null`, `readonly`)
 
-The `void` type in Warble serves as a special marker type used primarily for unions and functions without return values. A symbol with type `void` has a size of `0`, meaning it occupies no space at runtime.
+Warble has three keyword literals that evaluate to compiler-defined **symbols** rather than normal runtime values:
 
-The literal keyword representing the `void` type is `null`. Similar to how the literal `true` is of type `boolean`, the literal `null` is inherently of type `void`.
+* `undefined`
+* `null`
+* `readonly`
 
-Warble is a strongly typed language, and normal values are never implicitly nullable. For instance, the numeric value `0` does not represent any kind of null or invalid state; it is a completely valid number with a clearly defined value. There are no inherently nullable values. Instead, when a nullable or optional value is desired, a union type is used.
+Unlike `true` and `false`, which are ordinary boolean values, these three literals evaluate to symbols and are primarily used as markers.
 
-An optional value in Warble is simply a union of the form `<T, void>`. This pattern has a common nickname: an "optional". However, it is not a special built-in feature; it's just a convenient naming convention for unions that can either hold a value or represent an absence of one.
+These are **marker symbols**. Their primary job is to act as flags and state labels for other constructs (especially unions), not to provide meaningful value bits.
 
-Unions internally include a small type tag indicating the current active type they hold. Because of this type tag, unions inherently have the capacity to represent a null state without needing additional space for the data. Assigning `null` to an optional union will not overwrite its data payload, but it will change the internal type tag to indicate that it currently holds the type `void`, representing the absence of a meaningful value. Attempting to access or read a union holding `void` is considered undefined behavior and should be avoided.
+This distinction matters because the same raw value bits can represent many different concepts depending on the active symbol/tag. For example, the integer `0` and the marker `null` may both be all-zero in memory, but they are different concepts and are never treated as interchangeable.
 
-The reason the `void` type has a size of `0` is specifically to avoid increasing the memory footprint of union types. If `void` occupied actual memory (for instance, 64 bits), it would force all unions containing it, such as `<u8, void>`, to increase their size unnecessarily. Because `void` has zero size, the memory footprint is minimized, containing only the size necessary for the non-void type and the union's type tag.
+##### Union-Tag Semantics
 
-Functions that do not explicitly return a value implicitly return `void`. The following forms are equivalent:
+When a marker symbol appears as an arm of a union, comparing the union to that marker is a **tag test**.
+
+For example, testing a union against `null` asks whether the union's active tag indicates the `null` arm is active. It does not inspect (or validate) the union's value payload.
+
+Similarly, transitioning a union into a marker state (for example assigning `null`) only updates the tag. The compiler does not waste time zeroing or rewriting the value slot, because the payload is not meaningful in a marker state.
+
+When a union is in a marker state, the union's value slot is not meaningful and must not be accessed.
+
+##### `null`
+
+The keyword literal `null` evaluates to the compiler-defined marker symbol of kind `Null`.
+
+Functions that do not explicitly return a value implicitly return `null`. The following forms are equivalent:
 
 ```warble
 return;
 return null;
 ```
 
-Even the absence of an explicit `return` statement at the end of a function is identical to these two forms. All imply returning a value of type `void`.
+##### Optional Values
 
-#### 4.1.3 Undefined
+Warble is strongly typed, and normal values are never implicitly nullable. Optionality is expressed with unions.
 
-The `undefined` literal is a keyword that evaluates to a dedicated **marker symbol**.
+An "optional" in Warble is not a distinct type; it is just a common union pattern:
 
-Each module reserves its first symbol (symbol index `0`) as kind `Undefined`. The literal keyword `undefined` refers to that symbol.
+* Exactly one passing arm (the value).
+* Exactly one failing arm (the absence case), commonly `null`.
 
-This is intentionally simple and extremely useful internally: any field that is zero-initialized naturally points at the `Undefined` symbol.
+##### `undefined`
 
-For example:
+The keyword `undefined` evaluates to a dedicated marker symbol of kind `Undefined`.
 
-* If a symbol has not been named, its `name` slot may be `0`, meaning its name is `undefined`.
-* If a declaration omits its initializer in a context where that is permitted, the initializer defaults to `undefined`.
+This is intentionally simple and extremely useful internally: many fields can default to `undefined` via zero-initialization.
 
-`undefined` is not the same as `null`. The `null` literal represents a value of type `void` (an intentionally empty runtime value), while `undefined` is a marker used to mean “not provided / not set / not present”.
+Common uses include:
 
-#### 4.1.4 Character
+* A symbol with no name may have its `name` slot set to `undefined`.
+* A declaration that defaults its initializer uses `undefined` to mean “not provided / not set / not present”.
+
+##### `readonly`
+
+The keyword `readonly` evaluates to a marker symbol used as an interface-policy contract.
+
+Libraries may accept `readonly` as a flag to request that a dynamic container present an immutable interface. For example, a standard library vector constructed with a `readonly` policy must not permit slot mutation (elements may be initialized and destroyed, but not updated):
+
+```warble
+let const ints = vector<i32, readonly>();
+```
+
+#### 4.1.3 Character
 
 Character literals represent a single Unicode code point, stored as a 32-bit UTF-32 value. Character literals must use single quotes (`'`) and may only contain one Unicode code point.
 
@@ -629,7 +655,7 @@ Invalid example (multiple code points):
 // let invalidChar = 'ab'; // Error: Multiple code points
 ```
 
-#### 4.1.5 Numeric (Integer, Float)
+#### 4.1.4 Numeric (Integer, Float)
 
 ##### Integer Literals
 
@@ -680,7 +706,7 @@ let scientificFloat = 1.23e4;
 * Numeric separators (`_`) must not lead or trail literals.
 * Integers can end in valid hex digits, including alphabetic characters for hexadecimal literals.
 
-#### 4.1.6 String
+#### 4.1.5 String
 
 String literals in Warble represent textual data and are essentially a specialized subtype of array literals. However, they have their own dedicated syntax and internal representation for efficiency and convenience.
 
@@ -785,7 +811,7 @@ Note that this behavior is a special allowance. Generally, spreading one type of
 * Convertible to arrays of characters using spread syntax (`[...]`).
 * If it contains one or more unescaped `{ expression }` portions, it is a template string (kind `TemplateString`): a structured sequence of string chunks and embedded values.
 
-#### 4.1.7 Array
+#### 4.1.6 Array
 
 Array literals represent sequential collections of elements, where each element shares a common data type. The type of an array is always inferred from its first element. Once the type is defined by this initial element, every subsequent element must either match this type exactly or be implicitly convertible to it.
 
@@ -797,11 +823,11 @@ let nums = [0u8, 1, 2, 3];
 
 Here, the first element explicitly defines the array as an array of unsigned 8-bit integers (`u8`). The following elements, although lacking explicit type suffixes, are implicitly converted to match the first element's type.
 
-In contrast, the following is invalid because the second element (`null`) is of type `void`, which cannot be converted to a boolean:
+In contrast, the following is invalid because the second element (`null`) is a marker symbol, which cannot be converted to a boolean:
 
 ```warble
 // Invalid example:
-let flags = [true, null]; // Error: Cannot place 'null' (void) into boolean array
+let flags = [true, null]; // Error: Cannot place `null` into boolean array
 ```
 
 ##### Runtime Data vs. Compile-time Symbol Structure
@@ -862,7 +888,7 @@ Such arrays initially have no defined element type but can still be validly used
   * `Spread`: Indicates array spreading (`...[otherArray]`).
 * **Empty Arrays**: Legal with zero children and initially undefined type.
 
-#### 4.1.8 Enum
+#### 4.1.7 Enum
 
 Enum literals in Warble represent sequences of symbols. Like string literals, enums are specialized subtypes of arrays designed explicitly to hold references to existing symbols. They provide a convenient, efficient way to represent collections of symbolic identifiers.
 
@@ -925,7 +951,7 @@ let arrayExample = [$a, $b, $c]; // Array of symbols (runtime-local memory)
 * Efficiently represents sequences of existing symbolic references.
 * Convertible directly to arrays of symbols using spread syntax (`[...]`).
 
-#### 4.1.9 Tuple
+#### 4.1.8 Tuple
 
 Tuples in Warble represent flexible, sequential, indexable containers capable of holding elements of varying types. Unlike arrays, enums, and strings, tuples impose no requirement for uniformity among their contained values. Each element within a tuple can independently be of any type.
 
@@ -997,7 +1023,7 @@ This restriction ensures clarity and prevents confusion by keeping automatic con
 * Allow spreading arrays, enums, and strings into tuples.
 * Do not allow spreading tuples into stricter containers like arrays or enums.
 
-#### 4.1.10 Object
+#### 4.1.9 Object
 
 Object literals are the most versatile and complex type of literal in Warble. They represent structured, sequential containers of named declarations. While similar in concept to tuples (a sequential container of arbitrary types), objects differ fundamentally by using named lookups instead of numeric indexing.
 
@@ -1185,7 +1211,7 @@ let Indices = {
 * Allow property names defined as strings or enums.
 * Enable composition via object spreading (`...`).
 
-#### 4.1.11 Range
+#### 4.1.10 Range
 
 Range literals provide a concise syntax for defining numeric intervals to be iterated over. They serve primarily as simple iterators for loops or similar iteration contexts.
 
@@ -1223,7 +1249,7 @@ for value in (1..6) {
 * Accept numeric literals, identifiers, or more complex numeric expressions.
 * Primarily used for concise numeric iteration.
 
-#### 4.1.12 Function
+#### 4.1.11 Function
 
 Function literals in Warble represent first-class functions defined directly as values, inspired primarily by C++ lambda syntax. Unlike traditional function definitions found in many languages, Warble treats all functions as literals, allowing flexibility in capturing context, declaring parameters, and defining behavior.
 
@@ -1366,7 +1392,7 @@ Functions do not explicitly declare return types; instead, the return type is in
 
 * Multiple `return` statements are allowed, but they must all return exactly the same type.
 * The return type is represented by a singular symbol flagged as `Returned`.
-* If a function lacks a return statement or returns explicitly without a value (`return;`), its inferred return type is `void` (equivalent to `return null;`).
+* If a function lacks a return statement or returns explicitly without a value (`return;`), its inferred return symbol is `null` (equivalent to `return null;`).
 
 Example:
 
@@ -1377,7 +1403,7 @@ let getValue = () {
   return 20;
 };
 
-// Inferred return type: void
+// Inferred return: null
 let logSomething = (msg) {
   print(msg);
   return; // equivalent to `return null;`
@@ -1511,14 +1537,14 @@ If any `return` or `yield` in a function uses `pass` or `fail`, then all `return
 
 The union returned by a union function is constructed from the set of types produced by its `return` and `yield` statements. Arms are deduplicated within their category (pass vs fail). If the same type is produced as both `pass` and `fail`, it appears twice in the union's arm list: once as a passing arm and once as a failing arm.
 
-##### Promises and Generators (Special Unions)
+##### Promises and Generators (Union Patterns)
 
-Promises and generators are both special forms of union:
+Promises and generators are not distinct types; they are common patterns of union:
 
-* A **generator** is a union that includes a special **exhausted** arm. The compiler recognizes this arm in `for` loops to determine when iteration is complete.
-* A **promise** is a union that includes a special **unresolved** arm. The `await` operator atomically waits until the union's tag changes from unresolved to some other arm before continuing.
+* A **generator** is a union that includes the compiler-defined symbol `compiler.exhausted` as one of its fail arms. `for` loops treat `compiler.exhausted` as the iteration-termination state.
+* A **promise** is a union that includes the compiler-defined symbol `compiler.unresolved` as one of its fail arms. The `await` operator atomically waits until the union's tag transitions away from `compiler.unresolved`.
 
-Both exhausted and unresolved are classified as **fail** states. When a union is in an exhausted or unresolved state, its value slot is undefined and must not be accessed.
+Both `compiler.exhausted` and `compiler.unresolved` are classified as **fail** states. When a union is in a `compiler.exhausted` or `compiler.unresolved` state, its value slot is not meaningful and must not be accessed.
 
 ##### Limits
 
@@ -1673,13 +1699,12 @@ Every symbol has a standalone 8-bit `kinds` column storing its **kind**. Kind na
 
 Core kinds:
 
-- Undefined, Unresolved, Auto, Void, Null
+- Undefined, Unresolved, Auto, Null, Readonly
 - Raw, Boolean, Character, Integer, Float
 - Symbol, Reference
 - Identifier, String, Enum, Union
 - Array, Tuple, TemplateString, Object, Range
 - Phi, Function, Module, Label
-- Optional, Variant, Expectation, Promise, Declaration
 
 Statement kinds:
 
@@ -1785,7 +1810,7 @@ If the current runtime tag is `tag`, then:
 * The union is in a failing state when `tag < fail_count`.
 * The union is in a passing state when `tag >= fail_count`.
 
-The special unresolved (promise) and exhausted (generator) states are classified as failing states.
+The compiler-defined `compiler.unresolved` (promise) and `compiler.exhausted` (generator) states are classified as failing states.
 
 This ordering is important, because it allows any union to be tested for pass/fail status by a single comparison.
 
@@ -1793,23 +1818,23 @@ This ordering is important, because it allows any union to be tested for pass/fa
 
 **TODO: This needs to be rewritten.**
 
-The narrowing operator (`?.`) safely refines a union by verifying the presence of a property or method. It produces a new union whose candidate types include only those that define the requested property, plus an implicit `void` arm to represent failure at runtime.
+The narrowing operator (`?.`) safely refines a union by verifying the presence of a property or method. It produces a new union whose candidate types include only those that define the requested property, plus an implicit `null` arm to represent failure at runtime.
 
 ```warble
 let animal = getAnimal(); // union<Cat, Dog, Fish>
-let sound = animal?.bark(); // union<void, Dog.bark> then resolves to union<void, string>
+let sound = animal?.bark(); // union<null, Dog.bark> then resolves to union<null, string>
 ```
 
 At compile-time:
 
 * The compiler prunes union arms that don't define the accessed property.
-* If no arms remain, the resulting union type is simply `void`.
-* If some arms remain, the compiler generates a small readonly mapping table to translate the original union’s type tag to the new narrowed union’s type tag. Filtered-out types map to the `void` state.
+* If no arms remain, the result is always `null`.
+* If some arms remain, the compiler generates a small read-only mapping table to translate the original union’s type tag to the new narrowed union’s type tag. Filtered-out types map to the `null` state.
 
 At runtime:
 
 * The current union’s tag is used to index this compact mapping table.
-* If the original union's current type doesn't match the filter criteria, the result immediately short-circuits to the `void` arm.
+* If the original union's current type doesn't match the filter criteria, the result immediately short-circuits to the `null` arm.
 * If it matches, the tag is updated to reflect the new union, with the payload simply aliased rather than copied, ensuring optimal performance.
 
 Union payload copying is only triggered if a filtered union arm is mutated while the original union remains alive. This is rare in practice, ensuring most operations remain zero-copy and performant.
@@ -1828,9 +1853,9 @@ Union payload copying is only triggered if a filtered union arm is mutated while
 
 | Operator     | Operand requirement | Fast path                                            | Slow path                                                 | Result type |
 | ------------ | ------------------- | ---------------------------------------------------- | --------------------------------------------------------- | ----------- |
-| `await`      | `promise<T>`        | If not unresolved: returns the resolved value.       | Atomically waits until the promise is no longer unresolved | `T`         |
-| **`expect`** | `expectation<T,E>`  | Unwraps the *expected* arm.                          | `return fail <unexpected-value>`                          | `T`         |
-| **`assume`** | `expectation<T,E>`  | Unwraps the *expected* arm.                          | **Debug:** `panic`<br>**Release:** `trap` (`unreachable`) | `T`         |
+| `await`      | a union with a `compiler.unresolved` fail arm | If not unresolved: returns the union with `compiler.unresolved` removed. | Atomically waits until the union is no longer `compiler.unresolved` | union without `compiler.unresolved` |
+| **`expect`** | a union value        | If passing: returns the union with all fail arms removed. | If failing: `return fail <fail-value>`                    | pass-only union |
+| **`assume`** | a union value        | If passing: returns the union with all fail arms removed. | If failing: `panic <fail-value>`                          | pass-only union |
 
 * All three are **prefix** verbs with the same precedence (just above unary
   `&` and `@`).
@@ -1838,19 +1863,24 @@ Union payload copying is only triggered if a filtered union arm is mutated while
 * Each may skip the remainder of the current statement: `await` can suspend,
   `expect` can early-return, `assume` can abort.
 
+* `expect` is only legal inside a function body. Because its failure path performs an implicit `return fail`, using `expect` forces the enclosing function to use explicit `pass`/`fail` markers for any other `return` or `yield` statements.
+
+* `assume` may be used anywhere (including module top-level). Its failure path uses `panic`, so it does not impose any restrictions on the surrounding function's return/yield forms.
+
 * The compiler lowers `expect`/`assume` to:
 
   ```warble
   let __tmp = expr;
-  if (compiler.is_unexpected(__tmp)) {
-      // expect → return fail compiler.unwrap_unexpected(__tmp);
-      // assume → panic; or compiler.trap();
+  if (compiler.is_failing(__tmp)) {
+    // expect → return fail compiler.fail_value(__tmp);
+    // assume → panic compiler.fail_value(__tmp);
   }
-  let value = compiler.unwrap_expected(__tmp);
+  let value = compiler.drop_fails(__tmp);
   ```
 
-* `assume` inserts an `unreachable` IR node, enabling additional optimization
-  while guaranteeing a hard stop if the assumption is violated.
+* Because `assume` aborts the program on failure, the compiler may treat the
+  failing path as non-returning (for example by emitting an `unreachable` IR
+  node), enabling additional optimization.
 
 > **Guideline:** Default to `expect`.  Reach for `assume` only when recovery is
 > impossible or not worthwhile (e.g. out-of-memory on a desktop program).
@@ -2229,7 +2259,7 @@ Stepping (changing an iterable to skip values or reverse iteration) is intention
   }
   ```
 
-  The loop advances each iterable in lockstep. Iteration stops as soon as **any** of the iterables is exhausted.
+  The loop advances each iterable in lockstep. Iteration stops as soon as **any** of the iterables transitions to `compiler.exhausted`.
 
 This flexible `for` loop design makes Warble iterations expressive, concise, and efficient, covering most common iteration patterns without the complexity of a traditional `for` loop syntax.
 
@@ -2349,7 +2379,7 @@ yield fail error;
 yield async pass value;
 ```
 
-When a generator is exhausted, it transitions to a special exhausted failing-state arm. In the exhausted state, the union's value slot is undefined and must not be accessed.
+When a generator is exhausted, its union tag transitions to `compiler.exhausted` (a failing-state arm). In the `compiler.exhausted` state, the union's value slot is not meaningful and must not be accessed.
 
 #### 7.5.4 Panic (`panic`)
 
@@ -2579,21 +2609,47 @@ Warble’s approach ensures no hidden surprises, fostering a safer and more resp
 
 ### 12.3 Assertion Facilities
 
-### 12.4 Expectation-based Error Propagation
+### 12.4 Union-based Error Propagation (`expect`, `assume`)
 
-Warble’s primary structured error flow is the **expectation** pair plus the
-`expect` operator:
+Warble’s primary structured error flow is an extension of the existing union system.
 
-* A function that may fail returns `expectation<Value, Error>`.
-* Call-sites use `let v = expect may_fail();` to propagate errors
-  transparently; the enclosing function’s return type automatically becomes
-  the same expectation.
-* Higher layers eventually *match* on the expectation or convert it to a
-  panic via `assume`.
+Any union may include both **pass** arms and **fail** arms. A union is **passing** when its current runtime tag is in the pass region, and **failing** when its current runtime tag is in the fail region.
 
-`assume` should be treated like `assert`: it documents an invariant and aborts
-if reality disagrees.  In debug builds a full stack-trace is produced; in
-optimized builds the compiler emits a single `trap` instruction.
+The `expect` keyword is a unary prefix operator that propagates failure. Its operand must be a union:
+
+* If its operand is passing, the result is the same union type with all fail arms removed.
+* If its operand is failing, it performs an implicit `return fail` using the operand's current failing value, preserving all possible fail states.
+
+Because `expect` may synthesize a `return fail`, it is only legal inside a function body. Using `expect` also forces the enclosing function to use explicit `pass`/`fail` markers for any other `return` or `yield` statements (mixing a plain `return` with a `return fail` is a compile-time error).
+
+Example:
+
+```warble
+let parse_int = (text) {
+  if (compiler.can_parse_int(text)) {
+    return pass compiler.parse_int(text);
+  }
+  return fail "not an int";
+};
+
+let add_one = (text) {
+  let v = expect parse_int(text);
+  return pass (v + 1);
+};
+```
+
+The `assume` keyword performs the same pass/fail test, but aborts instead of returning. Its operand must be a union:
+
+* If its operand is passing, the result is the same union type with all fail arms removed.
+* If its operand is failing, it performs `panic <fail-value>`.
+
+Because `assume` does not produce a `return fail`, it does not affect the enclosing function's return type rules, and it may be used at module top-level.
+
+At module top-level, `assume` is a convenient way to enforce initialization invariants:
+
+```warble
+let config = assume load_config();
+```
 
 ## 13 Concurrency & Parallelism
 
@@ -2699,9 +2755,9 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`while`** — Begins a loop construct based on a boolean condition.
 * **`do`** — Introduces a scoped block.
 * **`repeat`** — Begins a loop, which can optionally end with a `while (condition)` portion.
-* **`await`** — Unary prefix operator that suspends the current thread until a promise resolves, repeatedly returning to the work queue between checks.
-* **`expect`** — Unary prefix operator that unwraps an expectation or propagates its unexpected arm via `return fail`.
-* **`assume`** — Unary prefix operator that unwraps an expectation or aborts if it is unexpected.
+* **`await`** — Unary prefix operator that suspends the current thread while its operand's union tag is `compiler.unresolved`, repeatedly returning to the work queue between checks.
+* **`expect`** — Unary prefix operator that removes a union's fail arms when passing, or propagates failure via an implicit `return fail`.
+* **`assume`** — Unary prefix operator that removes a union's fail arms when passing, or aborts via `panic` when failing.
 
 #### Conditional Matching and Constraints
 
@@ -2717,7 +2773,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`panic`** — Produces an error message and exits the program.
 * **`break`** — Exits the nearest enclosing loop.
 * **`continue`** — Skips to the next iteration of the nearest enclosing loop.
-* **`async`** — May augment `return` and `yield` to produce a promise-style union.
+* **`async`** — May augment `return` and `yield` to produce a union pattern that includes `compiler.unresolved` as a fail arm.
 * **`pass`** — May augment `return` and `yield` to mark an arm as passing.
 * **`fail`** — May augment `return` and `yield` to mark an arm as failing.
 
@@ -2729,8 +2785,9 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 
 #### Literals
 
-* **`null`** — Represents a null literal (type `void`).
-* **`undefined`** — Evaluates to the module’s marker symbol of kind `Undefined` (symbol index `0`).
+* **`undefined`** — Keyword literal that evaluates to a compiler-defined marker symbol used to mean “not provided / not set / not present”.
+* **`null`** — Keyword literal that evaluates to a compiler-defined marker symbol used as an absence / empty / failing state label.
+* **`readonly`** — Keyword literal that evaluates to a compiler-defined marker symbol used as an immutable-interface policy contract for libraries.
 * **`true`** — Boolean literal for logical truth.
 * **`false`** — Boolean literal for logical falsehood.
 
