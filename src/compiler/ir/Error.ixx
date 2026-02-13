@@ -6,6 +6,11 @@ import <string_view>;
 namespace compiler::ir {
   export enum class Error : uint8_t {
     // Lexical errors
+    NumericLiteralExpectedDigit,
+    NumericLiteralSeparatorCannotLeadOrTrail,
+    NumericLiteralInvalidBinaryDigit,
+    NumericLiteralInvalidOctalDigit,
+    NumericLiteralInvalidHexDigit,
     EscapeSequenceUnexpectedEndOfInput,
     EscapeSequenceExpectedClosingBrace,
     EscapeSequenceExpectedTwoHexDigits,
@@ -38,6 +43,19 @@ namespace compiler::ir {
     BlockExpectedClosingCurlyBrace,
     SelectorOperatorExpectedSelector,
     UnaryPrefixOperatorExpectedSelector,
+    TypeExpectedExpression,
+    InitializerExpectedExpression,
+    DeclarationExpectedInitializer,
+    DeclarationExpectedSemicolon,
+    PropertyModeDeclarationExpectedName,
+    InvalidDeclarationStatement,
+    DeclarationExpectedExpressionAfterPrefix,
+    DeclarationExpectedIdentifierAfterPrefix,
+    CopyOfExpectedExpression,
+    ReferenceOfExpectedExpression,
+    MutableReferenceOfExpectedExpression,
+    SymbolOfExpectedExpression,
+    SpreadExpectedExpression,
 
     SpecifierExpectedHost,
     SpecifierExpectedAuthority,
@@ -73,13 +91,19 @@ namespace compiler::ir {
     ExpressionStatementExpectedSemicolon,
     EnumExpectedExpression,
     EnumExpectedClosingAngleBracket,
+    EnumExpectedCommaOrClosingAngleBracket,
     ArrayExpectedExpression,
     ArrayExpectedCountExpression,
     ArrayExpectedClosingBracket,
+    ArrayExpectedCommaOrClosingBracket,
     TupleExpectedExpression,
     TupleExpectedClosingParenthesis,
+    TupleExpectedCommaOrClosingParenthesis,
+    ParameterListExpectedClosingParenthesis,
+    CaptureListExpectedClosingBracket,
     ObjectExpectedDeclaration,
     ObjectExpectedClosingCurlyBrace,
+    ObjectExpectedCommaOrClosingCurlyBrace,
     ImportExpectedIdentifier,
     ImportExpectedFromKeyword,
     ImportExpectedSpecifier,
@@ -116,6 +140,14 @@ namespace compiler::ir {
     ForExpectedInKeyword,
     ForExpectedCondition,
     ForExpectedScopeBlock,
+    StatementFoundUnexpectedComma,
+    StatementFoundUnexpectedDot,
+    StatementFoundUnexpectedSemicolon,
+    StatementFoundUnexpectedClosingParenthesis,
+    StatementFoundUnexpectedClosingCurlyBrace,
+    StatementFoundUnexpectedClosingBracket,
+    StatementFoundUnexpectedCharacter,
+    DefaultExpressionExpectedCondition,
 
     // Parser errors
     ParserExpectedObjectDeclaration,
@@ -128,10 +160,80 @@ namespace compiler::ir {
     ParserExpectedOctalStart,
     ParserExpectedBinaryStart,
     ParserExpectedDecimal,
+    ParserExpectedUndefinedLiteral,
+    ParserExpectedNullLiteral,
+    ParserExpectedBooleanLiteral,
+    ParserExpectedCharacterLiteral,
+    ParserExpectedCharacterCloseQuote,
+    ParserExpectedStringLiteral,
+    ParserExpectedStringCloseQuote,
+
+    ParserArrayLiteralExpectedOpeningBracket,
+    ParserArrayLiteralExpectedExpression,
+    ParserArrayLiteralUnexpectedComma,
+    ParserArrayLiteralExpectedCommaOrClosingBracket,
+    ParserArrayLiteralExpectedClosingBracket,
+
+    ParserEnumLiteralExpectedOpeningChevron,
+    ParserEnumLiteralExpectedExpression,
+    ParserEnumLiteralUnexpectedComma,
+    ParserEnumLiteralExpectedCommaOrClosingChevron,
+    ParserEnumLiteralExpectedClosingChevron,
+
+    ParserTupleLiteralExpectedOpeningParen,
+    ParserTupleLiteralExpectedExpression,
+    ParserTupleLiteralUnexpectedComma,
+    ParserTupleLiteralExpectedCommaOrClosingParen,
+    ParserTupleLiteralExpectedClosingParen,
+
+    ParserIdentifierExpectedContent,
+    ParserIdentifierExpectedCharacterData,
+    ParserIdentifierNotDeclared,
+
+    ParserDeclarationExpectedIdentifier,
+    ParserDeclarationExpectedInitializer,
+
+    ParserObjectLiteralExpectedOpeningBrace,
+    ParserObjectLiteralExpectedDeclaration,
+    ParserObjectLiteralUnexpectedComma,
+    ParserObjectLiteralExpectedCommaOrClosingBrace,
+    ParserObjectLiteralExpectedClosingBrace,
+
+    ParserCharacterLiteralExpectedOpeningSingleQuote,
+    ParserCharacterLiteralExpectedContent,
+    ParserCharacterLiteralExpectedCharacterData,
+
+    ParserStringLiteralExpectedOpeningDoubleQuote,
+    ParserStringLiteralExpectedClosingDoubleQuote,
+    ParserStringLiteralExpectedCharacterData,
+
+    ParserTemplateStringLiteralExpectedOpeningBacktick,
+    ParserTemplateStringLiteralExpectedCharacterData,
+
+    ParserHexLiteralExpectedLimbCount,
+    ParserHexLiteralExpectedLimbData,
+
+    ParserOctalLiteralExpectedLimbCount,
+    ParserOctalLiteralExpectedLimbData,
+
+    ParserBinaryLiteralExpectedLimbCount,
+    ParserBinaryLiteralExpectedLimbData,
+
+    ParserDecimalLiteralExpectedDigitRun,
+    ParserDecimalLiteralExpectedLimbCount,
+    ParserDecimalLiteralExpectedLimbData,
+
+    ParserInvalidTopicAccess,
   };
 
   export constexpr std::string_view ToString(Error error) {
     switch (error) {
+      case Error::ParserIdentifierNotDeclared: return "ParserIdentifierNotDeclared";
+      case Error::NumericLiteralExpectedDigit: return "NumericLiteralExpectedDigit";
+      case Error::NumericLiteralSeparatorCannotLeadOrTrail: return "NumericLiteralSeparatorCannotLeadOrTrail";
+      case Error::NumericLiteralInvalidBinaryDigit: return "NumericLiteralInvalidBinaryDigit";
+      case Error::NumericLiteralInvalidOctalDigit: return "NumericLiteralInvalidOctalDigit";
+      case Error::NumericLiteralInvalidHexDigit: return "NumericLiteralInvalidHexDigit";
       case Error::EscapeSequenceUnexpectedEndOfInput: return "EscapeSequenceUnexpectedEndOfInput";
       case Error::EscapeSequenceExpectedClosingBrace: return "EscapeSequenceExpectedClosingBrace";
       case Error::EscapeSequenceExpectedTwoHexDigits: return "EscapeSequenceExpectedTwoHexDigits";
@@ -164,6 +266,19 @@ namespace compiler::ir {
       case Error::BlockExpectedClosingCurlyBrace: return "BlockExpectedClosingCurlyBrace";
       case Error::SelectorOperatorExpectedSelector: return "SelectorOperatorExpectedSelector";
       case Error::UnaryPrefixOperatorExpectedSelector: return "UnaryPrefixOperatorExpectedSelector";
+      case Error::TypeExpectedExpression: return "TypeExpectedExpression";
+      case Error::InitializerExpectedExpression: return "InitializerExpectedExpression";
+      case Error::DeclarationExpectedInitializer: return "DeclarationExpectedInitializer";
+      case Error::DeclarationExpectedSemicolon: return "DeclarationExpectedSemicolon";
+      case Error::PropertyModeDeclarationExpectedName: return "PropertyModeDeclarationExpectedName";
+      case Error::InvalidDeclarationStatement: return "InvalidDeclarationStatement";
+      case Error::DeclarationExpectedExpressionAfterPrefix: return "DeclarationExpectedExpressionAfterPrefix";
+      case Error::DeclarationExpectedIdentifierAfterPrefix: return "DeclarationExpectedIdentifierAfterPrefix";
+      case Error::CopyOfExpectedExpression: return "CopyOfExpectedExpression";
+      case Error::ReferenceOfExpectedExpression: return "ReferenceOfExpectedExpression";
+      case Error::MutableReferenceOfExpectedExpression: return "MutableReferenceOfExpectedExpression";
+      case Error::SymbolOfExpectedExpression: return "SymbolOfExpectedExpression";
+      case Error::SpreadExpectedExpression: return "SpreadExpectedExpression";
       case Error::SpecifierExpectedHost: return "SpecifierExpectedHost";
       case Error::SpecifierExpectedAuthority: return "SpecifierExpectedAuthority";
       case Error::SpecifierBadPathAfterAuthority: return "SpecifierBadPathAfterAuthority";
@@ -193,13 +308,19 @@ namespace compiler::ir {
       case Error::ExpressionStatementExpectedSemicolon: return "ExpressionStatementExpectedSemicolon";
       case Error::EnumExpectedExpression: return "EnumExpectedExpression";
       case Error::EnumExpectedClosingAngleBracket: return "EnumExpectedClosingAngleBracket";
+      case Error::EnumExpectedCommaOrClosingAngleBracket: return "EnumExpectedCommaOrClosingAngleBracket";
       case Error::ArrayExpectedExpression: return "ArrayExpectedExpression";
       case Error::ArrayExpectedCountExpression: return "ArrayExpectedCountExpression";
       case Error::ArrayExpectedClosingBracket: return "ArrayExpectedClosingBracket";
+      case Error::ArrayExpectedCommaOrClosingBracket: return "ArrayExpectedCommaOrClosingBracket";
       case Error::TupleExpectedExpression: return "TupleExpectedExpression";
       case Error::TupleExpectedClosingParenthesis: return "TupleExpectedClosingParenthesis";
+      case Error::TupleExpectedCommaOrClosingParenthesis: return "TupleExpectedCommaOrClosingParenthesis";
+      case Error::ParameterListExpectedClosingParenthesis: return "ParameterListExpectedClosingParenthesis";
+      case Error::CaptureListExpectedClosingBracket: return "CaptureListExpectedClosingBracket";
       case Error::ObjectExpectedDeclaration: return "ObjectExpectedDeclaration";
       case Error::ObjectExpectedClosingCurlyBrace: return "ObjectExpectedClosingCurlyBrace";
+      case Error::ObjectExpectedCommaOrClosingCurlyBrace: return "ObjectExpectedCommaOrClosingCurlyBrace";
       case Error::ImportExpectedIdentifier: return "ImportExpectedIdentifier";
       case Error::ImportExpectedFromKeyword: return "ImportExpectedFromKeyword";
       case Error::ImportExpectedSpecifier: return "ImportExpectedSpecifier";
@@ -236,6 +357,14 @@ namespace compiler::ir {
       case Error::ForExpectedInKeyword: return "ForExpectedInKeyword";
       case Error::ForExpectedCondition: return "ForExpectedCondition";
       case Error::ForExpectedScopeBlock: return "ForExpectedScopeBlock";
+      case Error::StatementFoundUnexpectedComma: return "StatementFoundUnexpectedComma";
+      case Error::StatementFoundUnexpectedDot: return "StatementFoundUnexpectedDot";
+      case Error::StatementFoundUnexpectedSemicolon: return "StatementFoundUnexpectedSemicolon";
+      case Error::StatementFoundUnexpectedClosingParenthesis: return "StatementFoundUnexpectedClosingParenthesis";
+      case Error::StatementFoundUnexpectedClosingCurlyBrace: return "StatementFoundUnexpectedClosingCurlyBrace";
+      case Error::StatementFoundUnexpectedClosingBracket: return "StatementFoundUnexpectedClosingBracket";
+      case Error::StatementFoundUnexpectedCharacter: return "StatementFoundUnexpectedCharacter";
+      case Error::DefaultExpressionExpectedCondition: return "DefaultExpressionExpectedCondition";
       case Error::ParserExpectedObjectDeclaration: return "ParserExpectedObjectDeclaration";
       case Error::ParserBreakOutsideLoop: return "ParserBreakOutsideLoop";
       case Error::ParserContinueOutsideLoop: return "ParserContinueOutsideLoop";
@@ -246,6 +375,69 @@ namespace compiler::ir {
       case Error::ParserExpectedOctalStart: return "ParserExpectedOctalStart";
       case Error::ParserExpectedBinaryStart: return "ParserExpectedBinaryStart";
       case Error::ParserExpectedDecimal: return "ParserExpectedDecimal";
+      case Error::ParserExpectedUndefinedLiteral: return "ParserExpectedUndefinedLiteral";
+      case Error::ParserExpectedNullLiteral: return "ParserExpectedNullLiteral";
+      case Error::ParserExpectedBooleanLiteral: return "ParserExpectedBooleanLiteral";
+      case Error::ParserExpectedCharacterLiteral: return "ParserExpectedCharacterLiteral";
+      case Error::ParserExpectedCharacterCloseQuote: return "ParserExpectedCharacterCloseQuote";
+      case Error::ParserExpectedStringLiteral: return "ParserExpectedStringLiteral";
+      case Error::ParserExpectedStringCloseQuote: return "ParserExpectedStringCloseQuote";
+
+      case Error::ParserArrayLiteralExpectedOpeningBracket: return "ParserArrayLiteralExpectedOpeningBracket";
+      case Error::ParserArrayLiteralExpectedExpression: return "ParserArrayLiteralExpectedExpression";
+      case Error::ParserArrayLiteralUnexpectedComma: return "ParserArrayLiteralUnexpectedComma";
+      case Error::ParserArrayLiteralExpectedCommaOrClosingBracket: return "ParserArrayLiteralExpectedCommaOrClosingBracket";
+      case Error::ParserArrayLiteralExpectedClosingBracket: return "ParserArrayLiteralExpectedClosingBracket";
+
+      case Error::ParserEnumLiteralExpectedOpeningChevron: return "ParserEnumLiteralExpectedOpeningChevron";
+      case Error::ParserEnumLiteralExpectedExpression: return "ParserEnumLiteralExpectedExpression";
+      case Error::ParserEnumLiteralUnexpectedComma: return "ParserEnumLiteralUnexpectedComma";
+      case Error::ParserEnumLiteralExpectedCommaOrClosingChevron: return "ParserEnumLiteralExpectedCommaOrClosingChevron";
+      case Error::ParserEnumLiteralExpectedClosingChevron: return "ParserEnumLiteralExpectedClosingChevron";
+
+      case Error::ParserTupleLiteralExpectedOpeningParen: return "ParserTupleLiteralExpectedOpeningParen";
+      case Error::ParserTupleLiteralExpectedExpression: return "ParserTupleLiteralExpectedExpression";
+      case Error::ParserTupleLiteralUnexpectedComma: return "ParserTupleLiteralUnexpectedComma";
+      case Error::ParserTupleLiteralExpectedCommaOrClosingParen: return "ParserTupleLiteralExpectedCommaOrClosingParen";
+      case Error::ParserTupleLiteralExpectedClosingParen: return "ParserTupleLiteralExpectedClosingParen";
+
+      case Error::ParserIdentifierExpectedContent: return "ParserIdentifierExpectedContent";
+      case Error::ParserIdentifierExpectedCharacterData: return "ParserIdentifierExpectedCharacterData";
+
+      case Error::ParserDeclarationExpectedIdentifier: return "ParserDeclarationExpectedIdentifier";
+      case Error::ParserDeclarationExpectedInitializer: return "ParserDeclarationExpectedInitializer";
+
+      case Error::ParserObjectLiteralExpectedOpeningBrace: return "ParserObjectLiteralExpectedOpeningBrace";
+      case Error::ParserObjectLiteralExpectedDeclaration: return "ParserObjectLiteralExpectedDeclaration";
+      case Error::ParserObjectLiteralUnexpectedComma: return "ParserObjectLiteralUnexpectedComma";
+      case Error::ParserObjectLiteralExpectedCommaOrClosingBrace: return "ParserObjectLiteralExpectedCommaOrClosingBrace";
+      case Error::ParserObjectLiteralExpectedClosingBrace: return "ParserObjectLiteralExpectedClosingBrace";
+
+      case Error::ParserCharacterLiteralExpectedOpeningSingleQuote: return "ParserCharacterLiteralExpectedOpeningSingleQuote";
+      case Error::ParserCharacterLiteralExpectedContent: return "ParserCharacterLiteralExpectedContent";
+      case Error::ParserCharacterLiteralExpectedCharacterData: return "ParserCharacterLiteralExpectedCharacterData";
+
+      case Error::ParserStringLiteralExpectedOpeningDoubleQuote: return "ParserStringLiteralExpectedOpeningDoubleQuote";
+      case Error::ParserStringLiteralExpectedClosingDoubleQuote: return "ParserStringLiteralExpectedClosingDoubleQuote";
+      case Error::ParserStringLiteralExpectedCharacterData: return "ParserStringLiteralExpectedCharacterData";
+
+      case Error::ParserTemplateStringLiteralExpectedOpeningBacktick: return "ParserTemplateStringLiteralExpectedOpeningBacktick";
+      case Error::ParserTemplateStringLiteralExpectedCharacterData: return "ParserTemplateStringLiteralExpectedCharacterData";
+
+      case Error::ParserHexLiteralExpectedLimbCount: return "ParserHexLiteralExpectedLimbCount";
+      case Error::ParserHexLiteralExpectedLimbData: return "ParserHexLiteralExpectedLimbData";
+
+      case Error::ParserOctalLiteralExpectedLimbCount: return "ParserOctalLiteralExpectedLimbCount";
+      case Error::ParserOctalLiteralExpectedLimbData: return "ParserOctalLiteralExpectedLimbData";
+
+      case Error::ParserBinaryLiteralExpectedLimbCount: return "ParserBinaryLiteralExpectedLimbCount";
+      case Error::ParserBinaryLiteralExpectedLimbData: return "ParserBinaryLiteralExpectedLimbData";
+
+      case Error::ParserDecimalLiteralExpectedDigitRun: return "ParserDecimalLiteralExpectedDigitRun";
+      case Error::ParserDecimalLiteralExpectedLimbCount: return "ParserDecimalLiteralExpectedLimbCount";
+      case Error::ParserDecimalLiteralExpectedLimbData: return "ParserDecimalLiteralExpectedLimbData";
+      
+      case Error::ParserInvalidTopicAccess: return "ParserInvalidTopicAccess";
     }
   
     return "Unknown";
