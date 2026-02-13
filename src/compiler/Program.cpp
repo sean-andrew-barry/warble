@@ -12,7 +12,9 @@ import <stdexcept>;
 import <utility>;
 
 namespace compiler {
-  Program::Program(Compiler& compiler) : compiler{compiler} {}
+  Program::Program(Compiler& compiler)
+    : compiler{compiler}
+  {}
 
   program::Package& Program::Register(std::filesystem::path&& path) {
     fs::File file{std::move(path)};
