@@ -4,8 +4,9 @@ import <cstdint>;
 import <cstddef>;
 import <bitset>;
 import <vector>;
-import compiler.ir.Index;
+import compiler.ir.Symbol;
 import compiler.ir.symbol.Kind;
+import compiler.ir.symbol.Flag;
 
 // ────────────────────────────────────────────────────────────────
 //  Symbols table: columnar (SoA) style representation of Symbol data
@@ -27,15 +28,13 @@ import compiler.ir.symbol.Kind;
 namespace compiler::ir {
   export class Symbols {
   private:
-    std::vector<uint64_t> registers; // Live-range bitset
-    std::vector<ir::symbol::Kind> types; // Symbol types
-    std::vector<uint64_t> flags; // Modifiers, type information, etc
+    std::vector<ir::symbol::Kind> kinds; // Symbol kinds
+    std::vector<uint64_t> flags; // Modifiers, size, etc
     std::vector<uint64_t> payloads; // A generic typeless field: immediate literal, pointer/index, etc
-    std::vector<uint32_t> offsets; // Byte offset from the parent for runtime memory layout
-    std::vector<uint32_t> displacements; // Byte offset from the stack pointer for runtime memory layout
+    std::vector<uint32_t> offsets; // Byte offset from the base for runtime memory layout
 
-    std::vector<ir::Index> parents;
-    std::vector<ir::Index> names; // A string or enum literal symbol or 0 for undefined
+    std::vector<ir::Symbol> parents;
+    std::vector<ir::Symbol> names; // A string or enum literal symbol or 0 for undefined
 
     std::vector<uint32_t> tokens; // The index of the first token that defined this symbol
   public:
@@ -45,35 +44,35 @@ namespace compiler::ir {
     Symbols(const Symbols&) = delete;
     Symbols& operator=(const Symbols&) = delete;
 
-    uint64_t Registers(ir::Index i) const { return registers[i.Row()]; }
-    ir::symbol::Kind Type(ir::Index i) const { return types[i.Row()]; }
-    uint64_t Flags(ir::Index i) const { return flags[i.Row()]; }
-    uint64_t Payload(ir::Index i) const { return payloads[i.Row()]; }
-    uint32_t Size(ir::Index i) const { return static_cast<uint32_t>(Payload(i) & 0xFFFFFFFFu); }
-    uint32_t Offset(ir::Index i) const { return offsets[i.Row()]; }
-    uint32_t Displacement(ir::Index i) const { return displacements[i.Row()]; }
-    ir::Index Parent(ir::Index i) const { return parents[i.Row()]; }
-    ir::Index Name(ir::Index i) const { return names[i.Row()]; }
-    uint32_t Token(ir::Index i) const { return tokens[i.Row()]; }
+    ir::symbol::Kind Kind(ir::Symbol i) const { return kinds[i.Row()]; }
+    uint64_t Flags(ir::Symbol i) const { return flags[i.Row()]; }
+    uint64_t Payload(ir::Symbol i) const { return payloads[i.Row()]; }
+    uint32_t PayloadLow(ir::Symbol i) const { return static_cast<uint32_t>(Payload(i) & 0xFFFFFFFFu); }
+    uint32_t PayloadHigh(ir::Symbol i) const { return static_cast<uint32_t>(Payload(i) >> 32); }
+    uint32_t Offset(ir::Symbol i) const { return offsets[i.Row()]; }
+    ir::Symbol Parent(ir::Symbol i) const { return parents[i.Row()]; }
+    ir::Symbol Name(ir::Symbol i) const { return names[i.Row()]; }
+    uint32_t Token(ir::Symbol i) const { return tokens[i.Row()]; }
+    bool Flag(ir::Symbol i, ir::symbol::Flag f) const { return (flags[i.Row()] & (1ull << static_cast<uint64_t>(f))) != 0; }
 
-    void Registers(ir::Index i, uint64_t v) { registers[i.Row()] = v; }
-    void Type(ir::Index i, ir::symbol::Kind v) { types[i.Row()] = v; }
-    void Flags(ir::Index i, uint64_t v) { flags[i.Row()] = v; }
-    void Payload(ir::Index i, uint64_t v) { payloads[i.Row()] = v; }
-    void Payload(ir::Index i, uint32_t a, uint32_t b) { Payload(i, (static_cast<uint64_t>(a) << 32) | b); }
-    void Size(ir::Index i, uint32_t v) { Payload(i, static_cast<uint32_t>(Payload(i) >> 32), static_cast<uint32_t>(v)); }
-    void Offset(ir::Index i, uint32_t v) { offsets[i.Row()] = v; }
-    void Displacement(ir::Index i, uint32_t v) { displacements[i.Row()] = v; }
-    void Parent(ir::Index i, ir::Index v) { parents[i.Row()] = v; }
-    void Name(ir::Index i, ir::Index v) { names[i.Row()] = v; }
-    void Token(ir::Index i, uint32_t v) { tokens[i.Row()] = v; }
+    void Kind(ir::Symbol i, ir::symbol::Kind v) { kinds[i.Row()] = v; }
+    void Flags(ir::Symbol i, uint64_t v) { flags[i.Row()] = v; }
+    void Payload(ir::Symbol i, uint64_t v) { payloads[i.Row()] = v; }
+    void Payload(ir::Symbol i, uint32_t low, uint32_t high) { Payload(i, (static_cast<uint64_t>(high) << 32) | low); }
+    void PayloadLow(ir::Symbol i, uint32_t v) { Payload(i, v, PayloadHigh(i)); }
+    void PayloadHigh(ir::Symbol i, uint32_t v) { Payload(i, PayloadLow(i), v); }
+    void Offset(ir::Symbol i, uint32_t v) { offsets[i.Row()] = v; }
+    void Parent(ir::Symbol i, ir::Symbol v) { parents[i.Row()] = v; }
+    void Name(ir::Symbol i, ir::Symbol v) { names[i.Row()] = v; }
+    void Token(ir::Symbol i, uint32_t v) { tokens[i.Row()] = v; }
+    void Flag(ir::Symbol i, ir::symbol::Flag f) { flags[i.Row()] |= (1ull << static_cast<uint64_t>(f)); }
 
-    bool IsValid(ir::Index i) const {
+    bool IsValid(ir::Symbol i) const {
       return i.Row() < Count();
     }
 
-    bool IsScope(ir::Index i) const {
-      switch (Type(i)) {
+    bool IsScope(ir::Symbol i) const {
+      switch (Kind(i)) {
         case ir::symbol::Kind::Function:
         case ir::symbol::Kind::Module:
         case ir::symbol::Kind::If:
@@ -90,8 +89,8 @@ namespace compiler::ir {
       }
     }
 
-    bool IsLoop(ir::Index i) const {
-      switch (Type(i)) {
+    bool IsLoop(ir::Symbol i) const {
+      switch (Kind(i)) {
         case ir::symbol::Kind::For:
         case ir::symbol::Kind::While:
         case ir::symbol::Kind::Repeat:
@@ -101,8 +100,8 @@ namespace compiler::ir {
       }
     }
 
-    bool IsContext(ir::Index i) const {
-      switch (Type(i)) {
+    bool IsContext(ir::Symbol i) const {
+      switch (Kind(i)) {
         case ir::symbol::Kind::Function:
         case ir::symbol::Kind::Module:
           return true;
@@ -111,8 +110,8 @@ namespace compiler::ir {
       }
     }
 
-    bool IsStructured(ir::Index i) const {
-      switch (Type(i)) {
+    bool IsStructured(ir::Symbol i) const {
+      switch (Kind(i)) {
         case ir::symbol::Kind::Function:
         case ir::symbol::Kind::Module:
         case ir::symbol::Kind::Object:
@@ -135,60 +134,75 @@ namespace compiler::ir {
       }
     }
 
-    ir::Index FirstChild(ir::Index i) const {
-      if (!IsStructured(i)) return ir::Index{};
+    ir::Symbol FirstChild(ir::Symbol i) const {
+      if (!IsStructured(i)) return ir::Symbol{};
 
-      ir::Index next{i.Row() + 1};
+      ir::Symbol next{i.Row() + 1};
       if (IsValid(next)) return next;
 
-      return ir::Index{};
+      return ir::Symbol{};
     }
 
-    ir::Index LastChild(ir::Index i) const {
-      if (!IsStructured(i)) return ir::Index{};
+    ir::Symbol LastChild(ir::Symbol i) const {
+      if (!IsStructured(i)) return ir::Symbol{};
 
       uint64_t value = Payload(i);
       uint32_t end = static_cast<uint32_t>(value >> 32);
 
-      return ir::Index{end};
+      return ir::Symbol{end};
     }
 
-    ir::Index Scope(ir::Index i) const {
+    ir::Symbol Scope(ir::Symbol i) const {
       if (IsScope(i)) return i;
 
-      ir::Index parent = Parent(i);
+      ir::Symbol parent = Parent(i);
       if (parent) return Scope(parent);
 
-      return ir::Index{};
+      return ir::Symbol{};
     }
 
-    ir::Index Loop(ir::Index i) const {
+    ir::Symbol Loop(ir::Symbol i) const {
       if (IsLoop(i)) return i;
 
       auto parent = Parent(i);
       if (parent) return Loop(parent);
 
-      return ir::Index{};
+      return ir::Symbol{};
     }
 
-    ir::Index Context(ir::Index i) const {
+    ir::Symbol Context(ir::Symbol i) const {
       if (IsContext(i)) return i;
 
       auto parent = Parent(i);
       if (parent) return Context(parent);
 
-      return ir::Index{};
+      return ir::Symbol{};
     }
 
-    ir::Index Add(ir::symbol::Kind type) {
-      ir::Index index{static_cast<uint32_t>(payloads.size())}; // Take the size of any column, they should all be the same
+    ir::Symbol Add(ir::symbol::Kind type) {
+      ir::Symbol index{static_cast<uint32_t>(payloads.size())}; // Take the size of any column, they should all be the same
 
-      registers.emplace_back(0);
-      types.emplace_back(type);
+      kinds.emplace_back(type);
       flags.emplace_back(0);
       payloads.push_back(0);
       offsets.push_back(0);
-      displacements.push_back(0);
+      parents.push_back({});
+      names.push_back({});
+      tokens.push_back(0);
+
+      return index;
+    }
+
+    // Create a copy of an existing symbol
+    ir::Symbol Copy(ir::Symbol source) {
+      ir::Symbol index{static_cast<uint32_t>(payloads.size())}; // Take the size of any column, they should all be the same
+
+      kinds.emplace_back(kinds[source.Row()]);
+      flags.emplace_back(flags[source.Row()]);
+      payloads.push_back(payloads[source.Row()]);
+      offsets.push_back(offsets[source.Row()]);
+      
+      // These columns are not copied
       parents.push_back({});
       names.push_back({});
       tokens.push_back(0);
@@ -199,12 +213,10 @@ namespace compiler::ir {
     size_t Count() const { return payloads.size(); }
 
     void Resize(size_t n) {
-      registers.resize(n);
-      types.resize(n);
+      kinds.resize(n);
       flags.resize(n);
       payloads.resize(n);
       offsets.resize(n);
-      displacements.resize(n);
       parents.resize(n);
       names.resize(n);
       tokens.resize(n);
