@@ -70,28 +70,72 @@ namespace compiler::input {
 
   inline constexpr auto IDENTIFIER = IDENTIFIER_START | DIGIT;
 
-  inline constexpr auto TERM_START = MakeBitset([](auto& bs){
+  inline constexpr auto OPERAND_START = MakeBitset([](auto& bs){
     for (char c : "tfnrua'\"`+-([{<.") bs.set(c);
+    bs.set('0'); // 
+    bs.set('1'); // 
+    bs.set('2'); // 
+    bs.set('3'); // 
+    bs.set('4'); // 
+    bs.set('5'); // 
+    bs.set('6'); // 
+    bs.set('7'); // 
+    bs.set('8'); // 
+    bs.set('9'); // 
+    bs.set('a'); // `auto`
+    bs.set('n'); // `null`
+    bs.set('u'); // `undefined`
+    bs.set('\''); // Character
+    bs.set('"'); // String
+    bs.set('('); // Tuple or parameter
+    bs.set('['); // Array
+    bs.set('<'); // Enum
+    bs.set('{'); // Object
+    bs.set('d'); // `do`
+    bs.set('i'); // `if`
+    bs.set('t'); // `try` or `true` or `this` or `that`
+    bs.set('l'); // `loop`
+    bs.set('w'); // `while`
+    bs.set('r'); // `repeat` or `readonly`
+    bs.set('f'); // `for` or `false`
   }) | DIGIT;
 
   inline constexpr auto STATEMENT_START = MakeBitset([](auto& bs){
-    for (char c : "bcdefilprwt;") bs.set(c);
+    bs.set('b'); // `break`
+    bs.set('c'); // `continue`
+    bs.set('d'); // `do`
+    bs.set('f'); // `for`
+    bs.set('i'); // `if`
+    bs.set('l'); // `loop` or `let`
+    bs.set('p'); // `panic`
+    bs.set('t'); // `try`
+    bs.set('r'); // `repeat`
+    bs.set('w'); // `while`
+    bs.set('y'); // `yield`
+    bs.set(';'); // `;` (empty statement)
   });
 
   inline constexpr auto UNARY_PREFIX_START = MakeBitset([](auto& bs){
-    for (char c : "+-*&$#@!?^=.~aneu") bs.set(c);
+    // for (char c : "+-*&$#@!?^=.~aneu") bs.set(c);
+
+    bs.set('+');
+    bs.set('-');
+    bs.set('*');
+    bs.set('&');
+    bs.set('$');
+    bs.set('#');
+    bs.set('@');
+    bs.set('!');
+    bs.set('.');
+    bs.set('~');
+    bs.set('a'); // `await` or `assume`
+    bs.set('e'); // `expect`
+    bs.set('r'); // `runtime`
+    bs.set('c'); // `comtime`
   });
 
   inline constexpr auto UNARY_POSTFIX_START = MakeBitset([](auto& bs){
-    for (char c : "*&$?@#+-!.") bs.set(c);
-  });
-
-  inline constexpr auto CALLABLE_PREFIX_START = MakeBitset([](auto& bs){
-    for (char c : "'\"`") bs.set(c);
-  });
-
-  inline constexpr auto CALLABLE_POSTFIX_START = MakeBitset([](auto& bs){
-    for (char c : "'\"`-([{<") bs.set(c);
+    for (char c : "?'\"`([{<") bs.set(c);
   });
 
   inline constexpr auto BINARY_START = MakeBitset([](auto& bs){
@@ -99,7 +143,11 @@ namespace compiler::input {
   });
 
   inline constexpr auto MODIFIER_START = MakeBitset([](auto& bs){
-    for (char c : "aceimpslr") bs.set(c);
+    // I don't think `let` is actually a modifier anymore
+    // bs.set('l'); // `let`
+    bs.set('c'); // `const`
+    bs.set('m'); // `mut`
+    bs.set('p'); // `private`, `public`, `protected`
   });
 
   inline constexpr auto NUMBER_START = DIGIT;
@@ -175,11 +223,9 @@ namespace compiler::input {
   protected:
     std::string source;
     std::vector<ir::Token> tokens;
-    std::vector<char32_t> characters; // UTF-32 code points captured from source text
-    std::vector<uint32_t> limbs; // Numeric limbs and other non-text payloads
+    std::vector<ir::Error> errors;
+    std::vector<uint32_t> data;
     std::vector<uint32_t> temp_le; // Shared little-endian workspace for numeric accumulation
-    std::vector<uint8_t> hex_le; // little-endian nibbles buffer
-    std::vector<ir::Error> errors; // emitted error codes in encounter order
 
     text::cursor::String cursor;
     std::string::const_iterator furthest; // Highest source iterator reached to suppress duplicate side-effects after rollback.
@@ -201,6 +247,8 @@ namespace compiler::input {
     bool Emit(ir::Token token);
     bool Match(const char c, ir::Token token);
     bool Match(const std::string_view s, ir::Token token);
+    bool MatchWS(const char c, ir::Token token);
+    bool MatchWS(const std::string_view s, ir::Token token);
     bool Error(ir::Error error);
     bool EmitAndAdvance(ir::Token token, size_t count = 1);
     bool Keyword(const std::string_view text);
@@ -210,6 +258,10 @@ namespace compiler::input {
     // Emit the given count as big-endian hexadecimal nibbles using Characters0..F tokens.
     // Returns true if any tokens were emitted (count > 0).
     bool EmitCharactersNibbles(uint32_t count);
+    // Emit the given count as big-endian hexadecimal nibbles using Digits0..F tokens.
+    // Used for numeric literal format masks (digit run lengths).
+    // Returns true if any tokens were emitted (count > 0).
+    bool EmitDigitsNibbles(uint32_t count);
     bool EmitSpacesNibbles(uint32_t count);
     bool EmitTabsNibbles(uint32_t count);
 
@@ -217,7 +269,6 @@ namespace compiler::input {
     bool HandleNonASCIIWhitespace();
 
     void PushCharacter(char32_t cp);
-
     void PushLimb(uint32_t word);
 
     bool CaptureCharacters(const auto& fn) {
@@ -294,6 +345,18 @@ namespace compiler::input {
       }
       return true;
     }
+
+    uint32_t Repeat(const auto& fn) {
+      uint32_t count = 0;
+
+      while (!cursor.Done()) {
+        if (!fn()) break;
+        ++count;
+        cursor.Advance();
+      }
+
+      return count;
+    }
   public:
     Lexer(std::string&& source);
 
@@ -301,14 +364,12 @@ namespace compiler::input {
 
     std::string Source() && { return std::move(source); }
     std::vector<ir::Token> Tokens() && { return std::move(tokens); }
-    std::vector<char32_t> Characters() && { return std::move(characters); }
-    std::vector<uint32_t> Limbs() && { return std::move(limbs); }
+    std::vector<uint32_t> Data() && { return std::move(data); }
     std::vector<ir::Error> Errors() && { return std::move(errors); }
 
     const std::string& Source() const & { return source; }
     const std::vector<ir::Token>& Tokens() const & { return tokens; }
-    const std::vector<char32_t>& Characters() const & { return characters; }
-    const std::vector<uint32_t>& Limbs() const & { return limbs; }
+    const std::vector<uint32_t>& Data() const & { return data; }
     const std::vector<ir::Error>& Errors() const & { return errors; }
 
     bool WhiteSpace();
@@ -340,22 +401,31 @@ namespace compiler::input {
     bool Repeat();
     bool Is();
     bool In();
+    bool As();
     bool For();
     bool Default();
     bool Auto();
-    bool Void();
     bool When();
+    bool Runtime();
+    bool Comtime();
     bool Await();
+    bool Assume();
+    bool Expect();
     bool Async();
     bool Compiler();
     bool Break();
     bool Continue();
     bool Return();
     bool Panic();
-    bool Case();
     bool Yield();
+    bool Pass();
+    bool Fail();
     bool Let();
     bool Const();
+    bool Mut();
+    bool Public();
+    bool Protected();
+    bool Private();
 
     bool CaptureOpen();
     bool CaptureClose();
@@ -372,8 +442,8 @@ namespace compiler::input {
     bool EnumOpen();
     bool EnumClose();
 
-    bool CharOpen();
-    bool CharClose();
+    bool CharacterOpen();
+    bool CharacterClose();
     bool StringOpen();
     bool StringClose();
     bool TemplateStringOpen();
@@ -390,6 +460,7 @@ namespace compiler::input {
     bool Arrow();
     bool Path();
     bool TypeStart();
+    bool Initialize();
     bool CommentOpen();
     bool CommentClose();
     bool MultiLineCommentOpen();
@@ -404,11 +475,11 @@ namespace compiler::input {
     bool DestructuredEnumClose();
 
     // Unary operators
-    bool Reference();
-    bool MutableReference();
-    bool Symbol();
-    bool Copy();
-    bool Counted();
+    bool ReferenceOf();
+    bool MutableReferenceOf();
+    bool SymbolOf();
+    bool CopyOf();
+    bool LengthOf();
     bool Positive();
     bool Negative();
     bool Increment();
@@ -417,11 +488,16 @@ namespace compiler::input {
     bool Spread();
     bool Move();
     bool BitwiseNot();
+    bool Guard();
 
     bool UnaryPrefixOperatorHelper();
+    bool UnaryPostfixOperatorHelper();
+    bool ModifierHelper();
 
     bool UnaryPrefixOperator();
     bool UnaryPostfixOperator();
+    bool Modifier();
+    bool Modifiers();
 
     // Generic escape sequence parser (new design).
     //  - Consumes an escape beginning with '\\' and emits exactly one Escape* token that
@@ -448,10 +524,9 @@ namespace compiler::input {
     bool IdentifierHelper();
     bool Identifier();
     bool IdentifierOrArrowFunction();
-    bool TemplateStringLiteral();
     bool BinaryOperator(bool in_enum, bool in_type);
-    bool Parameters();
-    bool Captures();
+    bool ParameterList();
+    bool CaptureList();
     bool ArrowFunction();
     bool FunctionHeader();
     bool FunctionBody();
@@ -461,20 +536,39 @@ namespace compiler::input {
     bool ObjectLiteral();
     bool ArrayLiteral();
     bool TupleLiteral();
-    bool CallablePrefixLiteralHelper();
-    bool CallablePostfixLiteralHelper();
-    bool CallablePrefixLiteral();
-    bool CallablePostfixLiteral();
-    bool TermShortcut();
-    bool Term();
+    bool OperandShortcut();
+    bool Operand();
     bool Expression(bool in_enum = false, bool in_type = false);
     bool ExpressionStatement();
+    bool DefaultExpression();
+    bool DoExpression();
+    bool IfExpression();
+    bool TryExpression();
+    bool LoopExpression();
+    bool WhileExpression();
+    bool RepeatExpression();
+    bool ForExpression();
     bool DeclarationInternal(bool require_keyword, bool allow_prefix, bool allow_initializer, bool emit_errors);
-    bool DeclarationPrefixed();
-    bool DeclarationMember();
-    bool DeclarationKeyword();
-    bool DeclarationStatement();
-    bool Declaration();
+    bool LetStatement();
+    bool StatementModeDeclaration();
+    bool ParameterModeDeclaration();
+    bool PropertyModeDeclaration();
+    bool CaptureModeDeclaration();
+    bool LoopModeDeclaration();
+    bool DestructureArray();
+    bool DestructureTuple();
+    bool DestructureEnum();
+    bool DestructureObject();
+    bool Destructure();
+    bool PrefixedCopyOf();
+    bool PrefixedReferenceOf();
+    bool PrefixedMutableReferenceOf();
+    bool PrefixedSymbolOf();
+    bool PrefixedSpread();
+    bool PrefixedExpression();
+    bool TypeExpression();
+    bool InitializerExpression();
+    bool DeclarationOrExpressionStatement();
     bool StatementShortcut();
     bool Statement();
     bool Condition();
@@ -561,12 +655,10 @@ namespace compiler::input {
     constexpr bool IsBinaryStart() const { return IsBinaryStart(cursor.Peek()); }
     constexpr bool IsNumberStart() const { return IsNumberStart(cursor.Peek()); }
     constexpr bool IsIdentStart() const { return IsIdentStart(cursor.Peek()); }
-    constexpr bool IsTermStart() const { return IsTermStart(cursor.Peek()); }
+    constexpr bool IsOperandStart() const { return IsOperandStart(cursor.Peek()); }
     constexpr bool IsStatementStart() const { return IsStatementStart(cursor.Peek()); }
     constexpr bool IsUnaryPrefixStart() const { return IsUnaryPrefixStart(cursor.Peek()); }
     constexpr bool IsUnaryPostfixStart() const { return IsUnaryPostfixStart(cursor.Peek()); }
-    constexpr bool IsCallablePrefixStart() const { return IsCallablePrefixStart(cursor.Peek()); }
-    constexpr bool IsCallablePostfixStart() const { return IsCallablePostfixStart(cursor.Peek()); }
     constexpr bool IsModifierStart() const { return IsModifierStart(cursor.Peek()); }
     constexpr bool IsPossibleSpaceStart() const { return IsPossibleSpaceStart(cursor.Peek()); }
     constexpr bool IsPossibleIdentifierStart() const { return IsPossibleIdentifierStart(cursor.Peek()); }
@@ -614,12 +706,10 @@ namespace compiler::input {
     constexpr bool IsURLAuthority(size_t i) const { return IsURLAuthority(cursor.Peek(i)); }
     constexpr bool IsFilePath(size_t i) const { return IsFilePath(cursor.Peek(i)); }
     constexpr bool IsIdentStart(size_t i) const { return IsIdentStart(cursor.Peek(i)); }
-    constexpr bool IsTermStart(size_t i) const { return IsTermStart(cursor.Peek(i)); }
+    constexpr bool IsOperandStart(size_t i) const { return IsOperandStart(cursor.Peek(i)); }
     constexpr bool IsStatementStart(size_t i) const { return IsStatementStart(cursor.Peek(i)); }
     constexpr bool IsUnaryPrefixStart(size_t i) const { return IsUnaryPrefixStart(cursor.Peek(i)); }
     constexpr bool IsUnaryPostfixStart(size_t i) const { return IsUnaryPostfixStart(cursor.Peek(i)); }
-    constexpr bool IsCallablePrefixStart(size_t i) const { return IsCallablePrefixStart(cursor.Peek(i)); }
-    constexpr bool IsCallablePostfixStart(size_t i) const { return IsCallablePostfixStart(cursor.Peek(i)); }
     constexpr bool IsModifierStart(size_t i) const { return IsModifierStart(cursor.Peek(i)); }
     constexpr bool IsPossibleSpaceStart(size_t i) const { return IsPossibleSpaceStart(cursor.Peek(i)); }
     constexpr bool IsPossibleIdentifierStart(size_t i) const { return IsPossibleIdentifierStart(cursor.Peek(i)); }
@@ -638,12 +728,10 @@ namespace compiler::input {
     constexpr bool IsIdent(const char c) const { return IDENTIFIER[static_cast<uint8_t>(c)]; }
     constexpr bool IsBinary(const char c) const { return c == '0'|| c == '1'; }
     constexpr bool IsIdentStart(const char c) const { return IDENTIFIER_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsTermStart(const char c) const { return TERM_START[static_cast<uint8_t>(c)]; }
+    constexpr bool IsOperandStart(const char c) const { return OPERAND_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsStatementStart(const char c) const { return STATEMENT_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsUnaryPrefixStart(const char c) const { return UNARY_PREFIX_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsUnaryPostfixStart(const char c) const { return UNARY_POSTFIX_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsCallablePrefixStart(const char c) const { return CALLABLE_PREFIX_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsCallablePostfixStart(const char c) const { return CALLABLE_POSTFIX_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsBinaryStart(const char c) const { return BINARY_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsModifierStart(const char c) const { return MODIFIER_START[static_cast<uint8_t>(c)]; }
     constexpr bool IsNumberStart(const char c) const { return NUMBER_START[static_cast<uint8_t>(c)]; }
