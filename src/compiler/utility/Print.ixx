@@ -32,6 +32,12 @@ namespace compiler::utility {
     std::cout.flush();
   }
 
+  export auto Error(auto&&... args) {
+    compiler::text::Builder builder{std::forward<decltype(args)>(args)...};
+    std::scoped_lock lock{cout_mutex};
+    return std::runtime_error(builder.ToString());
+  }
+
   export void Debug(auto&&... args) {
     if constexpr (!utility::Macros::DEBUGGING) return;
 
