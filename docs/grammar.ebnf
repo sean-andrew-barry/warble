@@ -194,9 +194,6 @@ StaticMemberOperator ::= '::' ;
 
 RangeOperator ::= '..';
 
-WrapOperator ::= '!!';
-UnwrapOperator ::= '??';
-
 (*──────────────────────────────────────────*)
 (* thematic groupings / precedence tiers    *)
 (*──────────────────────────────────────────*)
@@ -309,17 +306,12 @@ CharacterLiteral       ::= '\'' ( EscapeSequence | CharacterWithoutEscape ) '\''
 
 StringCharacter
   ::= EscapeSequence
-    | SourceCharacter - ( '\\' | '"' | NewLine );
-StringLiteral         ::= '"' { StringCharacter } '"';
+    | SourceCharacter - ( '\\' | '"' | '{' | '}' );
 
-(*──── template literals ────*)
-TemplateCharacter
-  ::= EscapeSequence
-    | SourceCharacter - ( '\\' | '`' | '{' | '}' | NewLine );
-TemplateStringChunk   ::= TemplateCharacter { TemplateCharacter };
-TemplateExpression    ::= '{' Expression '}';
-TemplatePart          ::= TemplateStringChunk | TemplateExpression;
-TemplateLiteral       ::= '`' { TemplatePart } '`';
+StringTextChunk       ::= StringCharacter { StringCharacter };
+StringTemplateExpr    ::= '{' Expression '}';
+StringPart            ::= StringTextChunk | StringTemplateExpr;
+StringLiteral         ::= '"' { StringPart } '"';
 
 (*──── collection literals ────*)
 ExpressionList        ::= Expression { ',' Expression } [ ',' ] ;
@@ -333,7 +325,6 @@ ObjectDeclarationList ::= ObjectDeclaration { ',' ObjectDeclaration } [ ',' ] ;
 ObjectLiteral         ::= '{' [ ObjectDeclarationList ] '}' ;
 
 (*──── function literals ────*)
-TemplateList          ::= '<' TemplateDeclaration { ',' TemplateDeclaration } [ ',' ] '>' ;
 CaptureList           ::= '[' CaptureDeclaration  { ',' CaptureDeclaration  } [ ',' ] ']' ;
 ParameterList         ::= '(' ParameterDeclaration { ',' ParameterDeclaration } [ ',' ] ')' ;
 
@@ -341,8 +332,7 @@ FunctionBody          ::= '{' { Statement } '}' ;
 ArrowFunctionBody     ::= ArrowOperator Expression ;
 
 FunctionSignature
-  ::= TemplateList [ CaptureList ] [ ParameterList ]
-  | CaptureList [ ParameterList ]
+  ::= CaptureList [ ParameterList ]
   | ParameterList ;
 
 FunctionLiteral
@@ -359,7 +349,6 @@ CallableLiteralExpression
     | ArrayLiteral
     | EnumLiteral
     | TupleLiteral
-    | TemplateLiteral
     | ObjectLiteral
     | FunctionLiteral;
 
