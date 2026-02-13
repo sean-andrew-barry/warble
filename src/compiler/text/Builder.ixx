@@ -22,16 +22,23 @@ import <type_traits>;
 import <typeinfo>;
 import <utility>;
 
+// Forward declarations to reduce coupling and compile times
 export namespace compiler::ir {
   enum class Token : uint8_t;
   enum class Error : uint8_t;
   enum class Opcode : uint8_t;
-  class Index;
+  class Symbol;
+  class Symbols;
   class Instruction;
+
+  namespace symbol {
+    enum class Kind : uint8_t;
+  }
 }
 
 export namespace compiler::input {
   class Lexer;
+  class Parser;
 }
 
 const std::locale& Locale() {
@@ -105,10 +112,15 @@ namespace compiler::text {
     void Append(compiler::ir::Token t);
     void Append(compiler::ir::Error e);
     void Append(compiler::ir::Opcode opcode);
-    void Append(compiler::ir::Index index);
+    void Append(compiler::ir::Symbol index);
+    void Append(compiler::ir::symbol::Kind kind);
     void Append(const compiler::ir::Instruction& instruction);
+    void Append(const compiler::ir::Symbols& symbols);
+    void Append(const compiler::input::Parser& parser);
     void Append(const compiler::input::Lexer& lexer);
     void Append(compiler::ir::Instruction& instruction);
+    void Append(compiler::ir::Symbols& symbols);
+    void Append(compiler::input::Parser& parser);
     void Append(compiler::input::Lexer& lexer);
 
     template<typename T>
@@ -203,6 +215,15 @@ namespace compiler::text {
       } else {
         Append(typeid(value));
       }
+    }
+
+    void Append(auto&&... args) {
+      (Append(std::forward<decltype(args)>(args)), ...);
+    }
+
+    void Line(auto&&... args) {
+      (Append(std::forward<decltype(args)>(args)), ...);
+      Append('\n');
     }
   };
 }
