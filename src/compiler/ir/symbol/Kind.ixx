@@ -9,6 +9,7 @@ namespace compiler::ir::symbol {
     Unresolved,
     Auto,
     Null,
+    Readonly,
     Boolean, // Payload is a `bool`
     Character, // Payload is a `char32_t`
     Integer, // Payload is a `uint64_t` or `std::pair<uint32_t, uint32_t>` depending on flags
@@ -54,6 +55,7 @@ namespace compiler::ir::symbol {
       case Kind::Unresolved: return "Unresolved";
       case Kind::Auto: return "Auto";
       case Kind::Null: return "Null";
+      case Kind::Readonly: return "Readonly";
       case Kind::Boolean: return "Boolean";
       case Kind::Character: return "Character";
       case Kind::Integer: return "Integer";
