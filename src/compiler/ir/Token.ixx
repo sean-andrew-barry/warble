@@ -7,7 +7,7 @@ namespace compiler::ir {
   export enum class Token : uint8_t {
     // General / sentinel
     None,
-    Error,
+    Error, // Marks that an error code was added to the `errors` side-table
 
     // Character classes and low-level scanning
     Spaces0,
@@ -74,14 +74,6 @@ namespace compiler::ir {
     CharactersD,
     CharactersE,
     CharactersF,
-    Redirect0,
-    Redirect1,
-    Redirect2,
-    Redirect3,
-    Redirect4,
-    Redirect5,
-    Redirect6,
-    Redirect7,
 
     // Escapes and line terminators
     EscapeASCII, // Single character escape such as `\x`, not to be confused with an actual line break token like `LineFeed`
@@ -106,7 +98,7 @@ namespace compiler::ir {
     Dot, // `.` - Used in decimal literals
     Exponent, // `e` or `E` - Used in decimal literals
     Power, // `p` or `P` - Used in hexadecimal float literals
-    Mantissa, // Used in decimal literals to mark the presence of a 32 bit mantissa limb
+    Limbs, // Used to mark the length of the limb data for big integer and big float literals
     HexStart, // `0x` or `0X`
     OctalStart, // `0o` or `0O`
     BinaryStart, // `0b` or `0B`
@@ -126,9 +118,8 @@ namespace compiler::ir {
     ObjectClose, // `}`
     TupleOpen, // `(`
     TupleClose, // `)`
-    CharOpen, // `'`
-    CharClose, // `'`
-    Comma, // `,`
+    CharacterOpen, // `'`
+    CharacterClose, // `'`
     ConditionOpen, // `(`
     ConditionClose, // `)`
     CaptureOpen, // `[` 
@@ -137,18 +128,18 @@ namespace compiler::ir {
     ParameterClose, // `)`
     ScopeOpen, // `{`
     ScopeClose, // `}`
-    Semicolon, // `;`
-    TemplateStringOpen, // `
-    TemplateStringClose, // `
-    TemplateStringExpressionOpen, // `{`
-    TemplateStringExpressionClose, // `}`
     StringOpen, // `"`
     StringClose, // `"`
+    TemplateStringOpen, // `"` - Same as a normal string
+    TemplateStringClose, // `"`
+    TemplateStringExpressionOpen, // `{`
+    TemplateStringExpressionClose, // `}`
+    Comma, // `,`
+    Semicolon, // `;`
 
     // Expression-term keywords and primitive-like terms
     Compiler, // `compiler` - Used to access compiler built-ins
     Auto, // `auto` - Used for type inference
-    Void, // `void` - Used as the type of `null`
     Undefined, // `undefined`
     Null, // `null`
     Readonly, // `readonly`
@@ -159,7 +150,7 @@ namespace compiler::ir {
 
     // Declaration-related punctuation and modifiers
     TypeStart, // `:` - Used to denote the start of a type annotation in a declaration
-    Wildcard, // `*` - Used in aggregating export statements
+    Wildcard, // `*` - Used in aggregating export statements. TODO: Consider using spread `...` instead?
 
     // Binary operators (including assignment and relational)
     Add, // `+`
@@ -169,13 +160,11 @@ namespace compiler::ir {
     Modulo, // `%`
     Range, // `..`
     MemberReference, // `.` - Standard identifier based lookup
-    OptionalMemberReference, // `?.` - Returns an optional for the member
     MutableMemberReference, // `:` - Used to access mutable members via a symbol
-    OptionalMutableMemberReference, // `?:` - Returns an optional for the mutable member
+    StaticMemberReference, // `::` - Used to access symbols statically
     And, // `&&`
     Or, // `||`
-    Unwrap, // `??` - Conditionally unwraps a variant
-    Pipeline, // `->` - Binary operator used to pipe a value into a function call
+    Pipeline, // `->` - Binary operator used to pipe a value into a function
     Equal, // `==`
     NotEqual, // `!=`
     GreaterOrEqual, // `>=`
@@ -195,23 +184,19 @@ namespace compiler::ir {
     BitwiseAnd, // `&`
     BitwiseXor, // `^`
     BitwiseOr, // `|`
-    ExponentOperator, // `**`
-    To, // `to` - Binary operator used for type conversions
+    To, // `to` - Binary operator used for type conversions. TODO: Consider `as`?
     Arrow, // `=>` - Used to mark the body of an inline function
 
     // Assignment and compound assignment operators
+    Initialize, // `=` - Used in declarations to assign an initial value
     Assign, // `=`
-    AssignOptional, // `?=` - Conditional assignment
     AssignAdd, // `+=`
     AssignSubtract, // `-=`
     AssignMultiply, // `*=`
     AssignDivide, // `/=`
     AssignModulo, // `%=`
-    AssignExponent, // `**=`
-    AssignAnd, // `&&=`
-    AssignOr, // `||=`
-    AssignTruthyAnd, // `!!=`
-    AssignTruthyOr, // `??=`
+    AssignAnd, // `&&=` - AKA `a && (a = b)` AKA `if (a) a = b;`
+    AssignOr, // `||=` - AKA `a || (a = b)` AKA `if (!a) a = b;`
     BitwiseAssignLeftShift, // `<<=`
     BitwiseAssignRightShift, // `>>=`
     BitwiseAssignTripleLeftShift, // `<<<=`
@@ -221,13 +206,16 @@ namespace compiler::ir {
     BitwiseAssignOr, // `|=`
 
     // Unary operators (including keyword forms)
+    Runtime,
+    Comtime,
     Await, // `await` - Unary prefix keyword used to wait for a promise to resolve
-    Expect, // `expect` - Unary prefix keyword used for assertions in tests
-    Copy, // `@` - Unary prefix used to create a copy of a value
-    Counted, // `#` - Unary prefix used to indicate a counted loop
-    Symbol, // `$` - Unary prefix used to access value's symbol
-    Reference, // `&` - Unary prefix used to denote a reference
-    MutableReference, // `*` - Unary prefix used to denote a mutable reference
+    Assume, // `assume` - Unary prefix keyword used for panicking on failure
+    Expect, // `expect` - Unary prefix keyword used for failure propagation
+    CopyOf, // `@` - Unary prefix used to create a copy of a value. TODO: Change to mean a decorator?
+    LengthOf, // `#` - Unary prefix length
+    SymbolOf, // `$` - Unary prefix used to access value's symbol
+    ReferenceOf, // `&` - Unary prefix used to denote a reference
+    MutableReferenceOf, // `*` - Unary prefix used to denote a mutable reference
     Spread, // `...` - Unary prefix used to spread elements from one structured literal to another
     Decrement, // `--` - Unary prefix used for decrementing a value
     Increment, // `++` - Unary prefix used for incrementing a value
@@ -235,6 +223,7 @@ namespace compiler::ir {
     Positive, // `+` - Unary prefix used to indicate a positive value, also used in floating point literals
     Not, // `!` - Unary prefix used for logical NOT
     BitwiseNot, // `~` - Unary prefix used for bitwise NOT
+    Guard, // `?` - Unary postfix used for conditional short-circuiting
     ArrowHead, // A special zero width marker that says the following identifier is an arrow function parameter
 
     // Statement keywords (flow control and blocks)
@@ -246,29 +235,37 @@ namespace compiler::ir {
     Return, // `return` - Used to return a value from a function
     Panic, // `panic` - Used to abort the current execution path with an error
     Async, // `async` - Marks asynchronous imports and functions (modifier for exits)
-    Case,
+    Pass, // `pass` - Decorates a `return/yield` to indicate a passing result
+    Fail, // `fail` - Decorates a `return/yield` to indicate a failing result
     Default, // `default` - Used to specify the default case in `when` statements
-    When, // `when` - Used for pattern matching, sometimes known as `match` in other languages
+    When, // `when` - Used for pattern matching, sometimes known as `match` in other languages. TODO: Deprecate
     Is, // `is` - Used for type checking
     Has, // `has` - Used in `when` statements
     For, // `for` - Used for iterating over collections
     While, // `while` - Used for conditional loops
     Loop, // `loop` - Used for unconditional loops
     Repeat, // `repeat` - Used for post-checked loops that require a trailing `while` condition
-    In, // `in` - Used inside `for` loops
+    In, // `in` - Used inside `for` loops and in `import` statements
+    As, // `as` - Used for aliasing in imports and object destructuring
     Break, // `break` - Used to exit loops, can be stacked
     Continue, // `continue` - Used to skip the current iteration of a loop, can be stacked
+    Let, // `let` - Used to begin a statement mode declaration
 
-    // Module / import / declaration modifiers
+    // Module and package keywords
     Register, // `register` - Used to define a new package
     With, // `with` - Used in `register` statements to specify the allow list
     Import, // `import` - Used to import modules
     From, // `from` - Used to specify the source of an import and in `when` statements
     Export, // `export` - Modifier applied to declarations to make them available to `import` statements
-    Let, // `let` - Used to declare a variable
-    Const, // `const` - Used to declare a constant
 
-    // URL / path-like tokens
+    // Declaration modifiers
+    Const, // `const` - Used to declare a constant
+    Mut, // `mut` - Used to declare a mutable variable
+    Public, // `public` - Used to declare a public declaration
+    Private, // `private` - Used to declare a private declaration
+    Protected, // `protected` - Used to declare a protected declaration
+
+    // URL tokens
     Drive, // Ends with `:`
     Scheme, // Ends with `:`
     Authority, // `//` - The authority section of a URL
@@ -353,14 +350,6 @@ namespace compiler::ir {
       case Token::CharactersD: return "CharactersD";
       case Token::CharactersE: return "CharactersE";
       case Token::CharactersF: return "CharactersF";
-      case Token::Redirect0: return "Redirect0";
-      case Token::Redirect1: return "Redirect1";
-      case Token::Redirect2: return "Redirect2";
-      case Token::Redirect3: return "Redirect3";
-      case Token::Redirect4: return "Redirect4";
-      case Token::Redirect5: return "Redirect5";
-      case Token::Redirect6: return "Redirect6";
-      case Token::Redirect7: return "Redirect7";
       case Token::EscapeASCII: return "EscapeASCII";
       case Token::EscapeHex: return "EscapeHex";
       case Token::EscapeUnicode: return "EscapeUnicode";
@@ -381,7 +370,7 @@ namespace compiler::ir {
       case Token::Dot: return "Dot";
       case Token::Exponent: return "Exponent";
       case Token::Power: return "Power";
-      case Token::Mantissa: return "Mantissa";
+      case Token::Limbs: return "Limbs";
       case Token::HexStart: return "HexStart";
       case Token::OctalStart: return "OctalStart";
       case Token::BinaryStart: return "BinaryStart";
@@ -397,8 +386,8 @@ namespace compiler::ir {
       case Token::ObjectClose: return "ObjectClose";
       case Token::TupleOpen: return "TupleOpen";
       case Token::TupleClose: return "TupleClose";
-      case Token::CharOpen: return "CharOpen";
-      case Token::CharClose: return "CharClose";
+      case Token::CharacterOpen: return "CharacterOpen";
+      case Token::CharacterClose: return "CharacterClose";
       case Token::Comma: return "Comma";
       case Token::ConditionOpen: return "ConditionOpen";
       case Token::ConditionClose: return "ConditionClose";
@@ -410,15 +399,14 @@ namespace compiler::ir {
       case Token::ScopeOpen: return "ScopeOpen";
       case Token::ScopeClose: return "ScopeClose";
       case Token::Semicolon: return "Semicolon";
+      case Token::StringOpen: return "StringOpen";
+      case Token::StringClose: return "StringClose";
       case Token::TemplateStringOpen: return "TemplateStringOpen";
       case Token::TemplateStringClose: return "TemplateStringClose";
       case Token::TemplateStringExpressionOpen: return "TemplateStringExpressionOpen";
       case Token::TemplateStringExpressionClose: return "TemplateStringExpressionClose";
-      case Token::StringOpen: return "StringOpen";
-      case Token::StringClose: return "StringClose";
       case Token::Compiler: return "Compiler";
       case Token::Auto: return "Auto";
-      case Token::Void: return "Void";
       case Token::Undefined: return "Undefined";
       case Token::Null: return "Null";
       case Token::Readonly: return "Readonly";
@@ -431,43 +419,37 @@ namespace compiler::ir {
       case Token::Add: return "Add";
       case Token::And: return "And";
       case Token::Or: return "Or";
-      case Token::Unwrap: return "Unwrap";
       case Token::Arrow: return "Arrow";
       case Token::ArrowHead: return "ArrowHead";
       case Token::Divide: return "Divide";
       case Token::Equal: return "Equal";
-      case Token::ExponentOperator: return "ExponentOperator";
       case Token::GreaterOrEqual: return "GreaterOrEqual";
       case Token::Greater: return "Greater";
       case Token::Range: return "Range";
       case Token::LesserOrEqual: return "LesserOrEqual";
       case Token::Lesser: return "Lesser";
       case Token::MemberReference: return "MemberReference";
-      case Token::OptionalMemberReference: return "OptionalMemberReference";
       case Token::MutableMemberReference: return "MutableMemberReference";
-      case Token::OptionalMutableMemberReference: return "OptionalMutableMemberReference";
+      case Token::StaticMemberReference: return "StaticMemberReference";
       case Token::Modulo: return "Modulo";
       case Token::Multiply: return "Multiply";
       case Token::NotEqual: return "NotEqual";
       case Token::Subtract: return "Subtract";
       case Token::TripleLeftShift: return "TripleLeftShift";
       case Token::TripleRightShift: return "TripleRightShift";
-      case Token::AssignOptional: return "AssignOptional";
       case Token::AssertEqual: return "AssertEqual";
       case Token::AssertGreaterOrEqual: return "AssertGreaterOrEqual";
       case Token::AssertLesserOrEqual: return "AssertLesserOrEqual";
       case Token::AssertNotEqual: return "AssertNotEqual";
+      case Token::Initialize: return "Initialize";
       case Token::Assign: return "Assign";
       case Token::AssignAdd: return "AssignAdd";
       case Token::AssignDivide: return "AssignDivide";
-      case Token::AssignExponent: return "AssignExponent";
       case Token::AssignModulo: return "AssignModulo";
       case Token::AssignMultiply: return "AssignMultiply";
       case Token::AssignSubtract: return "AssignSubtract";
       case Token::AssignAnd: return "AssignAnd";
       case Token::AssignOr: return "AssignOr";
-      case Token::AssignTruthyAnd: return "AssignTruthyAnd";
-      case Token::AssignTruthyOr: return "AssignTruthyOr";
       case Token::BitwiseLeftShift: return "BitwiseLeftShift";
       case Token::BitwiseRightShift: return "BitwiseRightShift";
       case Token::BitwiseTripleLeftShift: return "BitwiseTripleLeftShift";
@@ -483,14 +465,17 @@ namespace compiler::ir {
       case Token::BitwiseAssignXor: return "BitwiseAssignXor";
       case Token::BitwiseAssignOr: return "BitwiseAssignOr";
       case Token::Yield: return "Yield";
+      case Token::Runtime: return "Runtime";
+      case Token::Comtime: return "Comtime";
       case Token::Await: return "Await";
+      case Token::Assume: return "Assume";
       case Token::Async: return "Async";
       case Token::Expect: return "Expect";
-      case Token::Copy: return "Copy";
-      case Token::Counted: return "Counted";
-      case Token::Symbol: return "Symbol";
-      case Token::Reference: return "Reference";
-      case Token::MutableReference: return "MutableReference";
+      case Token::CopyOf: return "CopyOf";
+      case Token::LengthOf: return "LengthOf";
+      case Token::SymbolOf: return "SymbolOf";
+      case Token::ReferenceOf: return "ReferenceOf";
+      case Token::MutableReferenceOf: return "MutableReferenceOf";
       case Token::Spread: return "Spread";
       case Token::Decrement: return "Decrement";
       case Token::Increment: return "Increment";
@@ -498,6 +483,7 @@ namespace compiler::ir {
       case Token::Positive: return "Positive";
       case Token::Not: return "Not";
       case Token::BitwiseNot: return "BitwiseNot";
+      case Token::Guard: return "Guard";
       case Token::To: return "To";
       case Token::Do: return "Do";
       case Token::Else: return "Else";
@@ -518,12 +504,18 @@ namespace compiler::ir {
       case Token::Loop: return "Loop";
       case Token::Repeat: return "Repeat";
       case Token::In: return "In";
+      case Token::As: return "As";
       case Token::Break: return "Break";
       case Token::Continue: return "Continue";
       case Token::Default: return "Default";
-      case Token::Case: return "Case";
+      case Token::Pass: return "Pass";
+      case Token::Fail: return "Fail";
       case Token::Let: return "Let";
       case Token::Const: return "Const";
+      case Token::Mut: return "Mut";
+      case Token::Public: return "Public";
+      case Token::Private: return "Private";
+      case Token::Protected: return "Protected";
       case Token::Drive: return "Drive";
       case Token::Scheme: return "Scheme";
       case Token::Authority: return "Authority";
