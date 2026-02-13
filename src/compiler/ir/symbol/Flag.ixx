@@ -4,6 +4,7 @@ import <cstdint>;
 
 namespace compiler::ir::symbol {
   export enum class Flag : uint8_t {
+    None,
     Size8,
     Size16,
     Size32,
@@ -18,8 +19,11 @@ namespace compiler::ir::symbol {
     Export, // Modifier: symbol is exported from its module
     Private, // Modifier: symbol is privately accessible
     Protected, // Modifier: symbol is protected
+    Public, // Modifier: symbol is public
     Static, // Modifier: symbol is static
-    Mutable, // Modifier: symbol is mutable
+    Mut, // Modifier: symbol is mutable
+    Const, // Modifier: symbol is constant
+    Let, // Modifier: symbol is neutral
     Async, // Modifier: symbol is asynchronous
     Volatile, // Modifier: symbol is volatile
     Generator, // Marks a function as a generator, so it returns an iterable.
