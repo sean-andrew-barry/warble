@@ -1,17 +1,23 @@
 export module compiler.ir.Opcode;
 
 import <cstdint>;
+import <string_view>;
 
 namespace compiler::ir {
   export enum class Opcode : uint8_t {
-    Extension, // A pseudo-instruction, whose operands apply to the **previous** instruction as a way to have more than 3 operands
+    Extension, // A pseudo-instruction, whose operands apply to the **previous** instruction as a way to have more than 3 operands. Currently unused, but reserved just in case.
     Anchor, // A CFG block's anchor point, marking where the block begins
     Label, // A connection to a `Label` symbol, marking its position
     NoOperation,
     Unreachable,
+    Error,
     Abort, // Abort();
-    Panic, // Panic(function);
-    Assume, // Assume(condition); 
+    Panic, // Panic(expression);
+    Assume, // Assume(expression); 
+    Await, // Await(expression);
+    Expect, // Expect(expression);
+    Assert, // Assert(expression);
+    Yield, // Yield(expression);
 
     // Control flow
     Call, // result = Call(function, parameter);
@@ -44,6 +50,7 @@ namespace compiler::ir {
     Restore, // Special version of Load
     Construct, // Marks the creation of a new value and potentially the claiming of a register to hold that value
     Destruct, // Marks the end of a value and the release of its register - if any
+    Drop, // Marks the end of a lifetime
     AddressOf, // reference = AddressOf(value);
     SymbolOf, // reference = SymbolOf(value);
     CopyOf, // result = CopyOf(value);
@@ -142,9 +149,14 @@ namespace compiler::ir {
       case Opcode::Label: return "Label";
       case Opcode::NoOperation: return "NoOperation";
       case Opcode::Unreachable: return "Unreachable";
+      case Opcode::Error: return "Error";
       case Opcode::Abort: return "Abort";
       case Opcode::Panic: return "Panic";
       case Opcode::Assume: return "Assume";
+      case Opcode::Await: return "Await";
+      case Opcode::Expect: return "Expect";
+      case Opcode::Assert: return "Assert";
+      case Opcode::Yield: return "Yield";
       case Opcode::Call: return "Call";
       case Opcode::CallWithArray: return "CallWithArray";
       case Opcode::CallWithTuple: return "CallWithTuple";
@@ -173,6 +185,7 @@ namespace compiler::ir {
       case Opcode::Restore: return "Restore";
       case Opcode::Construct: return "Construct";
       case Opcode::Destruct: return "Destruct";
+      case Opcode::Drop: return "Drop";
       case Opcode::AddressOf: return "AddressOf";
       case Opcode::SymbolOf: return "SymbolOf";
       case Opcode::CopyOf: return "CopyOf";
