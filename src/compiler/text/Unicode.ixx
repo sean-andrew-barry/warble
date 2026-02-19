@@ -32,17 +32,12 @@ inline constexpr auto LENGTH_TABLE = []{
 export namespace compiler::text::Unicode {
   inline constexpr bool IsIdentifierStart(char32_t c) noexcept {
     const auto i = static_cast<uint32_t>(c);
-    return i < 0x110000 && ((compiler::text::UnicodeTables::ID_START_SET_BITS[i >> 6] >> (i & 63)) & 1u);
+    return i < 0x110000 && ((compiler::text::UnicodeTables::XID_Start[i >> 6] >> (i & 63)) & 1u);
   }
 
   inline constexpr bool IsIdentifierContinue(char32_t c) noexcept {
     const auto i = static_cast<uint32_t>(c);
-    return i < 0x110000 && ((compiler::text::UnicodeTables::ID_CONTINUE_SET_BITS[i >> 6] >> (i & 63)) & 1u);
-  }
-
-  inline constexpr bool IsWhiteSpace(char32_t c) noexcept {
-    const auto i = static_cast<uint32_t>(c);
-    return i < 0x110000 && ((compiler::text::UnicodeTables::WHITESPACE_BITS[i >> 6] >> (i & 63)) & 1u);
+    return i < 0x110000 && ((compiler::text::UnicodeTables::XID_Continue[i >> 6] >> (i & 63)) & 1u);
   }
 
   inline constexpr size_t GetCodePointLength(const char8_t lead_byte) noexcept {
