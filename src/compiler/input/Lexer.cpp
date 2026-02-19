@@ -1283,6 +1283,13 @@ namespace compiler::input {
     // Must begin at a possible identifier start (ASCII quick check, escape, or non-ASCII)
     if (!IsPossibleIdentifierStart()) return false;
 
+    auto is_identifier_code_point = [&](char32_t cp, bool is_first) {
+      if (is_first) {
+        return compiler::text::Unicode::IsIdentifierStart(cp) || cp == U'_';
+      }
+      return compiler::text::Unicode::IsIdentifierContinue(cp);
+    };
+
     bool first = true;
     bool consumed_any = false;
     uint32_t run_count = 0;
@@ -1292,6 +1299,17 @@ namespace compiler::input {
         // Flush any current run, then consume escape.
         if (run_count > 0) { EmitCharactersNibbles(run_count); run_count = 0; }
         if (!Escape()) return false; // escape already reports its own errors
+
+        // Escapes are legal in identifiers only if they decode to a valid start/continue code point.
+        if (data.empty()) {
+          return Error(ir::Error::DeclarationExpectedIdentifier);
+        }
+
+        char32_t escaped_cp = static_cast<char32_t>(data.back());
+        if (!is_identifier_code_point(escaped_cp, first)) {
+          return Error(ir::Error::DeclarationExpectedIdentifier);
+        }
+
         consumed_any = true;
         first = false;
         continue;
@@ -1304,9 +1322,7 @@ namespace compiler::input {
         // Validate Unicode code point using Unicode tables.
         auto it = cursor.cbegin();
         char32_t cp = cursor.CodePoint(); // consumes
-        bool ok = first
-          ? compiler::text::Unicode::IsIdentifierStart(cp) || cp == U'_'
-          : compiler::text::Unicode::IsIdentifierContinue(cp) || cp == U'_';
+        bool ok = is_identifier_code_point(cp, first);
         if (!ok) {
           // Not a valid identifier character; undo and stop.
           cursor.Retreat(it);
