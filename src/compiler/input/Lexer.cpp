@@ -1304,12 +1304,12 @@ namespace compiler::input {
 
         // Escapes are legal in identifiers only if they decode to a valid start/continue code point.
         if (data.empty()) {
-          return Error(ir::Error::DeclarationExpectedIdentifier);
-        }
-
-        char32_t escaped_cp = static_cast<char32_t>(data.back());
-        if (!is_identifier_code_point(escaped_cp, first)) {
-          return Error(ir::Error::DeclarationExpectedIdentifier);
+          Error(ir::Error::EscapeSequenceIllegalInIdentifier);
+        } else {
+          char32_t escaped_cp = static_cast<char32_t>(data.back());
+          if (!is_identifier_code_point(escaped_cp, first)) {
+            Error(ir::Error::EscapeSequenceIllegalInIdentifier);
+          }
         }
 
         consumed_any = true;

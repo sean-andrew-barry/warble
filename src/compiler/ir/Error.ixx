@@ -21,6 +21,7 @@ namespace compiler::ir {
     EscapeSequenceExpectedAfterBackslash,
     EscapeInvalidPercentEncoding,
     EscapeSequenceUnknown,
+    EscapeSequenceIllegalInIdentifier,
     CharacterLiteralExpectedContent,
     CharacterLiteralExpectedEscapeAfterBackslash,
     CharacterLiteralExpectedClosingSingleQuote,
@@ -245,6 +246,7 @@ namespace compiler::ir {
       case Error::EscapeSequenceExpectedAfterBackslash: return "EscapeSequenceExpectedAfterBackslash";
       case Error::EscapeInvalidPercentEncoding: return "EscapeInvalidPercentEncoding";
       case Error::EscapeSequenceUnknown: return "EscapeSequenceUnknown";
+      case Error::EscapeSequenceIllegalInIdentifier: return "EscapeSequenceIllegalInIdentifier";
       case Error::CharacterLiteralExpectedContent: return "CharacterLiteralExpectedContent";
       case Error::CharacterLiteralExpectedEscapeAfterBackslash: return "CharacterLiteralExpectedEscapeAfterBackslash";
       case Error::CharacterLiteralExpectedClosingSingleQuote: return "CharacterLiteralExpectedClosingSingleQuote";
