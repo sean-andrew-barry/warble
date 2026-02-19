@@ -210,7 +210,14 @@ Warble tokens include:
 
 #### 2.2.1 Identifiers
 
-Identifiers are used to name variables, functions, properties, and other entities in Warble. An identifier must start with an alphabetic character (`A-Z`, `a-z`), an underscore (`_`), or any Unicode letter, and may subsequently include digits (`0-9`) as well.
+Identifiers are used to name variables, functions, properties, and other entities in Warble.
+
+Identifier spelling follows the Unicode identifier stability rules (UAX #31):
+
+* The first code point must have the Unicode property `XID_Start`. Additionally, `_` is permitted as a special-case starter.
+* Each subsequent code point must have the Unicode property `XID_Continue` (and `_` is permitted as well).
+
+In particular, ASCII letters (`A-Z`, `a-z`) satisfy `XID_Start`, and ASCII digits (`0-9`) satisfy `XID_Continue`.
 
 Examples of valid identifiers:
 
@@ -2764,7 +2771,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`is`** — Indicates a match clause in conditional matching.
 * **`from`** — Indicates a provenance match clause (and is also used in imports).
 * **`has`** — Indicates a structural constraint match clause.
-* **`as`** — Introduces aliases (for example in imports) and type aliases.
+* **`as`** — Introduces aliases in object destructuring.
 
 #### Jump Statements
 
