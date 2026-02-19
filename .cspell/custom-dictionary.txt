@@ -7,11 +7,13 @@ bcdefirwt
 COMDAT
 cplusplus
 DDEBUG
+desugars
 DNDEBUG
 FADV
 fadvise
 hier
 initializable
+kindof
 LASTEXITCODE
 Legalizer
 LIBPATH
@@ -20,6 +22,8 @@ nologo
 NOMINMAX
 oawu
 objs
+offsetof
+payloadof
 Pointee
 preorder
 relock
