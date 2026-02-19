@@ -537,6 +537,8 @@ namespace compiler::input {
       case '\\': cursor.Advance(1); return emit_ascii(U'\\');
       case '"': cursor.Advance(1); return emit_ascii(U'"');
       case '\'': cursor.Advance(1); return emit_ascii(U'\'');
+      case '{': cursor.Advance(1); return emit_ascii(U'{');
+      case '}': cursor.Advance(1); return emit_ascii(U'}');
       case 'x': {
         // \xHH: exactly two hex digits
         cursor.Advance(1);
@@ -635,9 +637,9 @@ namespace compiler::input {
         }
       }
       default: {
-        // Default: treat as escaped ASCII character
-        cursor.Advance(1);
-        return emit_ascii(static_cast<unsigned char>(c));
+        cursor.Advance(1); // Still consume it
+        PushCharacter(static_cast<unsigned char>(c)); // I *think* we still want to capture it as part of the string/identifier
+        return Error(ir::Error::EscapeSequenceUnknown);
       }
     }
   }
