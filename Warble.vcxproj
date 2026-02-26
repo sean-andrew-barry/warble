@@ -100,6 +100,7 @@
     <ClCompile Include="src\compiler\text\Builder.ixx" />
     <ClCompile Include="src\compiler\utility\DualBuffer.ixx" />
     <ClCompile Include="src\compiler\utility\Flag.ixx" />
+    <ClCompile Include="src\compiler\utility\FreeListAllocator.ixx" />
     <ClCompile Include="src\compiler\utility\Helpers.ixx" />
     <ClCompile Include="src\compiler\utility\Macros.ixx" />
     <ClCompile Include="src\compiler\utility\OS.cpp" />
