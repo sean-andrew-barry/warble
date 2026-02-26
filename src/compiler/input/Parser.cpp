@@ -465,7 +465,7 @@ namespace compiler::input {
         case ir::Token::TupleOpen: {
           ir::Symbol args = TupleLiteral(parent);
           ir::Symbol result = MakeTemporary(parent, lhs, args);
-          Instruct(ir::Opcode::CallWithTuple, result, lhs, args);
+          Instruct(ir::Opcode::Call, result, lhs, args);
           SlideDrop(lhs);
           SlideDrop(args);
           SlideDrop(result);
@@ -476,7 +476,7 @@ namespace compiler::input {
         case ir::Token::ArrayOpen: {
           ir::Symbol args = ArrayLiteral(parent);
           ir::Symbol result = MakeTemporary(parent, lhs, args);
-          Instruct(ir::Opcode::CallWithArray, result, lhs, args);
+          Instruct(ir::Opcode::Call, result, lhs, args);
           SlideDrop(lhs);
           SlideDrop(args);
           SlideDrop(result);
@@ -487,7 +487,7 @@ namespace compiler::input {
         case ir::Token::ObjectOpen: {
           ir::Symbol args = ObjectLiteral(parent);
           ir::Symbol result = MakeTemporary(parent, lhs, args);
-          Instruct(ir::Opcode::CallWithObject, result, lhs, args);
+          Instruct(ir::Opcode::Call, result, lhs, args);
           SlideDrop(lhs);
           SlideDrop(args);
           SlideDrop(result);
@@ -498,7 +498,7 @@ namespace compiler::input {
         case ir::Token::EnumOpen: {
           ir::Symbol args = EnumLiteral(parent);
           ir::Symbol result = MakeTemporary(parent, lhs, args);
-          Instruct(ir::Opcode::CallWithEnum, result, lhs, args);
+          Instruct(ir::Opcode::Call, result, lhs, args);
           SlideDrop(lhs);
           SlideDrop(args);
           SlideDrop(result);
@@ -509,7 +509,7 @@ namespace compiler::input {
         case ir::Token::StringOpen: {
           ir::Symbol arg = StringLiteral(parent);
           ir::Symbol result = MakeTemporary(parent, lhs, arg);
-          Instruct(ir::Opcode::CallWithString, result, lhs, arg);
+          Instruct(ir::Opcode::Call, result, lhs, arg);
           SlideDrop(lhs);
           SlideDrop(arg);
           SlideDrop(result);
@@ -520,7 +520,7 @@ namespace compiler::input {
         case ir::Token::TemplateStringOpen: {
           ir::Symbol arg = TemplateStringLiteral(parent);
           ir::Symbol result = MakeTemporary(parent, lhs, arg);
-          Instruct(ir::Opcode::CallWithTemplateString, result, lhs, arg);
+          Instruct(ir::Opcode::Call, result, lhs, arg);
           SlideDrop(lhs);
           SlideDrop(arg);
           SlideDrop(result);

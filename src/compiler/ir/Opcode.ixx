@@ -6,31 +6,34 @@ import <string_view>;
 namespace compiler::ir {
   export enum class Opcode : uint8_t {
     Extension, // A pseudo-instruction, whose operands apply to the **previous** instruction as a way to have more than 3 operands. Currently unused, but reserved just in case.
-    Anchor, // A CFG block's anchor point, marking where the block begins
     Label, // A connection to a `Label` symbol, marking its position
     NoOperation,
     Unreachable,
     Error,
-    Abort, // Abort();
-    Panic, // Panic(expression);
     Assume, // Assume(expression); 
     Await, // Await(expression);
     Expect, // Expect(expression);
-    Assert, // Assert(expression);
-    Yield, // Yield(expression);
-
+    
     // Control flow
     Call, // result = Call(function, parameter);
-    CallWithArray, // result = Call(function, array);
-    CallWithTuple, // result = Call(function, tuple);
-    CallWithObject, // result = Call(function, object);
-    CallWithEnum, // result = Call(function, enum);
-    CallWithString, // result = Call(function, string);
-    CallWithTemplateString, // result = Call(function, template_string);
-    Return, // Return();
+    Return, // Return(expression);
+    ReturnAsync, // ReturnAsync(expression);
+    ReturnPass, // ReturnPass(expression);
+    ReturnFail, // ReturnFail(expression);
+    ReturnAsyncPass, // ReturnAsyncPass(expression);
+    ReturnAsyncFail, // ReturnAsyncFail(expression);
+    Yield, // Yield(expression);
+    YieldAsync, // YieldAsync(expression);
+    YieldPass, // YieldPass(expression);
+    YieldFail, // YieldFail(expression);
+    YieldAsyncPass, // YieldAsyncPass(expression);
+    YieldAsyncFail, // YieldAsyncFail(expression);
+    Panic, // Panic(expression);
     Jump, // Jump(label);
     Branch, // Branch(condition, label);
     Fork, // Fork(condition, label1, label2);
+
+    // Pattern matching
     BranchIs, // BranchIs(condition, value, label);
     BranchHas, // BranchHas(condition, value, label);
     BranchFrom, // BranchFrom(condition, value, label);
@@ -39,53 +42,64 @@ namespace compiler::ir {
     BranchNotFrom, // BranchNotFrom(condition, value, label);
 
     // Memory
-    Allocate, // Allocate(bytes); // Reserve stack space
-    Deallocate, // Deallocate(bytes); // Free stack space
+    Copy, // result = Copy(value);
     Move, // result = Move(value);
     Load, // result = Load(value); // Read memory to register
     Store, // result = Store(value); // Write register to memory
     Index, // result = Index(base, index);
     Select, // result = Select(condition, (value1, value2));
-    Spill, // Special version of Store
-    Restore, // Special version of Load
-    Construct, // Marks the creation of a new value and potentially the claiming of a register to hold that value
-    Destruct, // Marks the end of a value and the release of its register - if any
+    Spill, // Special register version of Store
+    Restore, // Special register version of Load
     Drop, // Marks the end of a lifetime
     AddressOf, // reference = AddressOf(value);
     SymbolOf, // reference = SymbolOf(value);
     CopyOf, // result = CopyOf(value);
     Exchange,
     CompareAndExchange,
-    Fence,
-    Barrier,
+    ReadBarrier, // ReadBarrier(reference); // Inserted before a module reads an imported reference
+    WriteBarrier, // WriteBarrier(reference); // Inserted before a module writes an exported mutable value
+    Suspend, // Marks when a module hit a suspend point, meaning it completed and didn't get blocked by a barrier
     Spread, // Clones `op2`'s children into `op1`'s children
 
     // Math
     Add, // op1 = op2 + op3;
-    AddFloat,
     AddWithCarry,
     AddExchange, // temp = op1; op1 = op2 + op3; op2 = temp;
     Subtract, // op1 = op2 - op3;
-    SubtractFloat,
     SubtractWithBorrow,
     Multiply, // op1 = op2 * op3;
-    MultiplyFloat,
     Divide, // op1 = op2 / op3;
     DivideSigned,
-    DivideFloat,
     Modulo, // op1 = op2 % op3;
     ModuloSigned,
-    ModuloFloat,
-    Exponent, // op1 = op2 ** op3;
+    Exponent, // op1 = exp(op2, op3);
+    Logarithm, // op1 = log(op2, op3);
+    Logarithm2, // op1 = log2(op2);
+    Logarithm10, // op1 = log10(op2);
+    SquareRoot, // op1 = sqrt(op2);
+    CubeRoot, // op1 = cbrt(op2);
+    Hypotenuse, // op1 = hypot(op2, op3);
+    Sine, // op1 = sin(op2);
+    Cosine, // op1 = cos(op2);
+    Tangent, // op1 = tan(op2);
+    Arctangent, // op1 = atan2(op2, op3);
+    Arcsine, // op1 = asin(op2);
+    Arccosine, // op1 = acos(op2);
     Absolute, // op1 = abs(op2);
     Negate, // op1 = -op2;
     FusedMultiplyAdd, // 
+    Floor, // op1 = floor(op2);
+    Ceiling, // op1 = ceiling(op2);
+    Truncate, // op1 = truncate(op2);
+    Round, // op1 = round(op2);
+    Minimum, // op1 = min(op2, op3);
+    Maximum, // op1 = max(op2, op3);
 
     // Logic
     CompareTrue, // op1 = op2 == true;
     CompareFalse, // op1 = op2 == false;
-    CompareTruthy, // op1 = op2;
-    CompareFalsy, // op1 = !op2;
+    ComparePass, // op1 = op2;
+    CompareFail, // op1 = !op2;
     CompareZero, // op1 = op2 == 0
     CompareNotZero, // op1 = op2 != 0;
     ComparePositive, // op1 = op2 >= 0;
@@ -122,10 +136,12 @@ namespace compiler::ir {
     BitwiseLowestSetReset, // op1 = op2 & (op2 - 1); (BLSR)
     BitwiseLowestSetMask, // op1 = op2 ^ (op2 - 1); (BLSMSK)
 
-    CheckBit, // Check a bit at an index
-    CheckBitAndToggle, // Checks if the bit at an index is 1 and toggles it
-    CheckBitAndReset, // Checks if the bit at an index is 1 and sets it to 0
-    CheckBitAndSet, // Checks if the bit at an index is 1 and sets it to 1
+    BitTest, // result = BitTest(value, index); // Test a bit at an index
+    BitSet, // BitSet(value, index); // Set a bit at an index
+    BitClear, // BitClear(value, index); // Clear a bit at an index
+    BitToggle, // BitToggle(value, index); // Toggle a bit at an index
+    BitExtract, // BitExtract(value, start, length); // Extract a bit range
+    BitInsert, // BitInsert(value, index, bits); // Insert a bit range
 
     CountLeadingZeros, // Counts the number of zero bits from high to low (LZCNT)
     CountTrailingZeros, // Counts the number of zero bits from low to high (TZCNT)
@@ -138,33 +154,32 @@ namespace compiler::ir {
     // Conversions
     Cast, // Reinterprets it into a different type without changing the bits
     Convert, // Performs a type conversion - potentially changing the bits to maintain correctness
-
-    Prefetch, // Very niche but sometimes useful
   };
 
   export constexpr std::string_view ToString(Opcode opcode) {
     switch (opcode) {
       case Opcode::Extension: return "Extension";
-      case Opcode::Anchor: return "Anchor";
       case Opcode::Label: return "Label";
       case Opcode::NoOperation: return "NoOperation";
       case Opcode::Unreachable: return "Unreachable";
       case Opcode::Error: return "Error";
-      case Opcode::Abort: return "Abort";
       case Opcode::Panic: return "Panic";
       case Opcode::Assume: return "Assume";
       case Opcode::Await: return "Await";
       case Opcode::Expect: return "Expect";
-      case Opcode::Assert: return "Assert";
-      case Opcode::Yield: return "Yield";
       case Opcode::Call: return "Call";
-      case Opcode::CallWithArray: return "CallWithArray";
-      case Opcode::CallWithTuple: return "CallWithTuple";
-      case Opcode::CallWithObject: return "CallWithObject";
-      case Opcode::CallWithEnum: return "CallWithEnum";
-      case Opcode::CallWithString: return "CallWithString";
-      case Opcode::CallWithTemplateString: return "CallWithTemplateString";
       case Opcode::Return: return "Return";
+      case Opcode::ReturnAsync: return "ReturnAsync";
+      case Opcode::ReturnPass: return "ReturnPass";
+      case Opcode::ReturnFail: return "ReturnFail";
+      case Opcode::ReturnAsyncPass: return "ReturnAsyncPass";
+      case Opcode::ReturnAsyncFail: return "ReturnAsyncFail";
+      case Opcode::Yield: return "Yield";
+      case Opcode::YieldAsync: return "YieldAsync";
+      case Opcode::YieldPass: return "YieldPass";
+      case Opcode::YieldFail: return "YieldFail";
+      case Opcode::YieldAsyncPass: return "YieldAsyncPass";
+      case Opcode::YieldAsyncFail: return "YieldAsyncFail";
       case Opcode::Jump: return "Jump";
       case Opcode::Branch: return "Branch";
       case Opcode::Fork: return "Fork";
@@ -174,8 +189,7 @@ namespace compiler::ir {
       case Opcode::BranchNotIs: return "BranchNotIs";
       case Opcode::BranchNotHas: return "BranchNotHas";
       case Opcode::BranchNotFrom: return "BranchNotFrom";
-      case Opcode::Allocate: return "Allocate";
-      case Opcode::Deallocate: return "Deallocate";
+      case Opcode::Copy: return "Copy";
       case Opcode::Move: return "Move";
       case Opcode::Load: return "Load";
       case Opcode::Store: return "Store";
@@ -183,40 +197,52 @@ namespace compiler::ir {
       case Opcode::Select: return "Select";
       case Opcode::Spill: return "Spill";
       case Opcode::Restore: return "Restore";
-      case Opcode::Construct: return "Construct";
-      case Opcode::Destruct: return "Destruct";
       case Opcode::Drop: return "Drop";
       case Opcode::AddressOf: return "AddressOf";
       case Opcode::SymbolOf: return "SymbolOf";
       case Opcode::CopyOf: return "CopyOf";
       case Opcode::Exchange: return "Exchange";
       case Opcode::CompareAndExchange: return "CompareAndExchange";
-      case Opcode::Fence: return "Fence";
-      case Opcode::Barrier: return "Barrier";
+      case Opcode::ReadBarrier: return "ReadBarrier";
+      case Opcode::WriteBarrier: return "WriteBarrier";
+      case Opcode::Suspend: return "Suspend";
       case Opcode::Spread: return "Spread";
       case Opcode::Add: return "Add";
-      case Opcode::AddFloat: return "AddFloat";
       case Opcode::AddWithCarry: return "AddWithCarry";
       case Opcode::AddExchange: return "AddExchange";
       case Opcode::Subtract: return "Subtract";
-      case Opcode::SubtractFloat: return "SubtractFloat";
       case Opcode::SubtractWithBorrow: return "SubtractWithBorrow";
       case Opcode::Multiply: return "Multiply";
-      case Opcode::MultiplyFloat: return "MultiplyFloat";
       case Opcode::Divide: return "Divide";
       case Opcode::DivideSigned: return "DivideSigned";
-      case Opcode::DivideFloat: return "DivideFloat";
       case Opcode::Modulo: return "Modulo";
       case Opcode::ModuloSigned: return "ModuloSigned";
-      case Opcode::ModuloFloat: return "ModuloFloat";
       case Opcode::Exponent: return "Exponent";
+      case Opcode::Logarithm: return "Logarithm";
+      case Opcode::Logarithm2: return "Logarithm2";
+      case Opcode::Logarithm10: return "Logarithm10";
+      case Opcode::SquareRoot: return "SquareRoot";
+      case Opcode::CubeRoot: return "CubeRoot";
+      case Opcode::Hypotenuse: return "Hypotenuse";
+      case Opcode::Sine: return "Sine";
+      case Opcode::Cosine: return "Cosine";
+      case Opcode::Tangent: return "Tangent";
+      case Opcode::Arctangent: return "Arctangent";
+      case Opcode::Arcsine: return "Arcsine";
+      case Opcode::Arccosine: return "Arccosine";
       case Opcode::Absolute: return "Absolute";
       case Opcode::Negate: return "Negate";
       case Opcode::FusedMultiplyAdd: return "FusedMultiplyAdd";
+      case Opcode::Floor: return "Floor";
+      case Opcode::Ceiling: return "Ceiling";
+      case Opcode::Truncate: return "Truncate";
+      case Opcode::Round: return "Round";
+      case Opcode::Minimum: return "Minimum";
+      case Opcode::Maximum: return "Maximum";
       case Opcode::CompareTrue: return "CompareTrue";
       case Opcode::CompareFalse: return "CompareFalse";
-      case Opcode::CompareTruthy: return "CompareTruthy";
-      case Opcode::CompareFalsy: return "CompareFalsy";
+      case Opcode::ComparePass: return "ComparePass";
+      case Opcode::CompareFail: return "CompareFail";
       case Opcode::CompareZero: return "CompareZero";
       case Opcode::CompareNotZero: return "CompareNotZero";
       case Opcode::ComparePositive: return "ComparePositive";
@@ -249,10 +275,12 @@ namespace compiler::ir {
       case Opcode::BitwiseLowestSetIsolate: return "BitwiseLowestSetIsolate";
       case Opcode::BitwiseLowestSetReset: return "BitwiseLowestSetReset";
       case Opcode::BitwiseLowestSetMask: return "BitwiseLowestSetMask";
-      case Opcode::CheckBit: return "CheckBit";
-      case Opcode::CheckBitAndToggle: return "CheckBitAndToggle";
-      case Opcode::CheckBitAndReset: return "CheckBitAndReset";
-      case Opcode::CheckBitAndSet: return "CheckBitAndSet";
+      case Opcode::BitTest: return "BitTest";
+      case Opcode::BitSet: return "BitSet";
+      case Opcode::BitClear: return "BitClear";
+      case Opcode::BitToggle: return "BitToggle";
+      case Opcode::BitExtract: return "BitExtract";
+      case Opcode::BitInsert: return "BitInsert";
       case Opcode::CountLeadingZeros: return "CountLeadingZeros";
       case Opcode::CountTrailingZeros: return "CountTrailingZeros";
       case Opcode::CountPopulation: return "CountPopulation";
@@ -261,7 +289,6 @@ namespace compiler::ir {
       case Opcode::SwapEndianToLittle: return "SwapEndianToLittle";
       case Opcode::Cast: return "Cast";
       case Opcode::Convert: return "Convert";
-      case Opcode::Prefetch: return "Prefetch";
     }
   
     return "Unknown";
