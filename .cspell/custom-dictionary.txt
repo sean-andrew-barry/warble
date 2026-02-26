@@ -1,9 +1,11 @@
 # Custom Dictionary Words
 Abempty
 aceimpslr
+analyzability
 aneu
 bcdefirw
 bcdefirwt
+callees
 COMDAT
 cplusplus
 DDEBUG
@@ -11,6 +13,7 @@ desugars
 DNDEBUG
 FADV
 fadvise
+headerless
 hier
 initializable
 kindof
@@ -27,6 +30,9 @@ payloadof
 Pointee
 preorder
 relock
+retarget
+retargetable
+retargeted
 significand
 srcs
 stdcpp

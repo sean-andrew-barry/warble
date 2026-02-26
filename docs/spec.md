@@ -235,7 +235,7 @@ Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct ident
 Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
 
 ```
-let, mut, const, private, protected, public, export, do, null, undefined, readonly, true, false, return, yield, panic, await, async, pass, fail, try, if, else, is, from, has, as, this, that
+let, mut, const, private, protected, public, export, do, tick, null, undefined, readonly, true, false, return, yield, panic, await, async, pass, fail, try, if, else, is, from, has, as, this, that
 ```
 
 A full list of reserved keywords is available in Appendix 18.2.
@@ -1015,7 +1015,7 @@ However, this flexibility is deliberately one-directional. While you can spread 
 let tupleOfInts = (1, 2, 3);
 
 // Invalid:
-let arrayOfInts = [...tupleOfInts]; // Not permitted, even though semantically valid.
+let arrayOfInts = [...tupleOfInts]; // Not permitted, even though the types are valid.
 ```
 
 This restriction ensures clarity and prevents confusion by keeping automatic conversions intuitive: from stricter containers to the more flexible tuple. To perform the reverse, you must explicitly convert or destructure the tuple manually.
@@ -1354,19 +1354,19 @@ let explicit = [x, y] { return x + y; };
 let renamed = [total = x] { return total; };
 ```
 
-##### Explicit Copy or Reference Capturing
+##### Explicit Copy or Borrow Capturing
 
-By default, the compiler intelligently decides whether captures should occur by copy or by reference. This decision is guided by the same logic used in function calls.
+By default, the compiler intelligently decides whether captures should occur by copy or by borrow. This decision is guided by the same logic used in function calls.
 
 To explicitly force one behavior or the other, you can prefix captures with special unary prefix operators:
 
-* `&a`: explicitly capture by reference.
+* `&a`: explicitly capture by borrow.
 * `@a`: explicitly capture by copy.
 
 Examples:
 
 ```warble
-let byRef = [&x] { /* x captured by reference */ };
+let byRef = [&x] { /* x captured by borrow */ };
 let byCopy = [@x] { /* x captured by copy */ };
 ```
 
@@ -1406,7 +1406,7 @@ Example:
 ```warble
 // Inferred return type: int
 let getValue = () {
-  if (condition) return 10;
+  if (condition) { return 10; }
   return 20;
 };
 
@@ -1463,7 +1463,7 @@ This avoids ambiguity when distinguishing between implicit object literals and e
 * Defined using square brackets `[captures]`, parentheses `(parameters)`, and curly braces `{body}`.
 * Captures are optional; omitted captures imply implicit capturing.
 * Parameters are optional; either captures or parameters must be present.
-* Supports explicit capture modes (`&` by reference, `@` by copy).
+* Supports explicit capture modes (`&` by borrow, `@` by copy).
 * Parameters inherently templated, may initially have type `undefined`.
 * Return type inferred automatically, must be consistent across returns.
 * Concise arrow syntax available for single-expression functions.
@@ -1472,7 +1472,66 @@ This avoids ambiguity when distinguishing between implicit object literals and e
 
 ### 4.2 Compiler-Generated Non-Literal Types
 
-#### 4.2.1 Reference
+Warble presents all dynamic memory through a small set of compiler-defined **reference primitives**. These are fully known to and implemented by the compiler, and each corresponds to a dedicated symbol kind:
+
+* **Non-owning:** `&T` (borrow) and `view`.
+* **Owning:** `unique[T]`, `shared[T]`, `weak[T]`, `future`, and `buffer`.
+
+These primitives define how heap-allocated blocks are created, accessed, and freed in Warble. There is no raw-pointer escape hatch.
+
+Among owning references, `unique[T]`, `shared[T]`, `weak[T]`, and `future` have fixed runtime size and use compile-time-known deallocation sizes, while `buffer` carries a runtime `size_bytes`.
+
+#### 4.2.1 Borrow
+
+A **borrow** (written `&T`) is a runtime value that designates an existing object without owning it.
+
+Conceptually, borrows behave like pointers with strict, compiler-enforced lifetime rules.
+
+Warble uses borrows to access existing storage without copying it.
+
+Warble does not have raw pointers. Address-like values exist only in the form of compiler-defined reference types (borrows and the owning reference primitives described below). The type system cannot express “raw address” as a value. This restriction applies equally to user code and the standard library.
+
+##### Borrow optimization (materialized vs. optimized away)
+
+A borrow is always *conceptually* the same kind of value. However, the compiler aggressively optimizes redundant storage.
+
+If the compiler knows exactly what a borrow designates for the entire lifetime of that borrow, it may choose not to allocate an 8-byte slot to hold an address. Instead, it folds the address calculation directly into each use site (for example, lowering to a base register plus displacement). This is a normal optimization (constant folding / propagation and related lowering).
+
+When the compiler cannot prove what a borrow designates (the borrow is **opaque**), it materializes it as a normal runtime value that occupies storage (pointer-sized) and is treated as an actual address by generated instructions.
+
+The specification sometimes calls a fully transparent, fully optimizable borrow a **pure alias**. This is not a distinct type; it is an optimization outcome.
+
+##### Non-escaping rule (stack/register only)
+
+When a function receives a runtime borrow (for example, as a parameter), that borrow is treated as **opaque** to the compiler unless the call is inlined.
+
+To prevent dangling borrows, Warble enforces the following rule:
+
+* A runtime borrow value must not be copied into storage whose lifetime is not bounded by the current call frame.
+
+In practice, this means a runtime borrow may live only in:
+
+* registers,
+* the current function’s stack frame,
+* temporary values that do not outlive the call.
+
+It is therefore a compile-time error to:
+
+* store a runtime borrow into a heap-allocated container (for example, pushing it into a vector),
+* store a runtime borrow into an object/array that outlives the call,
+* capture a runtime borrow into a closure that can escape the call.
+
+Passing a runtime borrow through other function calls is permitted, but the same non-escaping rule applies transitively: callees must not store the borrow beyond their own call frames.
+
+##### External-borrow transparency
+
+External borrows (borrows to imported bindings) must remain transparent to the compiler.
+
+In particular, the compiler must always be able to determine exactly which imported binding is being borrowed, so it can preserve memory safety rules and (for the module scheduler model) insert barriers at every external read site (§13.1.4).
+
+Therefore, it is a compile-time error to make an external borrow opaque by copying it into constructs that hide its identity, such as unions. For example, storing an external borrow into a union (such as `null || &T`) is a compile-time error.
+
+This transparency requirement applies specifically to borrows to imports. Borrows internal to a module are not required to remain transparent; they may be treated as opaque runtime borrows if desired (at the cost of optimization opportunities).
 
 #### 4.2.2 Union
 
@@ -1525,6 +1584,10 @@ A function with only plain `return` statements is a normal function: its explici
 
 Any function that contains a `yield` statement is automatically a **generator function**.
 
+Any function that contains an `async`-augmented `return` or `yield` is an **async function**.
+
+For an async function, the compiler constructs a **promise union type** by taking the inferred union from its `return`/`yield` arms and adding `compiler.unresolved` and `compiler.detached` as additional fail arms (deduplicated if already present).
+
 Both `return` and `yield` may be augmented with the keywords `async`, `pass`, and `fail`:
 
 * `async` may appear at most once and must come first.
@@ -1542,6 +1605,8 @@ yield async fail errorValue;
 
 If any `return` or `yield` in a function uses `pass` or `fail`, then all `return` and `yield` statements in that function must also use exactly one of `pass` or `fail`. Mixing `return expr;` with `return fail expr;` in the same function is a compile-time error.
 
+If a function is an async function (contains any `async`-augmented `return`/`yield`), then all `return` and `yield` statements in that function must be `async`-augmented. Mixing `return async ...` with a non-async `return`/`yield` in the same function is a compile-time error.
+
 The union returned by a union function is constructed from the set of types produced by its `return` and `yield` statements. Arms are deduplicated within their category (pass vs fail). If the same type is produced as both `pass` and `fail`, it appears twice in the union's arm list: once as a passing arm and once as a failing arm.
 
 ##### Promises and Generators (Union Patterns)
@@ -1549,15 +1614,204 @@ The union returned by a union function is constructed from the set of types prod
 Promises and generators are not distinct types; they are common patterns of union:
 
 * A **generator** is a union that includes the compiler-defined symbol `compiler.exhausted` as one of its fail arms. `for` loops treat `compiler.exhausted` as the iteration-termination state.
-* A **promise** is a union that includes the compiler-defined symbol `compiler.unresolved` as one of its fail arms. The `await` operator atomically waits until the union's tag transitions away from `compiler.unresolved`.
+* A **promise** is a union that includes the compiler-defined symbols `compiler.unresolved` and `compiler.detached` as fail arms. `compiler.unresolved` means “not complete yet”. `compiler.detached` means “the owning future has been dropped; completion results will be discarded”.
 
-Both `compiler.exhausted` and `compiler.unresolved` are classified as **fail** states. When a union is in a `compiler.exhausted` or `compiler.unresolved` state, its value slot is not meaningful and must not be accessed.
+`compiler.exhausted`, `compiler.unresolved`, and `compiler.detached` are classified as **fail** states. When a union is in one of these states, its value slot is not meaningful and must not be accessed.
+
+In an async function, the promise union is produced asynchronously. The call returns a `future` handle (§4.2.3) that designates the promise union in an async frame. The `await` operator consumes a `future` and waits until its promise is complete.
 
 ##### Limits
 
 Unions have a hard limit of $2^{16}-1$ total arms (65535). The type tag is one byte when there are 256 or fewer arms; otherwise it is two bytes.
 
-#### 4.2.3 Module
+#### 4.2.3 Future
+
+A **future** is a primitive, compiler-generated type used to represent an in-flight async function call.
+
+In the compiler’s internal representation, a future value is represented as a symbol of kind `Future`.
+
+Representation:
+
+* A future value is a pointer-sized memory address (typically 8 bytes).
+* The address points to a **promise union** stored at the beginning of a heap-allocated async frame.
+* Because the promise union begins at offset 0 of the async frame, the future’s address is also the base address of the async frame.
+
+Semantics:
+
+* A future is an **owning handle** for its async frame.
+* Futures have **unique ownership**: they cannot be copied, but they may be moved.
+* Futures are typed by the async function they correspond to (not by the promise union’s resolved value type). This gives the compiler static knowledge of the frame layout, enabling cleanup without dynamic dispatch.
+
+Dropping a future:
+
+* If the promise tag is no longer `compiler.unresolved`, the future destroys the async frame immediately.
+* Otherwise, the future attempts to detach by atomically compare-exchanging the tag from `compiler.unresolved` to `compiler.detached`.
+  * If the compare-exchange succeeds, the async task becomes responsible for cleanup when it eventually completes.
+  * If the compare-exchange fails because the task completed concurrently, the future destroys the async frame immediately.
+
+The only way to extract the result from a future is `await` (§5.2.1). `await` forwards to the underlying promise union and consumes the future handle.
+
+#### 4.2.4 Unique
+
+A **unique** is an owning reference with unique ownership, similar to `std::unique_ptr<T>`.
+
+In the compiler’s internal representation, a unique owning reference is represented as a symbol of kind `Unique`.
+
+Representation:
+
+* A unique value is pointer-sized (typically 8 bytes).
+* It designates a single heap allocation containing a value of type `T`.
+* Unique owning references do not carry a runtime size; `sizeof(T)` is a compile-time constant.
+
+Semantics:
+
+* A unique has **unique ownership**: it cannot be copied, but it may be moved.
+* A unique is **non-empty**: it always designates an allocation. To represent an empty state, use `null || unique[T]`.
+* Using a unique to access members or elements forwards to the owned value (conceptually via an implicit borrow of the owned storage).
+
+Dropping a unique:
+
+* Dropping a unique destroys the owned value and frees its allocation.
+* The compiler knows the deallocation size as `sizeof(T)` and passes that size to the heap allocator (§9.5).
+
+#### 4.2.5 Shared
+
+A **shared** is an owning reference with shared ownership, similar to `std::shared_ptr<T>`.
+
+In the compiler’s internal representation, a shared owning reference is represented as a symbol of kind `Shared`.
+
+Representation:
+
+* A shared value is pointer-sized (typically 8 bytes).
+* A shared allocation contains a header followed immediately by the `T` object.
+* The allocation size is a compile-time constant: `sizeof(shared_header) + sizeof(T)`.
+* The header contains:
+  * an atomic strong reference counter (`strong_count`), and
+  * an atomic weak reference counter (`weak_count`).
+
+The shared value designates the `T` object (not the header). The header is located at a fixed negative offset from the `T` address. This layout is compiler-defined but fixed for a target.
+
+Semantics:
+
+* A shared has **shared ownership**: it may be copied.
+* Copying a shared atomically increments `strong_count`.
+* Dropping a shared atomically decrements `strong_count`.
+* A shared is **non-empty**: it always designates an allocation. To represent an empty state, use `null || shared[T]`.
+
+Finalization and deallocation:
+
+* When `strong_count` transitions to 0, the `T` object is destroyed exactly once.
+* The allocation remains alive as long as `weak_count > 0`.
+* When `weak_count` transitions to 0 (and `strong_count` is already 0), the allocation (header + storage) is freed.
+
+Note: the exact initial values and the sequencing between destroying `T` and releasing the allocation follow the conventional weak-pointer control-block design. The intent is that weak references can observe liveness and attempt to acquire shared ownership without risking use-after-free.
+
+#### 4.2.6 Weak
+
+A **weak** is a non-owning observer handle associated with a `shared[T]` allocation, similar to `std::weak_ptr<T>`.
+
+In the compiler’s internal representation, a weak reference is represented as a symbol of kind `Weak`.
+
+Representation:
+
+* A weak value is pointer-sized (typically 8 bytes).
+* A weak value designates the shared allocation’s header/control block.
+
+Semantics:
+
+* A weak may be copied.
+* Copying a weak atomically increments `weak_count`.
+* Dropping a weak atomically decrements `weak_count`.
+* A weak does not provide direct access to `T`. The only way to obtain access is to attempt to upgrade it to a `shared[T]`.
+
+Upgrading (locking):
+
+* Upgrading a weak produces `null || shared[T]`.
+* If the `T` object is already destroyed (`strong_count == 0`), the result is `null`.
+* Otherwise, upgrading atomically increments `strong_count` and returns a `shared[T]` designating the `T` object.
+
+#### 4.2.7 Buffer
+
+A **buffer** is an owning reference to a dynamically-sized heap allocation.
+
+In the compiler’s internal representation, a buffer owning reference is represented as a symbol of kind `Buffer`.
+
+Representation:
+
+* A buffer value is 16 bytes: an address plus an 8-byte size (`size_bytes`).
+* The allocation contains `size_bytes` logically-addressable bytes.
+* The buffer’s stored `size_bytes` is the deallocation size passed to the heap allocator (§9.5).
+* The buffer’s address is never 0. (The address is not observable as a raw value; this invariant exists to support optimizations such as `null || buffer`.)
+
+Semantics:
+
+* A buffer has **unique ownership**: it cannot be copied, but it may be moved.
+* A buffer is **non-empty**: it always designates an allocation. To represent an empty state, use `null || buffer`.
+* A buffer’s designated allocation is fixed for the lifetime of the buffer value (it is not retargetable).
+
+Operations that conceptually “resize” storage therefore produce a new buffer value. Code that needs to represent “no allocation yet” or “may replace the allocation” uses an optional buffer (`null || buffer`) and replaces the union value as needed.
+
+The standard library uses this pattern for containers such as `vector` and `string`: their internal storage is represented as an optional buffer so they can be empty and can grow/shrink by rebuilding that optional buffer.
+
+Warble provides no way to extract a raw address from a buffer. All interaction with buffer contents occurs through compiler-defined operations that preserve bounds safety.
+
+#### 4.2.8 View
+
+A **view** is a non-owning, dynamically-sized reference to a contiguous region of memory.
+
+In the compiler’s internal representation, a view is represented as a symbol of kind `View`.
+
+Representation:
+
+* A view value is 16 bytes: an address plus an 8-byte size (`size_bytes`).
+* A view does not own storage; it does not free memory when dropped.
+* A view’s address is never 0, even when `size_bytes == 0`.
+
+Semantics:
+
+* A view is non-owning, and therefore must obey non-escaping rules similar to borrows.
+* A view may be created from an owning reference (such as `buffer`, `unique[T]`, or `shared[T]`) or from other views.
+* Warble provides no way to extract a raw address from a view.
+
+##### View stability (no retargeting while a view is live)
+
+In addition to the general non-escaping rule, the compiler enforces a *stability* rule for views:
+
+* A view must not outlive the stability of the region it designates.
+* In particular, if a view is derived (directly or indirectly) from an *optional buffer slot* (`null || buffer`), then the underlying slot must not be replaced (retargeted) for the lifetime of the view.
+
+To enforce this, the compiler performs a conservative analysis based on a per-function **retarget set**:
+
+* A function’s retarget set is the set of optional-buffer slots (including fields/paths) whose value the function may replace, either directly or transitively through calls.
+* While a view derived from a particular optional-buffer slot is live, it is a compile-time error to perform any operation that the compiler cannot prove does not replace that slot.
+
+This rule may forbid calls that are *logically* safe but not provably safe under the compiler’s analysis; this is permitted.
+
+##### Optional reference values (`null || ...`)
+
+Unique, shared, weak, future, buffer, and view values are non-empty primitives. The conventional way to represent an “optional reference” is to use a union with `null`, such as:
+
+```warble
+let maybeFuture = null || future;
+let maybeUnique = null || unique[T];
+let maybeBuffer = null || buffer;
+let maybeView = null || view;
+```
+
+The compiler may optimize unions of the form `null || X` when `X` is a non-empty reference-like value:
+
+* For pointer-sized reference values (such as `unique[T]`, `shared[T]`, `weak[T]`, and `future`), the union may be represented as a single pointer-sized slot, using address 0 to represent the `null` arm.
+* For `(address, size_bytes)` reference values (such as `buffer` and `view`), the union may be represented as a pair where `(0, 0)` represents the `null` arm.
+
+This is an optimization: the abstract semantics remain a union.
+
+##### Automatic destruction and leaks
+
+These reference primitives are designed to make “forgot to free” a non-problem in Warble: dropping an owning reference deterministically triggers destruction and deallocation.
+
+It is still possible to exhaust memory in safe Warble code (for example, by growing a container without bound). Additionally, cyclic graphs built purely out of `shared[T]` may keep memory alive indefinitely; Warble does not attempt to provide general cycle collection.
+
+#### 4.2.9 Module
 
 In Warble, a **module** represents a single imported source file. For every source file included in a project, exactly one corresponding module object is created—no matter how many times that file is imported. The module acts as the root scope and primary container for all information defined within that source file.
 
@@ -1587,7 +1841,7 @@ All module data described above are statically allocated and stored directly wit
 
 Additionally, the module object may contain user-defined top-level declarations. To accommodate these declarations, the compiler reserves a dedicated static memory block for each module. Each top-level declaration is assigned a specific slot within this memory block, analogous to how a function call uses a stack frame for its local variables.
 
-#### 4.2.4 Symbol
+#### 4.2.10 Symbol
 
 Symbols are fundamental building blocks of Warble's type and runtime systems. Every value in Warble, whether it's a literal, an object, a function, or any other entity, is represented internally by a **symbol**. In practice, a symbol is simply a 32‑bit index into a module's columnar symbol table. Each column stores one property (such as the kind or name) for all symbols. Users do not manipulate these columns directly; instead, they obtain a symbol index and query properties through compiler-provided functions.
 
@@ -1694,7 +1948,7 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - Export / Private / Protected / Public / Static / Mut / Const / Let: Common visibility and declaration modifiers.
 - Async / Generator / Varied: Function behavior flags.
 - Returned / Captured / Parameter / ParameterPack: Function-structure flags.
-- Impure / Used / Inline / Immediate / Internal / ThreadSafe / Accumulator: Miscellaneous analysis and lowering flags.
+- Impure / Used / Inline / Immediate / Internal / Accumulator: Miscellaneous analysis and lowering flags.
 - Comtime / Runtime: Compile-time vs. runtime knowledge.
 - NonZero / NonMax: Optimization hints.
 - Halts: Indicates a function is proven to halt.
@@ -1708,7 +1962,7 @@ Core kinds:
 
 - Undefined, Unresolved, Auto, Null, Readonly
 - Raw, Boolean, Character, Integer, Float
-- Symbol, Reference
+- Symbol, Borrow, Unique, Shared, Weak, Future, Buffer, View
 - Identifier, String, Enum, Union
 - Array, Tuple, TemplateString, Object, Range
 - Phi, Function, Module, Label
@@ -1733,7 +1987,7 @@ Common payload encodings (in terms of C++ types):
 - Integer: `std::pair<uint32_t, uint32_t>` of (data slice start, limb count).
 - Float: `std::pair<uint32_t, uint32_t>` of (data slice start, limb count). The referenced slice stores significand limbs followed by two exponent limbs.
 - Symbol: `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index).
-- Reference: `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index).
+- Borrow: `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index).
 - Identifier / String / Enum: `std::pair<uint32_t, uint32_t>` of (data slice start, slice length).
 - Union: `std::tuple<uint32_t, uint32_t, uint16_t, uint16_t>` containing a data slice plus 16-bit counts (including `fail_count`).
 - Label: `std::pair<uint32_t, uint32_t>` of (instruction start index, length).
@@ -1860,7 +2114,7 @@ Union payload copying is only triggered if a filtered union arm is mutated while
 
 | Operator     | Operand requirement | Fast path                                            | Slow path                                                 | Result type |
 | ------------ | ------------------- | ---------------------------------------------------- | --------------------------------------------------------- | ----------- |
-| `await`      | a union with a `compiler.unresolved` fail arm | If not unresolved: returns the union with `compiler.unresolved` removed. | Atomically waits until the union is no longer `compiler.unresolved` | union without `compiler.unresolved` |
+| `await`      | a promise union (a union with `compiler.unresolved` and `compiler.detached` fail arms), or a `future` that forwards to such a promise | If not unresolved: returns the union with `compiler.unresolved` and `compiler.detached` removed. If the operand is a future, it is consumed and its frame is destroyed as part of this fast path. | Suspends the current thread while the promise tag is `compiler.unresolved`, repeatedly returning to the work queue between checks. If the operand is a future, it remains owned by the awaiting site and is destroyed once the await completes. | union without `compiler.unresolved`/`compiler.detached` |
 | **`expect`** | a union value        | If passing: returns the union with all fail arms removed. | If failing: `return fail <fail-value>`                    | pass-only union |
 | **`assume`** | a union value        | If passing: returns the union with all fail arms removed. | If failing: `panic <fail-value>`                          | pass-only union |
 
@@ -2186,7 +2440,7 @@ In contrast, an operation like `obj.property()` may be syntactically valid, yet 
 
 ### 7.4 Loop Statements
 
-Warble provides standard loop constructs familiar from other programming languages, enabling repeated execution of statements or expressions. Loops in Warble include `while`, `repeat ... while`, and a powerful single-form `for` loop for concise iteration over iterables or ranges.
+Warble provides standard loop constructs familiar from other programming languages, enabling repeated execution of statements or expressions. Loops in Warble include `while`, `repeat ... while`, a powerful single-form `for` loop for concise iteration over iterables or ranges, and the module-level `tick` loop.
 
 #### 7.4.1 While (`while`)
 
@@ -2269,6 +2523,34 @@ Stepping (changing an iterable to skip values or reverse iteration) is intention
   The loop advances each iterable in lockstep. Iteration stops as soon as **any** of the iterables transitions to `compiler.exhausted`.
 
 This flexible `for` loop design makes Warble iterations expressive, concise, and efficient, covering most common iteration patterns without the complexity of a traditional `for` loop syntax.
+
+#### 7.4.4 Tick (`tick`)
+
+The `tick` loop is a special loop form used for module-level scheduling.
+
+Syntax:
+
+```warble
+tick {
+  // body
+}
+```
+
+Rules:
+
+* A `tick` loop may appear anywhere in **module context**. It is a compile-time error to place a `tick` loop inside a function body.
+  * **Module context** means code that executes as part of the module’s top-level evaluation, including nested statement arms (`if`, `while`, `for`, `do`, etc.). Function bodies (including function literals) are not module context.
+* A module may contain multiple `tick` loops. Control flows forward: after a `tick` loop terminates, execution continues with the statements that follow it.
+* A `tick` loop runs until it terminates via `break` or until the program is shutting down (in which case it terminates as if `break` had executed).
+* A module must not contain any `export` declaration after the compiler has encountered any `tick` loop while scanning the module from top to bottom. In other words: all exported declarations must appear (textually) before the first `tick` loop in the file, even if that `tick` loop is nested inside other module-context statements.
+  * This restriction ensures that once a module **successfully suspends** at a `tick` boundary (advancing its cycle counter), its exported state is fully initialized and will never be partially initialized due to later module-context code.
+
+Scheduling semantics:
+
+* Each iteration of a `tick` loop ends with an implicit **suspension point**. This suspension point is not written by the user, but it is part of the loop’s semantics.
+* Suspending returns control back to the runtime scheduler, which may run other modules or other work before resuming this module for the next iteration. The runtime may also immediately continue the same module to catch up (§13.1.6).
+
+The `tick` loop is the primary surface syntax hook for the module scheduler described in §13.
 
 ### 7.5 Jump Statements (`break`, `continue`, `return`, `yield`, `panic`)
 
@@ -2471,6 +2753,261 @@ let obj = {
 
 ### 9.5 Allocation Strategies (power-of-2, etc.)
 
+Warble’s runtime uses a power-of-two free-list allocator optimized for frequent, short-lived allocations.
+
+The heap allocator is organized into:
+
+* A **per-thread local free list**, used for the fast path.
+* An **atomic global free list**, used to share memory between threads.
+* An **OS allocation path**, used for very large allocations and for refilling the global pool.
+
+This section describes the allocator’s observable behavior and its internal invariants. Exact data structures may vary as long as the semantics below are preserved.
+
+#### 9.5.1 Size classes
+
+Warble heap blocks are pooled in **size classes** that are powers of two.
+
+* The minimum pooled block size is **8 bytes**.
+  * This ensures that a free block can store a `next` pointer in its first 8 bytes.
+* Size class `i` corresponds to blocks of size:
+
+  $\mathrm{class\_size}(i) = 2^{i + 3}$ bytes.
+
+Blocks in size class `i` are aligned to at least $2^{i + 3}$ bytes (and at least 8 bytes in all cases). This invariant ensures that splitting a larger block into two equal halves produces two valid, correctly aligned blocks of the next smaller size class.
+
+The runtime is configured with a compile-time constant maximum pooled class index `max_index`.
+
+* The maximum pooled block size is $2^{max\_index + 3}$ bytes.
+* Example: `max_index = 23` implies a maximum pooled block size of $2^{26}$ bytes (64 MiB).
+
+If a requested allocation exceeds the maximum pooled block size, the allocator bypasses the free lists and delegates directly to the OS.
+
+Pooled allocations return a block of size `class_size(index(n))`, which may be larger than the requested `n`.
+
+#### 9.5.2 Converting byte counts to a class index
+
+When allocating a buffer of `n` bytes from the pooled allocator, the runtime rounds up to the next power of two and converts to a class index.
+
+Let:
+
+* $s = \max(n, 8)$
+* $p = 2^{\lceil \log_2(s) \rceil}$ (the next power of two, with $p \ge s$)
+
+Then the class index is:
+
+$$
+\mathrm{index}(n) = \log_2(p) - 3
+$$
+
+Equivalently, for unsigned integers, an efficient implementation is:
+
+* `index(n) = bit_width(max(n, 8) - 1) - 3`
+
+Where `bit_width(x)` is $\lfloor \log_2(x) \rfloor + 1$ for $x > 0$.
+
+#### 9.5.3 Free-list representation
+
+The heap allocator does not maintain per-allocation headers.
+
+* When the runtime hands out a block, it does not retain any record of that block’s size or origin.
+* Freeing is therefore **size-aware**: the caller must provide the correct byte count for the allocation being freed.
+* Freeing with an incorrect size is undefined behavior.
+
+This design keeps allocations headerless and allows blocks to freely migrate between threads (it is common for one thread to allocate and another to free).
+
+Each free list (local or global) contains:
+
+* An array of slot heads `slots[0..max_index]`, where each slot is a singly-linked list of free blocks of that size class.
+  * A free block stores its `next` pointer in the first 8 bytes of the block.
+* A **bitset** `present`, with one bit per slot.
+  * If `present[i]` is set, the list **may** contain at least one block of class `i`.
+  * For the local free list, this bitset is authoritative.
+  * For the global free list, this bitset is a hint and may contain false positives.
+* A `size_bytes` counter tracking memory ownership (see §9.5.6).
+
+Global free-list slot heads and metadata are atomic.
+
+#### 9.5.4 Allocation (local fast path)
+
+To allocate `n` bytes:
+
+1. If `n` exceeds the maximum pooled block size, allocate directly from the OS and return.
+2. Compute `i = index(n)`.
+3. If the local slot `i` is non-empty, pop its head and return it.
+    * Accounting: `local.size_bytes -= class_size(i)`.
+    * If the slot becomes empty, clear `local.present[i]`.
+4. Otherwise, search for a larger available local class `j > i`.
+   * The runtime should use the local `present` bitset to hop directly between candidate slots rather than linearly scanning every slot.
+5. If a larger class `j` is found, pop a block from slot `j` and repeatedly **split it in half** until it reaches size class `i`:
+    * Accounting: popping the class `j` block decrements `local.size_bytes` by `class_size(j)`; each half that is pushed back increments `local.size_bytes` by its class size.
+    * Each split of a class `k` block produces two class `k-1` blocks.
+    * One half is pushed onto local slot `k-1`.
+    * The other half is split again (or returned once `k-1 == i`).
+
+At the end of this process, the net effect is that exactly `class_size(i)` bytes leave the local free list and become owned by the allocation result.
+
+This allocator is a buddy-style splitter. Coalescing is not required for correctness; it is optional runtime maintenance.
+
+#### 9.5.5 Allocation (global refill path)
+
+If the local free list cannot satisfy an allocation (no suitable `j >= i` is available locally), the thread attempts to refill from the global free list.
+
+Global search:
+
+* The thread computes `i = index(n)` and searches for a class `j >= i` that may contain blocks.
+  * The global `present` bitset is used as a hint to skip empty ranges.
+  * Because the bitset is not authoritative, the thread must still validate that `slots[j]` is non-null when attempting to claim.
+
+Claiming a global chain:
+
+* To refill from class `j`, the thread claims the entire global chain in `slots[j]` by compare-exchanging the head pointer to `null`.
+* The claimed chain is transferred into a private thread-local staging list for class `j`.
+  * Until the thread performs its local “checkout” decision, the claimed chain is still considered to belong to the global free list for accounting purposes (§9.5.6).
+
+Partial “checkout” and republishing:
+
+* After claiming a chain from global, the thread may keep only some number of blocks locally and republish the remainder back to global.
+* The number of blocks the thread keeps is implementation-defined and may be guided by heuristics.
+
+One reasonable strategy is:
+
+* Iterate the claimed chain only up to the heuristic limit, counting how many blocks `k` will be kept locally.
+* Detach the remaining suffix of the chain (if any) and republish that suffix back to the global slot `j`.
+* Transfer ownership for the `k` kept blocks by adjusting `local.size_bytes` and `global.size_bytes` (§9.5.6).
+
+After ownership transfer, the thread may treat the `k` kept blocks as part of its local free list (updating `local.present` accordingly) and allocate from them.
+
+After refilling locally (and optionally republishing), the thread continues with the local allocation algorithm (§9.5.4), splitting blocks down to the requested class as needed.
+
+If no suitable global chain can be claimed for any `j >= i`, the allocator must allocate from the OS (§9.5.7).
+
+#### 9.5.6 Ownership and accounting
+
+Each local free list and the global free list maintain a `size_bytes` counter.
+
+* `local.size_bytes` is authoritative: it is the total number of bytes currently held by the local free list.
+* `global.size_bytes` represents the total number of bytes that **belong to** the global free list.
+  * This is an ownership accounting concept, not an availability guarantee.
+  * Claiming a global chain does not immediately change `global.size_bytes`.
+  * Ownership transfers only when the thread decides how many blocks it will keep locally (the “checkout” step).
+
+When a thread keeps `k` blocks of class `j` from a claimed global chain:
+
+* `local.size_bytes += k * class_size(j)`
+* `global.size_bytes -= k * class_size(j)` (atomically)
+
+When a thread publishes `k` blocks of class `j` from its local free list to the global free list (for example, as part of rebalancing):
+
+* `local.size_bytes -= k * class_size(j)`
+* `global.size_bytes += k * class_size(j)` (atomically)
+
+Additionally, the runtime maintains a global atomic counter `os_bytes` tracking the total number of bytes currently allocated from the OS.
+
+* Each OS allocation increments `os_bytes` by the allocated byte count.
+* Each OS free decrements `os_bytes` by the freed byte count.
+
+#### 9.5.7 OS allocation and seeding the pool
+
+Large allocations:
+
+* If an allocation request exceeds the maximum pooled block size, the allocator bypasses the free lists and allocates directly from the OS.
+  * Unlike pooled allocations, OS allocations are not required to round up to a power of two; the runtime should allocate the requested size (subject to OS constraints such as page rounding).
+* When such a block is freed, it is returned directly to the OS.
+
+Seeding when global is empty:
+
+* If a thread fails to find any suitable global chain, it allocates a block from the OS of size $2^{max\_index + 4}$ bytes (the next power of two beyond the maximum pooled size).
+* It splits that OS block into two blocks of size $2^{max\_index + 3}$ bytes.
+  * One block is added to the thread’s local slot `max_index`.
+  * The other block is published to the global slot `max_index`.
+
+#### 9.5.8 Publishing to the global free list
+
+Publishing a chain to the global list is done by compare-exchange.
+
+* The thread first attempts to publish by CAS’ing `slots[j]` from `null` to `chain_head`.
+* If the CAS fails, some other thread published first. In that case:
+  * The thread claims the newly-published chain (by CAS’ing `slots[j]` to `null`),
+  * links it onto its own chain (merging),
+  * and retries the publish.
+
+This retry-merge loop continues until the publish succeeds.
+
+#### 9.5.9 Bitset maintenance
+
+The local `present` bitset is authoritative and must be updated whenever a local slot transitions between empty and non-empty.
+
+The global `present` bitset is a performance hint.
+
+* Setting a bit (indicating that a slot may be non-empty) should occur when publishing a chain to that slot.
+* A thread that claims a global chain is not required to immediately clear the corresponding `present` bit.
+  * Leaving the bit set may cause extra probing by other threads (a false positive), but it does not affect correctness.
+* Clearing a bit is best-effort and should avoid creating false negatives.
+  * The runtime should not clear a bit unless it has reason to believe the corresponding global slot head is still `null`.
+  * If the global bitset contains false positives, correctness is unaffected; it only impacts performance.
+
+#### 9.5.10 Freeing pooled blocks
+
+Freeing is size-aware and headerless: the free operation must be provided the same byte count `n` that was used to allocate the block.
+
+When freeing a heap block with size `n`:
+
+1. If `n` exceeds the maximum pooled block size, free the block to the OS and decrement `os_bytes` by the freed byte count.
+2. Otherwise, compute `i = index(n)`.
+3. Push the block onto the freeing thread’s local free list slot `i`:
+   * Write the current slot head pointer into the first 8 bytes of the block.
+   * Update the slot head to point at the freed block.
+   * Set `local.present[i]`.
+4. Update accounting:
+   * `local.size_bytes += class_size(i)`
+
+Because blocks may be freed by threads other than the allocating thread, implementations should include a rebalancing policy to prevent one thread from permanently hoarding a disproportionate fraction of the heap (§9.5.11).
+
+#### 9.5.11 Rebalancing local vs global memory
+
+Blocks may freely migrate between threads: a block allocated by one thread may be freed by another, and the free operation pushes it onto the freeing thread’s local free list.
+
+To prevent long-term imbalance, each worker thread should implement a rebalancing policy that publishes excess local blocks to the global free list.
+
+Inputs available to a rebalancing heuristic include:
+
+* `os_bytes`: total bytes allocated from the OS for the program.
+* `worker_count`: the number of worker threads.
+* `local.size_bytes`: bytes currently held by this thread’s local free list.
+
+Exact thresholds are implementation-defined. A reasonable approach is to compare `local.size_bytes` to an estimate of a fair share (for example, `os_bytes / worker_count`) and publish blocks to global until the local share falls under a chosen multiple.
+
+#### 9.5.12 Coalescing (buddy merges) and OS release
+
+In addition to rebalancing, workers may perform background heap maintenance when they are otherwise idle (for example, while waiting for barriers to clear; see §13.1.6).
+
+Coalescing is an optional optimization that merges free buddy blocks into larger blocks.
+
+Buddy relationship:
+
+* Two blocks of size $S$ are buddies if they are adjacent, their combined region is aligned to $2S$, and together they form a block of size $2S$.
+* One common implementation test is: for a block at address `p`, its buddy is at `p ^ S`.
+
+Global coalescing workflow (one reasonable strategy):
+
+1. Claim an entire chain from a global slot `j` (CAS head pointer to `null`).
+2. Locally partition the claimed blocks into:
+   * an “unmerged” chain of class `j` blocks that could not be paired with their buddies, and
+   * a “merged” chain of class `j+1` blocks produced by successful buddy merges.
+3. Republish the unmerged chain back to global slot `j`.
+4. To continue coalescing upward, claim the global chain from slot `j+1`, merge it together with the locally-produced merged chain, and repeat the process.
+
+This process may continue until maintenance work should stop or until `max_index` is reached.
+
+At the maximum size class, implementations may choose to either:
+
+* republish the resulting blocks back to the global slot `max_index`, or
+* return some of them to the OS to reduce memory usage.
+
+When returning pooled blocks that belong to the global free list to the OS, the runtime must decrement `os_bytes` and also decrement `global.size_bytes` by the freed byte count.
+
+The aggressiveness of coalescing and OS release is implementation-defined and may be guided by system memory pressure signals.
+
 ## 10 Modules & Packages
 
 Warble organizes code through a carefully designed system of **packages** and **modules**. This system emphasizes security, clarity, and explicit dependency management, ensuring both efficiency and trustworthiness in project management and third-party code integration.
@@ -2537,6 +3074,9 @@ Modules import code explicitly. The syntax for importing is:
 ```warble
 import identifier from "specifier" [in "package_name"];
 import {a, b as alias} from "specifier" [in "package_name"];
+
+import deferred identifier from "specifier" [in "package_name"];
+import deferred {a, b as alias} from "specifier" [in "package_name"];
 ```
 
 * The **specifier** is resolved as a relative URL from the package root directory.
@@ -2552,6 +3092,21 @@ import {util, helper as h} from "./local_module"; // Local module imports
 
 Imports always produce immutable bindings, regardless of the original export mutability. Modules are shared: multiple imports of the same module access the same instance.
 
+##### Deferred imports (`import deferred`)
+
+`import deferred` is an explicit escape hatch that relaxes same-pass ordering between modules.
+
+Semantics:
+
+* Deferred imports may participate in cycles.
+* Reads through a deferred import observe the dependency module’s exported state from the **previous successful suspension point** (the previous committed module cycle), not necessarily the state produced in the current scheduling pass.
+* Because this can observe “stale” values by design, deferred imports are intended for cyclic dataflow and feedback loops where a one-cycle delay is acceptable (or desired).
+
+Initialization restriction:
+
+* It is a compile-time error for a module to read any binding imported via `import deferred` before that module has successfully suspended at least once (i.e. before its first `tick` boundary that advances the module cycle counter).
+* In practice, this means deferred imports are only used inside `tick` loops. The compiler must be able to prove the restriction.
+
 #### 10.3.2 Exports
 
 To expose functionality from a module, Warble uses explicit `export` declarations at the module’s top-level scope:
@@ -2562,19 +3117,6 @@ export mut mutableValue = 42; // Only mutable internally, dependency modules can
 ```
 
 Only declarations explicitly marked with `export` become visible outside the module.
-
-#### 10.3.3 Asynchronous Imports (`import async`)
-
-Warble provides an asynchronous import syntax (`import async`) to handle situations like circular dependencies or delayed module loading:
-
-```warble
-import async modulePromise from "./module";
-import async {fn as promisedFn} from "./module";
-```
-
-* Imported modules and their properties are available as promises.
-* Async imports are primarily useful to resolve otherwise impossible circular dependencies.
-* The structure and names of module exports are always known to the compiler, so named destructuring remains legal, but properties are available as promises.
 
 ### 10.4 Dependency Graph & Build Process
 
@@ -2660,39 +3202,358 @@ let config = assume load_config();
 
 ## 13 Concurrency & Parallelism
 
-Warble programs are inherently concurrent. A pool of worker threads executes
-tasks drawn from per-thread work-stealing queues. Modules form a dependency
-graph that drives safe parallel execution while the runtime schedules async
-functions, timers and other work units.
+Warble programs are inherently concurrent. A pool of worker threads executes modules in parallel, respecting the static module import graph and providing explicit suspension points (`tick`, `await`) that allow work to be interleaved efficiently.
 
-### 13.1 Tasks & Schedulers
+Note: the `yield` statement is a feature of union / generator functions (§4.2.2, §7.5) and is unrelated to module scheduling.
 
-* **Worker Threads** – Every thread owns a Chase‑Lev deque. Tasks pushed to the
-  bottom run locally while idle threads may steal from the top.
-* **Task Types** – Module ticks, async function promises, timers and I/O events
-  are all scheduled as tasks.
-* **Work Loop** – After completing a task or suspending on `await`/`yield`, a
-  thread:
-  1. Pops another task from its deque.
-  2. Runs pending module ticks in dependency order (leaves first).
-  3. Attempts to steal from another thread if no local work exists.
-  4. Sleeps when the global system has no work.
-* **Module DAG** – Regular imports create a directed acyclic graph. A module
-  tick executes only when all dependencies have finished their tick. Using
-  `import async` breaks this ordering and exposes promises that must be awaited
-  before their values are used.
-* **Suspension** – When an async task suspends it is requeued at the steal end
-  or in a background queue, allowing other tasks to proceed before it resumes.
-* **THREADSAFE** – Mutable data may cross thread boundaries only when the
-  symbol is marked `THREADSAFE`. Async functions cannot capture or accept `mut`
-  references to non‑`THREADSAFE` values.
+### 13.1 Module Scheduling
+
+This section describes the runtime model used to execute **modules** concurrently.
+
+#### 13.1.1 Modules as Singleton Tasks
+
+At runtime, each module is a singleton instance:
+
+* The module has persistent storage for its module-level bindings and internal bookkeeping.
+* The module is compiled as a function with a fixed **entry point**.
+* The module also stores a **resume point** in its static data.
+
+Module entry points are runtime-owned (users do not call them directly). Conceptually, every module has the signature:
+
+* `bool module_entry(u64 target_cycle)`
+
+Where `target_cycle` is the scheduling anchor used for eligibility checks, and the return value indicates whether the module should be retried again in the current scheduling pass (§13.1.6).
+
+Execution model:
+
+* The runtime always calls the same function entry point when attempting to run a module.
+* The entry point performs a fast eligibility check and then attempts to claim the module.
+* After a successful claim, control transfers (via an internal jump) to the module’s current resume point.
+
+Initially, the resume point is the location immediately after this jump, so the first successful claim starts execution at the top of the module.
+
+#### 13.1.2 Dependency Lists (Imports)
+
+Each module instance carries a dependency list of pointers to other module instances.
+
+* A module depends on another module exactly when it imports it via a normal `import`.
+* The normal import graph must be acyclic (a DAG) and is known at compile time.
+* Using `import deferred` is an explicit escape hatch that relaxes same-pass ordering and may participate in cycles (§10.3.1, §13.1.4).
+
+Additionally, the runtime and compiler conceptually also operate on the reverse relationship:
+
+* A module has a **dependent** when that other module imports it.
+
+Dependents are used by the compiler to build write barriers for exported state (§13.1.4).
+
+#### 13.1.3 Module Cycle Counters (Half-Cycles)
+
+Each module maintains an atomic unsigned 64-bit **cycle counter**.
+
+* The counter is advanced by **one** when a worker thread successfully claims the module for execution.
+* The counter is advanced by **one** again when the worker thread finishes its current run of the module (either by suspending at a `tick` boundary, or by reaching module completion).
+
+This means each full “cycle” of module execution advances the counter by 2; the intermediate value is a **half-cycle**.
+
+Interpretation:
+
+* **Even** cycle count: the module is idle (not currently owned by any worker thread).
+* **Odd** cycle count: the module is in progress (currently owned by exactly one worker thread).
+
+The runtime stores cycle counters in `u64` and assumes they do not overflow during a program run.
+
+A module may also temporarily *abort* a run attempt after claiming (for example, because it hit a compiler-inserted barrier). In this case the module must undo the claim by decrementing its cycle counter back to the prior even value before returning to the scheduler (§13.1.6).
+
+##### Worker Cycle Counter (Core)
+
+Each worker thread maintains an atomic, publicly observable unsigned 64-bit **worker cycle counter**.
+
+* The worker advances its cycle counter by one when it begins a scheduling pass.
+* The worker advances its cycle counter by one again when it completes that pass (when it swaps its buffers; see §13.1.6).
+
+This makes the worker’s cycle counter a half-cycle counter in the same sense as module cycle counters.
+
+The worker cycle counter is a core part of the scheduling design: it provides an anchor value that prevents a worker from accidentally running the same module multiple times within a single scheduling pass.
+
+#### 13.1.4 Eligibility and Barriers
+
+This scheduler model uses **optimistic execution with compiler-inserted barriers**.
+
+At the start of a module entry call, the entry point performs a fast eligibility check based on the `target_cycle` parameter and the module’s cycle counter `cm`:
+
+* If `cm >= target_cycle`, the module is considered already handled for this scheduling pass and returns `false`.
+* If `cm` is odd, the module is currently in progress on some worker and returns `false`.
+
+Otherwise, `cm` is even and `cm < target_cycle`, so the entry point attempts to claim the module (§13.1.5). If the claim succeeds, the module begins executing user code at its resume point.
+
+Instead of attempting to fully establish dependency readiness up front, the compiler inserts read and write barriers directly into module code to prevent data races and to enforce safe ordering *only when data is actually accessed*.
+
+##### Read barriers (imports)
+
+For each read of an imported binding (an **external borrow**), the compiler inserts a barrier that suspends the current module run attempt if the dependency module is not safe to read.
+
+Conceptually, before an imported binding like `A.value` is read in module `B`, the compiler emits logic equivalent to:
+
+* If `A.cycle` is odd (in progress), suspend the current run attempt.
+* If `A.cycle <= target_cycle`, the dependency has not completed this scheduling pass. In this case:
+  * `B` must suspend its current run attempt (it cannot proceed with the read).
+  * If `A.cycle` is **even**, `B` should attempt to run `A` once for the same `target_cycle` *before* returning to the scheduler.
+
+To avoid deadlocking write barriers, `B` must release its claim before attempting to run `A`:
+
+* `B` updates its resume point to the barrier site (or an equivalent internal block).
+* `B` undoes its claim (odd → prior even) by decrementing its cycle counter by 1.
+* The worker then attempts to call `A`’s entry point once with the same `target_cycle`.
+* `B` then returns `true` (blocked) so it will be retried later in the current scheduling pass.
+
+The second check enforces ordering: while module `M` is running for `target_cycle`, it may only read an imported binding from a dependency module that has already **completed** this scheduling pass. Since successful completion advances a module cycle counter by 2, this is exactly the condition `dependency_cycle > target_cycle` (and even).
+
+##### Deferred read barriers (`import deferred`)
+
+Reads through `import deferred` do not require the dependency to be ahead of the current module’s `target_cycle`.
+
+Instead, a deferred import reads the dependency’s exports from the **previous committed cycle** (the previous successful suspension point). This makes cyclic dataflow possible without deadlocking on same-pass ordering.
+
+Barrier requirements for deferred reads:
+
+* A deferred read is a compile-time error before the importing module’s first successful suspension point (§10.3.1).
+* At runtime, a deferred read must not observe uninitialized dependency state, and it must read from the dependency’s committed snapshot for the **previous** scheduling pass (one full module cycle behind the current pass).
+  * Therefore, after the usual “in progress” check (`A.cycle` odd), the deferred read barrier must suspend unless `A.cycle + 2 > target_cycle`.
+    * This is equivalent to checking `A.cycle > target_cycle - 2` ("completed at least the previous scheduling pass"), but expressed without unsigned underflow.
+  * If the barrier blocks and `A.cycle` is even, the importing module may attempt to run `A` once for the same `target_cycle` before returning (as with strict imports).
+
+The exact implementation strategy is runtime-defined. One common strategy is to publish exported state at suspension points and retain at least one previous published version so deferred reads can always observe the prior committed state.
+
+After the barrier succeeds, the read may proceed.
+
+The compiler may avoid repeating checks along a single control path once the dependency has already been observed safe to read.
+
+##### Write barriers (mutable exports)
+
+For each write to a mutable exported binding in module `A`, the compiler inserts a barrier that suspends the current module run attempt if any dependent module that may read that binding is currently in progress.
+
+If module `B` contains a read of `A.value`, then before a write to `value` inside `A`, the compiler emits logic equivalent to:
+
+* If `B.cycle` is odd (in progress), suspend the current run attempt.
+
+If multiple dependents may read the binding, the check is the disjunction of those dependents.
+
+The compiler may omit dependents that never read the binding, and may avoid repeating checks along a single control path once a dependent has already been observed not in progress.
+
+If a dependent reads a binding only through `import deferred`, the compiler may omit that dependent from the write barrier for that binding, because deferred reads observe the prior committed state.
+
+##### External borrows must remain analyzable
+
+These barriers rely on the compiler being able to observe and reason about every read of an imported binding.
+
+Warble therefore requires that external borrows remain transparent and must not be made opaque to the compiler (§4.2.1).
+
+#### 13.1.5 Claiming a Module
+
+To claim a runnable module `m`, the worker thread performs an atomic compare-exchange:
+
+* Expected value: `cm` (even)
+* Desired value: `cm + 1` (odd)
+
+If the compare-exchange succeeds, the worker exclusively owns the module until it advances the cycle counter again.
+
+If it fails, some other worker either claimed the module or advanced it; the worker must abandon this attempt and look for other work.
+
+#### 13.1.6 Suspension and Rescheduling (`tick`)
+
+The primary source-level suspension mechanism for modules is the `tick` loop (§7.4.4).
+
+Warble has no general-purpose keyword to manually suspend module execution. Module suspension points arise only from `tick` loop boundaries and compiler-inserted barriers.
+
+At the implicit suspension point at the end of each `tick` iteration, the module either schedules itself to run again later or (if it is lagging) immediately begins another cycle to catch up:
+
+* The module updates its resume point to the location where execution should continue (typically the `tick` loop’s iteration check).
+* The worker then decides whether to release the module or immediately run another cycle to catch up.
+
+Let `c` be the module’s current cycle counter value at the suspension point. At this moment the module is owned by the worker and `c` is odd (the half-cycle acquired by the successful claim).
+
+Catch-up rule (to prevent falling behind a worker’s target cycle):
+
+* If releasing the module would still leave it behind the current `target_cycle` (i.e. if $c + 1 < target\_cycle$), then the worker must not release the module yet. Instead it:
+  * advances the module cycle counter by 2 (`c` → `c + 2`), keeping it odd and still owned,
+  * immediately transfers control to the resume point it just selected.
+
+This represents “finish this run” (+1) and “claim the next run immediately” (+1) without ever transitioning the module to an idle (even) state.
+
+If the module remains behind `target_cycle` after beginning the next cycle, this catch-up behavior may repeat, allowing the module to run multiple cycles back-to-back while it remains owned by the same worker.
+
+Otherwise (the module is caught up for this `target_cycle`), the normal suspension behavior occurs:
+
+* The worker enqueues the module’s (fixed) entry point into a thread-local **inactive** buffer.
+* The worker advances the module cycle counter by 1 (`c` → `c + 1`) to mark the module idle again and returns to the scheduler.
+
+**Implementation note:** The cycle advancement at the end of a run (whether `+1` for release or `+2` for catch-up) does not require a compare-exchange. While the cycle counter is odd, the module is exclusively owned by one worker, so this step can be performed as an atomic store of the previously observed value plus the increment (for example `cycle.store(c + 1)` or `cycle.store(c + 2)`).
+
+In practice, this catch-up behavior is only expected to matter for top-level module execution where `target_cycle` is derived from `worker_cycle`.
+
+##### Barrier-triggered suspension (blocked run attempt)
+
+In addition to `tick` suspension, module code may suspend due to a compiler-inserted read or write barrier (§13.1.4).
+
+When a barrier suspends a run attempt, the module is considered **blocked** and it must not advance its cycle:
+
+* The module updates its resume point to the barrier site (or an equivalent internal block) so that the barrier is re-evaluated on the next attempt.
+* The module undoes its claim by decrementing its cycle counter by 1 (odd → prior even).
+* The module returns `true` to request a retry later in the current scheduling pass.
+
+This rollback rule ensures that a barrier collision does not incorrectly “consume” the current scheduling pass.
+
+Each worker thread maintains two private buffers of pending module entry points.
+
+These buffers store module entry points (conceptually, functions of the form `u64 -> bool`).
+
+* **Active** buffer: entry points to run in the current scheduler pass.
+* **Inactive** buffer: entry points scheduled for a later pass (including modules that suspended at a `tick` boundary).
+
+Each worker also maintains an index into the active buffer.
+
+At the beginning of each scheduling pass, the worker also records the active buffer’s initial length `start_length`.
+
+* To get work, the worker reads the function pointer at `active[index]`, increments `index`, and calls it with `target_cycle = worker_cycle`.
+* When `index` reaches `active.length`, the worker has no more work in the active buffer. It then:
+  * sets `active.length = 0` (clearing without destructing),
+  * sets `index = 0`,
+  * swaps the active and inactive buffers by swapping their backing pointers (no copying),
+  * advances the worker cycle counter by one to mark completion of the scheduling pass.
+
+##### Return Value and Same-Pass Retry
+
+The module entry point returns a boolean that represents whether the attempt was **blocked**.
+
+* `true` means: **blocked**. The module began a run attempt but suspended at a compiler-inserted barrier (§13.1.4), rolled back its claim, and should be retried later in the same scheduling pass.
+* `false` means: **not blocked**. Do not requeue it for retry in this scheduling pass. This includes cases where the module successfully ran (or suspended and scheduled itself via `tick`), chose not to run because it was already handled for this `target_cycle`, observed that it is already in progress, or observed that it is complete.
+
+When a worker calls a module entry point from its active buffer:
+
+* If the call returns `true`, the worker arranges for that same module entry point to be reconsidered later in the same scheduling pass. The exact mechanism depends on which phase the worker is in (§13.1.6).
+
+This same-pass retry rule applies to top-level scheduling calls anchored to the worker cycle. Module code does not recursively schedule dependencies in general; the only dependency-running behavior is the read-barrier attempt described in §13.1.4.
+
+##### Progress Detection and Backoff
+
+Same-pass retry by requeueing into the active buffer is an optimization that can become pathological when a worker has exhausted all other work: if the only runnable candidate(s) repeatedly hit barriers and yield, a naive loop would continuously re-attempt the same blocked modules, rapidly appending duplicates and wasting CPU.
+
+To prevent this, each worker must implement a backoff strategy that detects “no progress” while processing rescheduled work and avoids tight spinning.
+
+Definitions:
+
+* `start_length` is the active buffer length recorded at the beginning of the scheduling pass.
+* When `index` first reaches `start_length`, the worker has exhausted everything that was in `active` at pass start; any remaining work in `active[index..]` exists only because it was rescheduled during this pass.
+
+Two-phase scheduling pass:
+
+* **Initial phase** (`index < start_length`): the worker runs the modules that were present at pass start.
+  * If a call returns `true` (blocked), the worker pushes that module entry point to the end of the **active** buffer, so it will be retried later in the same pass.
+* **Rescheduled phase** (`index >= start_length`): the worker is iterating only over modules that were rescheduled during this pass.
+  * In this phase, the worker must not repeatedly append the same blocked modules to `active`.
+  * Instead, the worker treats the tail of `active` as a set (order is irrelevant) and performs in-place filtering.
+
+Rescheduled-phase filtering (one reasonable strategy):
+
+* The worker processes the rescheduled region using a swap-pop strategy:
+  * Let `rescheduled_begin = start_length`.
+  * While `index < active.length`:
+    * Call `active[index]`.
+    * If it returns `true` (blocked), leave it in place and advance `index`.
+    * If it returns `false` (not blocked), remove it from the rescheduled region by swapping it with `active.last` and popping the last element. (Do not advance `index` in this case, since a new element was swapped into `active[index]`.)
+
+This filtering is correct because module correctness does not depend on active-buffer order.
+
+No-progress detection:
+
+* If the worker completes a full sweep of the rescheduled region (the loop terminates) without removing any entries, then every rescheduled attempt remained blocked and the worker has made no progress.
+
+Backoff requirements:
+
+* Upon detecting no progress, the worker must avoid repeatedly re-attempting the same blocked module(s) in a tight loop.
+* The worker should perform one or more **fallback actions** before continuing, such as:
+  * attempting to find other work by scanning the global module table (implementation-defined) and attempting to run eligible modules using the current `worker_cycle` as the `target_cycle`,
+  * performing runtime maintenance work (for example, heap free-list coalescing / defragmentation heuristics),
+  * yielding or sleeping for a short duration, ideally with an exponential (or otherwise increasing) backoff that resets once progress is observed.
+
+After the backoff action(s), the worker should retry the rescheduled region by resetting `index = start_length`.
+
+Additionally, while in a no-progress backoff state, the worker may change the destination of blocked reschedules:
+
+* Instead of appending blocked modules to the active buffer during the initial phase, it may enqueue them into the inactive buffer so they are retried only after the next buffer swap / worker-cycle advance.
+
+The exact heuristics (how often to scan globals, how long to yield/sleep, and how to prioritize maintenance) are implementation-defined, but the runtime must ensure blocked modules cannot force unbounded tight spinning.
+
+To reduce contention at startup, the runtime may partition the initial module set across workers (for example, by giving each worker a contiguous range of module indexes to seed its active buffer). The exact distribution strategy is implementation-defined.
+
+#### 13.1.7 Module Completion
+
+When a module reaches the end of its top-level code (falls off the end of the file), it is complete and is never scheduled again.
+
+Warble represents completion using a distinguished cycle counter value and a special resume block:
+
+* The module cycle counter is set to the maximum *even* `u64` value.
+* The module resume point is set to a small epilogue block that **decrements** the module cycle counter (undoing a claim) and returns.
+
+This makes module completion idempotent and safe:
+
+* Eligibility checks treat the module as already handled because its cycle count is far ahead and *even*.
+* If a worker erroneously claims a completed module, its compare-exchange makes the cycle counter *odd* (to the maximum `u64`). The resume-point epilogue immediately decrements it back to the maximum *even* value and returns without rescheduling.
 
 ### 13.2 Atomic Operations
 
-The standard library provides atomic counters and flags that are implicitly
-`THREADSAFE`. They offer lock‑free read, write and compare‑exchange operations
-with explicit memory ordering. Only atomic or otherwise `THREADSAFE` values may
-be shared mutably between threads.
+The standard library provides atomic counters and flags. They offer lock‑free read, write and compare‑exchange operations with explicit memory ordering.
+
+### 13.3 Async Tasks (Futures)
+
+In addition to module execution, worker threads also execute **async tasks** created by async function calls.
+
+#### 13.3.1 Async function calls
+
+Calling an async function:
+
+1. Heap-allocates an **async frame** large enough to hold the function’s state (promise union, parameters, locals, and internal bookkeeping).
+2. Initializes the promise tag in the frame to `compiler.unresolved`.
+3. Returns a `future` handle pointing to the promise union at the beginning of the frame (§4.2.3).
+4. Enqueues an async task entry into the calling worker’s async-task queue.
+
+The async task entry consists of:
+
+* a function pointer (the async function’s entry point), and
+* a context pointer (the async frame pointer).
+
+#### 13.3.2 Per-thread async-task queues
+
+Each worker thread maintains private async-task queues distinct from the module entry-point queues described in §13.1.
+
+Unlike module scheduling, async task scheduling requires both a code pointer and a context pointer, so each queue element is a pair `(fn_ptr, ctx_ptr)`.
+
+To prevent pathological unbounded growth during a single scheduling pass (an async task enqueues another async task which enqueues another, etc.), workers may use the same active/inactive buffering strategy as module scheduling, but specialized for task pairs.
+
+Scheduling point:
+
+* At the beginning of each worker scheduling pass (before processing the module active buffer), the worker should process its async-task active queue.
+
+Exact ordering between module work and async-task work is implementation-defined, but the runtime must ensure that async tasks are eventually executed (they must not starve behind module work forever).
+
+#### 13.3.3 Completion and detachment
+
+When an async task reaches completion:
+
+* It writes its result payload into the promise union’s value slot in its async frame.
+* It atomically compare-exchanges the promise tag from `compiler.unresolved` to the correct tag representing the completed result arm.
+
+If the compare-exchange succeeds, the result is now observable via `await`.
+
+If the compare-exchange fails because the tag is `compiler.detached`, the future was dropped while the task was still unresolved. In this case the task must destroy the async frame (run any required cleanup and free the allocation).
+
+#### 13.3.4 Awaiting
+
+The `await` operator is defined in terms of the **promise union**: it waits until the promise tag transitions away from `compiler.unresolved`.
+
+A `future` is a transparent handle to a promise union stored at the beginning of an async frame (§4.2.3). Using `await` on a future forwards to `await` on the underlying promise union.
+
+Once complete, `await` destroys the async frame and returns the completed result as a union value with `compiler.unresolved` and `compiler.detached` removed.
 
 ## 14 Standard Library (overview)
 
@@ -2762,7 +3623,8 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`while`** — Begins a loop construct based on a boolean condition.
 * **`do`** — Introduces a scoped block.
 * **`repeat`** — Begins a loop, which can optionally end with a `while (condition)` portion.
-* **`await`** — Unary prefix operator that suspends the current thread while its operand's union tag is `compiler.unresolved`, repeatedly returning to the work queue between checks.
+* **`tick`** — Begins a module-context tick loop (only legal outside function bodies). Each iteration ends with an implicit suspension point.
+* **`await`** — Unary prefix operator that suspends the current thread while a promise is `compiler.unresolved`, repeatedly returning to the work queue between checks. Futures transparently forward `await` to their underlying promise.
 * **`expect`** — Unary prefix operator that removes a union's fail arms when passing, or propagates failure via an implicit `return fail`.
 * **`assume`** — Unary prefix operator that removes a union's fail arms when passing, or aborts via `panic` when failing.
 
@@ -2780,7 +3642,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`panic`** — Produces an error message and exits the program.
 * **`break`** — Exits the nearest enclosing loop.
 * **`continue`** — Skips to the next iteration of the nearest enclosing loop.
-* **`async`** — May augment `return` and `yield` to produce a union pattern that includes `compiler.unresolved` as a fail arm.
+* **`async`** — May augment `return` and `yield` to define an async function. Async functions execute as scheduled tasks and produce a promise union that includes `compiler.unresolved` and `compiler.detached` as fail arms; calling an async function returns a future handle.
 * **`pass`** — May augment `return` and `yield` to mark an arm as passing.
 * **`fail`** — May augment `return` and `yield` to mark an arm as failing.
 
