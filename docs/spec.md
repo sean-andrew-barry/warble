@@ -95,7 +95,7 @@ else { print("Unknown result."); }
 Easily handle optional or uncertain data:
 
 ```warble
-let optionalValue = 42 || null; // Create a union with a `null` absence state
+mut optionalValue = 42 || !null; // Create a union with a `null` absence state
 
 optionalValue = null;   // now represents no value
 optionalValue = 7;      // set to integer
@@ -612,7 +612,9 @@ Warble is strongly typed, and normal values are never implicitly nullable. Optio
 An "optional" in Warble is not a distinct type; it is just a common union pattern:
 
 * Exactly one passing arm (the value).
-* Exactly one failing arm (the absence case), commonly `null`.
+* Exactly one failing arm (the absence case), commonly failing `null`.
+
+In this specification, failing arms are written with a leading `!` marker in type notation. For example, an optional `T` is written as `!null | T`.
 
 ##### `undefined`
 
@@ -1531,6 +1533,8 @@ In particular, the compiler must always be able to determine exactly which impor
 
 Therefore, it is a compile-time error to make an external borrow opaque by copying it into constructs that hide its identity, such as unions. For example, storing an external borrow into a union (such as `null || &T`) is a compile-time error.
 
+Therefore, it is a compile-time error to make an external borrow opaque by copying it into constructs that hide its identity, such as unions. For example, storing an external borrow into a union (such as `!null | &T`) is a compile-time error.
+
 This transparency requirement applies specifically to borrows to imports. Borrows internal to a module are not required to remain transparent; they may be treated as opaque runtime borrows if desired (at the cost of optimization opportunities).
 
 #### 4.2.2 Union
@@ -1666,7 +1670,7 @@ Representation:
 Semantics:
 
 * A unique has **unique ownership**: it cannot be copied, but it may be moved.
-* A unique is **non-empty**: it always designates an allocation. To represent an empty state, use `null || unique[T]`.
+* A unique is **non-empty**: it always designates an allocation. To represent an empty state, use an optional union `!null | unique[T]`.
 * Using a unique to access members or elements forwards to the owned value (conceptually via an implicit borrow of the owned storage).
 
 Dropping a unique:
@@ -1696,7 +1700,7 @@ Semantics:
 * A shared has **shared ownership**: it may be copied.
 * Copying a shared atomically increments `strong_count`.
 * Dropping a shared atomically decrements `strong_count`.
-* A shared is **non-empty**: it always designates an allocation. To represent an empty state, use `null || shared[T]`.
+* A shared is **non-empty**: it always designates an allocation. To represent an empty state, use an optional union `!null | shared[T]`.
 
 Finalization and deallocation:
 
@@ -1726,7 +1730,7 @@ Semantics:
 
 Upgrading (locking):
 
-* Upgrading a weak produces `null || shared[T]`.
+* Upgrading a weak produces `!null | shared[T]`.
 * If the `T` object is already destroyed (`strong_count == 0`), the result is `null`.
 * Otherwise, upgrading atomically increments `strong_count` and returns a `shared[T]` designating the `T` object.
 
@@ -1741,13 +1745,14 @@ Representation:
 * A buffer value is 16 bytes: an address plus an 8-byte size (`size_bytes`).
 * The allocation contains `size_bytes` logically-addressable bytes.
 * The buffer’s stored `size_bytes` is the deallocation size passed to the heap allocator (§9.5).
-* The buffer’s address is never 0. (The address is not observable as a raw value; this invariant exists to support optimizations such as `null || buffer`.)
+* The buffer’s address is never 0. (The address is not observable as a raw value; this invariant exists to support optimizations such as `!null | buffer`.)
 
 Semantics:
 
 * A buffer has **unique ownership**: it cannot be copied, but it may be moved.
-* A buffer is **non-empty**: it always designates an allocation. To represent an empty state, use `null || buffer`.
+* A buffer is **non-empty**: it always designates an allocation. To represent an empty state, use an optional union `!null | buffer`.
 * A buffer’s designated allocation is fixed for the lifetime of the buffer value (it is not retargetable).
+Operations that conceptually “resize” storage therefore produce a new buffer value. Code that needs to represent “no allocation yet” or “may replace the allocation” uses an optional buffer (`!null | buffer`) and replaces the union value as needed.
 
 Operations that conceptually “resize” storage therefore produce a new buffer value. Code that needs to represent “no allocation yet” or “may replace the allocation” uses an optional buffer (`null || buffer`) and replaces the union value as needed.
 
@@ -1778,7 +1783,21 @@ Semantics:
 In addition to the general non-escaping rule, the compiler enforces a *stability* rule for views:
 
 * A view must not outlive the stability of the region it designates.
-* In particular, if a view is derived (directly or indirectly) from an *optional buffer slot* (`null || buffer`), then the underlying slot must not be replaced (retargeted) for the lifetime of the view.
+* In particular, if a view is derived (directly or indirectly) from an *optional buffer slot* (`!null | buffer`), then the underlying slot must not be replaced (retargeted) for the lifetime of the view.
+To enforce this, the compiler performs a conservative analysis based on a per-function **retarget set**:
+##### Optional reference values (`!null | ...`)
+Unique, shared, weak, future, buffer, and view values are non-empty primitives. The conventional way to represent an “optional reference” is to use a union with a failing `null` arm:
+
+* `!null | unique[T]`
+* `!null | shared[T]`
+* `!null | weak[T]`
+* `!null | future`
+* `!null | buffer`
+* `!null | view`
+
+Such unions typically arise from union-producing control flow (for example, `return pass ref` on one path and `return fail null` on another).
+
+The compiler may optimize unions of the form `!null | X` when `X` is a non-empty reference-like value:
 
 To enforce this, the compiler performs a conservative analysis based on a per-function **retarget set**:
 
@@ -1902,19 +1921,19 @@ Warble offers powerful type-checking operators leveraging symbols’ structural 
 * **`is`**: Verifies structural equivalence between symbols.
 
   ```warble
-  if (dog1 is dog2) { /* structurally identical */ }
+  if (dog1) is (dog2) { /* structurally identical */ }
   ```
 
 * **`has`**: Verifies that a symbol structurally includes required properties or methods.
 
   ```warble
-  if (socket has { send(){}, recv(){} }) { /* satisfies the interface */ }
+  if (socket) has ({ send(){}, recv(){} }) { /* satisfies the interface */ }
   ```
 
 * **`from`**: Checks provenance, confirming if a value originates from a particular constructor.
 
   ```warble
-  if (cat from Cat) { /* cat was created by Cat constructor */ }
+  if (cat) from (Cat) { /* cat was created by Cat constructor */ }
   ```
 
 ##### Object-Oriented Programming via Symbols
@@ -2012,6 +2031,23 @@ Both `||` and `&&` are union operators. They produce a union and short-circuit b
 
 The resulting union type always includes all of the right-hand side’s states, plus either the left-hand side’s pass states (`||`) or fail states (`&&`).
 
+A non-union value is treated as a union with a single passing arm for the purposes of `||` and `&&`. This is a semantic model; the compiler is expected to optimize the “single-arm union” case by eliding any runtime tag, since the active arm is statically known.
+
+**Pass/Fail flip (`!`):**
+
+Warble defines the unary prefix operator `!` as a built-in **union operator** that flips pass vs. fail classification.
+
+* If `x` is a non-union value of type `T` (treated as a single passing arm), then `!x` is a single failing arm of type `T`.
+* If `x` is a union value, then `!x` flips the category of every arm: passing arms become failing arms and failing arms become passing arms.
+
+In this specification’s type notation, a union arm prefixed with `!` denotes a failing arm. For example:
+
+* `A | B` means “pass `A`, pass `B`”.
+* `!A | B` means “fail `A`, pass `B`”.
+* `!(A | B)` is equivalent to `!A | !B` (all arms flipped).
+
+`!` is the primary way to explicitly communicate “this value is failing” in expression form.
+
 Example:
 
 ```warble
@@ -2057,6 +2093,11 @@ The total size of a union is determined as:
 
 Unions have a hard limit of $2^{16}-1$ arms (65535).
 
+When a union has exactly one arm, the compiler is expected to avoid materializing a runtime tag:
+
+* A union with a single **passing** arm is equivalent to its non-union value type and needs no runtime tag.
+* A union with a single **failing** arm has a compile-time-known failing classification; the compiler may treat its tag as a compile-time constant.
+
 ##### Pass/Fail Ordering
 
 Unions created by union functions have their arms ordered so that all failing arms come first and all passing arms come after them.
@@ -2075,30 +2116,138 @@ The compiler-defined `compiler.unresolved` (promise) and `compiler.exhausted` (g
 
 This ordering is important, because it allows any union to be tested for pass/fail status by a single comparison.
 
-#### 4.3.4 Narrowing (`?.`)
+##### Tag remapping for `!`
 
-**TODO: This needs to be rewritten.**
+For a multi-arm union, `!` produces a new union type whose arm list is the old pass arms followed by the old fail arms (so failing arms remain a prefix).
 
-The narrowing operator (`?.`) safely refines a union by verifying the presence of a property or method. It produces a new union whose candidate types include only those that define the requested property, plus an implicit `null` arm to represent failure at runtime.
+Let:
+
+* `n = arm_count`
+* `f = fail_count`
+
+Then the resulting union has `new_fail_count = n - f`, and the runtime tag is remapped by a simple rotation:
+
+* if `tag < f` (was failing, becomes passing): `new_tag = tag + (n - f)`
+* otherwise (was passing, becomes failing): `new_tag = tag - f`
+
+This remapping preserves the active payload and keeps pass/fail testing as a single comparison.
+#### 4.3.4 Operator forwarding and postfix question (`?`)
+Warble provides a unary postfix operator `?` for operating on a value as a pass/fail union.
+
+#### 4.3.4 Operator forwarding and postfix question (`?`)
+
+Warble provides a unary postfix operator `?` for producing a pass/fail union.
+
+The only special behavior of `?` is that it introduces a control-flow split (a failing path and a passing path) at that point in the expression.
+
+This operator is intentionally designed so that optional chaining is spelled as `?` followed by the normal operator token, not as a dedicated `?.` token. For example, `obj?.prop` is lexed as `obj` `?` `.` `prop`.
+
+##### Operator forwarding on unions (tag dispatch / jump tables)
+
+Many operators in Warble are *applied to* their left operand and are therefore subject to overload resolution and structural checking (for example member access `.` and calls `()`). Borrows and other reference-like types are specified in terms of forwarding; unions follow the same overall pattern.
+
+In contrast, the union operators `||` and `&&` are built-in control operators defined directly in terms of pass/fail state; they are not overloadable and are not “applied to” their left operand in this dispatch sense.
+
+When such an operation is applied to a **union** value, the compiler must account for the fact that the active arm is not known at compile-time. Conceptually, the operation is lowered as a dispatch on the union’s runtime tag:
+
+* For each arm type, select the appropriate member / overload / implementation for that arm.
+* Generate a code region for each arm that performs the operation with full static type knowledge.
+* Emit one indirect jump (or equivalent dispatch) up front, indexed by the runtime tag, to enter the correct region.
+* Each region ends with a direct jump to a common join point.
+
+Type rule:
+
+* If the union has arms `A0 | A1 | ... | An` and the operation is well-typed on every arm, then the overall result type is the union of the per-arm result types.
+* The compiler flattens the resulting union (§4.3.2).
+* When the union has only a single arm, the compiler is expected to elide the runtime tag and treat the value equivalently to the non-union case.
+
+Implementations typically use a compact jump table indexed by the union’s tag, but any equivalent strategy is permitted.
+
+For an unguarded operation on a union (for example `pet.speak()` where `pet` is a union), the operation must be well-typed for **every** arm of the union. If any arm does not support the operation (for example `null.speak()`), it is a compile-time error.
+
+The postfix `?` operator is the primary mechanism for making such operations conditional on the union’s pass/fail state by splitting evaluation into a failing path and a passing path.
+
+##### 4.3.4.1 Standalone form: `x?`
+
+The expression `x?` evaluates `x` and produces a union value `u` (a pass/fail union).
+
+Overload hook:
+
+* If the static type of `x` defines a member function `question()` that is callable with zero arguments, then `x?` is lowered as a call to `x.question()`.
+* The return type of `question()` must be a union type. Otherwise it is a compile-time error.
+
+Default behavior (when there is no `question()` member):
+Default behavior (when there is no `question()` member):
+
+* If `x` is already a union value, `x?` is the identity (it yields the same union).
+* Otherwise, `x?` treats `x` as a union with a single passing arm.
+
+Because a single passing arm does not require a runtime tag, `x?` on a non-union value is typically optimized to a no-op unless it is immediately followed by guarded postfix chaining.
+This is what makes patterns like `pet?.speak()` usable when `pet` is `!null | Cat | Dog`: the failing `null` arm short-circuits, and the `Cat` and `Dog` arms dispatch to their respective `speak()` implementations.
+When `x` is a union that includes failing arms (for example `!null | Cat | Dog`) and an operation is written as `x?.member` / `x?.member()` / `x?[index]` (lexed as `x` `?` `.` ...), the compiler typically performs two distinct dispatch steps:
+`?` is a unary postfix operator that introduces a control-flow split (fail vs pass) at that point in the expression.
+
+##### 4.3.4.2 Guarded postfix chaining
+
+Because `?` is a high-precedence postfix operator, it naturally composes with other high-precedence postfix operators (such as `.` member access or `()` call) using normal operator precedence and associativity.
+
+In a postfix chain like `x?.member()` (lexed as `x` `?` `.` `member` `(` `)`), the compiler lowers `x?` into a pass/fail split:
+
+* In the failing path, the expression stops and yields the failing union state.
+* In the passing path, the remainder of the postfix chain is evaluated on the passing arms only.
+
+No special fusion rules are required: the set of operations that occur in the passing path is determined entirely by the parsed expression tree.
+
+Examples:
 
 ```warble
-let animal = getAnimal(); // union<Cat, Dog, Fish>
-let sound = animal?.bark(); // union<null, Dog.bark> then resolves to union<null, string>
+let name = user?.name;
+let sound = animal?.bark();
 ```
 
-At compile-time:
+Conceptually:
 
-* The compiler prunes union arms that don't define the accessed property.
-* If no arms remain, the result is always `null`.
-* If some arms remain, the compiler generates a small read-only mapping table to translate the original union’s type tag to the new narrowed union’s type tag. Filtered-out types map to the `null` state.
+1. Evaluate `u = x?` (as specified above).
+2. If `u` is failing, the rest of the postfix chain is skipped and `u` is yielded.
+3. Otherwise, `u` is passing and the postfix chain continues, applying each postfix operator by union forwarding on the passing arms.
 
-At runtime:
+The result type is a union containing:
 
-* The current union’s tag is used to index this compact mapping table.
-* If the original union's current type doesn't match the filter criteria, the result immediately short-circuits to the `null` arm.
-* If it matches, the tag is updated to reflect the new union, with the payload simply aliased rather than copied, ensuring optimal performance.
+* all failing arms of `u`, plus
+* the result states produced by applying the remainder of the postfix chain to the passing state(s) of `u`.
 
-Union payload copying is only triggered if a filtered union arm is mutated while the original union remains alive. This is rare in practice, ensuring most operations remain zero-copy and performant.
+The failing arms of `u` appear as the prefix of the result union in the same order, so a failing `u` state can be forwarded as a failing result state without tag remapping.
+
+The postfix-chain operations in the passing path must be well-typed for **every passing arm** of `u` after the fail arms are excluded. If any passing arm does not support the operation, it is a compile-time error.
+
+This is what makes patterns like `pet?.speak()` usable when `pet` is `null || Cat || Dog`: the failing `null` arm short-circuits, and the `Cat` and `Dog` arms dispatch to their respective `speak()` implementations.
+
+Illustrative lowering (conceptual):
+
+```warble
+let u = pet?;
+if (compiler.is_failing(u)) {
+  return u; // propagate fail state (e.g. null)
+}
+
+// passing: dispatch based on active arm
+if (u)
+is (Cat) { return pass this.speak(); }
+is (Dog) { return pass this.speak(); }
+```
+
+This pseudo-code is illustrative only. Real lowering uses jump-table-style dispatch and may avoid materializing intermediate unions.
+
+##### 4.3.4.3 Two-stage dispatch for `?` chaining
+
+When `x` is a union that includes failing arms (for example `null || Cat || Dog`) and an operation is written as `x?.member` / `x?.member()` / `x?[index]` (lexed as `x` `?` `.` ...), the compiler typically performs two distinct dispatch steps:
+
+1. A fast pass/fail split based on `fail_count`.
+2. In the passing path only, an arm-dispatch jump table to apply the operation to each passing arm.
+
+This is why `x.member()` may be ill-typed (because it would require generating code for failing arms like `null.member()`), while `x?.member()` is well-typed: the `?` causes the failing arms to take a separate path that does not attempt the operation.
+
+After these steps, evaluation continues normally at the join point. Any subsequent lower-precedence operators (such as `&&` and `||`) operate on the resulting union value produced by the join point, using their usual union semantics (§4.3.1).
 
 ### 4.4 Type Inference & Compatibility
 
@@ -2145,6 +2294,16 @@ Union payload copying is only triggered if a filtered union arm is mutated while
 
 > **Guideline:** Default to `expect`.  Reach for `assume` only when recovery is
 > impossible or not worthwhile (e.g. out-of-memory on a desktop program).
+
+### 5.2.2 Postfix Union Operator `?`
+
+`?` is a unary postfix operator that produces a pass/fail union and introduces a control-flow split (fail vs pass) at that point in the expression.
+
+* Standalone: `x?` yields a union (defaulting to `null || x` for non-union `x`).
+* Standalone: `x?` yields a union view of `x` (identity for unions; a single passing arm for non-unions).
+* Chaining: `x?.prop` and `x?.method()` short-circuit when `x?` is failing.
+
+Full semantics (including the overload hook `question()`) are defined in §4.3.4.
 
 ### 5.3 Operator Overloading via Symbols
 

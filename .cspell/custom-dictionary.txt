@@ -26,6 +26,8 @@ NOMINMAX
 oawu
 objs
 offsetof
+optionalize
+overloadable
 payloadof
 Pointee
 preorder
