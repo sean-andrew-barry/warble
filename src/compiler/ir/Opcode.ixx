@@ -33,13 +33,10 @@ namespace compiler::ir {
     Branch, // Branch(condition, label);
     Fork, // Fork(condition, label1, label2);
 
-    // Pattern matching
-    BranchIs, // BranchIs(condition, value, label);
-    BranchHas, // BranchHas(condition, value, label);
-    BranchFrom, // BranchFrom(condition, value, label);
-    BranchNotIs, // BranchNotIs(condition, value, label);
-    BranchNotHas, // BranchNotHas(condition, value, label);
-    BranchNotFrom, // BranchNotFrom(condition, value, label);
+    // Pattern matching branches
+    Is, // Is(condition, value, label);
+    Has, // Has(condition, value, label);
+    From, // From(condition, value, label);
 
     // Memory
     Copy, // result = Copy(value);
@@ -56,8 +53,8 @@ namespace compiler::ir {
     CopyOf, // result = CopyOf(value);
     Exchange,
     CompareAndExchange,
-    ReadBarrier, // ReadBarrier(reference); // Inserted before a module reads an imported reference
-    WriteBarrier, // WriteBarrier(reference); // Inserted before a module writes an exported mutable value
+    ReadBarrier, // ReadBarrier(borrow); // Inserted before a module reads an imported borrow
+    WriteBarrier, // WriteBarrier(borrow); // Inserted before a module writes an exported mutable value
     Suspend, // Marks when a module hit a suspend point, meaning it completed and didn't get blocked by a barrier
     Spread, // Clones `op2`'s children into `op1`'s children
 
@@ -117,11 +114,15 @@ namespace compiler::ir {
     NotAnd, // op1 = (!op2) && op3;
     NotOr, // op1 = (!op2) || op3;
 
+    // Union, // op1 = op2 | op3; (union of pass/fail or bitwise OR)
+    // Intersection, // op1 = op2 & op3; (intersection of pass/fail or bitwise AND)
+    // Complement, // op1 = ~op2;
+
     // Bit manipulation
-    BitwiseAnd, // op1 = op2 & op3;
-    BitwiseOr, // op1 = op2 | op3;
-    BitwiseExclusiveOr, // op1 = op2 ^ op3;
-    BitwiseNot, // op1 = ~op2;
+    BitwiseAnd, // op1 = op2 & op3; (AND)
+    BitwiseOr, // op1 = op2 | op3; (OR)
+    BitwiseExclusiveOr, // op1 = op2 ^ op3; (XOR)
+    BitwiseNot, // op1 = ~op2; (NOT)
     BitwiseShiftLeft, // op1 = op2 << op3; (SOL)
     BitwiseShiftRight, // op1 = op2 >> op3; (SOR)
     BitwiseShiftRightSigned,
@@ -135,6 +136,10 @@ namespace compiler::ir {
     BitwiseLowestSetIsolate, // op1 = op2 & (-op2); (BLSI)
     BitwiseLowestSetReset, // op1 = op2 & (op2 - 1); (BLSR)
     BitwiseLowestSetMask, // op1 = op2 ^ (op2 - 1); (BLSMSK)
+
+    BitwiseHighestSetIsolate,
+    BitwiseHighestSetReset,
+    BitwiseHighestSetMask,
 
     BitTest, // result = BitTest(value, index); // Test a bit at an index
     BitSet, // BitSet(value, index); // Set a bit at an index
@@ -183,12 +188,9 @@ namespace compiler::ir {
       case Opcode::Jump: return "Jump";
       case Opcode::Branch: return "Branch";
       case Opcode::Fork: return "Fork";
-      case Opcode::BranchIs: return "BranchIs";
-      case Opcode::BranchHas: return "BranchHas";
-      case Opcode::BranchFrom: return "BranchFrom";
-      case Opcode::BranchNotIs: return "BranchNotIs";
-      case Opcode::BranchNotHas: return "BranchNotHas";
-      case Opcode::BranchNotFrom: return "BranchNotFrom";
+      case Opcode::Is: return "Is";
+      case Opcode::Has: return "Has";
+      case Opcode::From: return "From";
       case Opcode::Copy: return "Copy";
       case Opcode::Move: return "Move";
       case Opcode::Load: return "Load";
@@ -275,6 +277,9 @@ namespace compiler::ir {
       case Opcode::BitwiseLowestSetIsolate: return "BitwiseLowestSetIsolate";
       case Opcode::BitwiseLowestSetReset: return "BitwiseLowestSetReset";
       case Opcode::BitwiseLowestSetMask: return "BitwiseLowestSetMask";
+      case Opcode::BitwiseHighestSetIsolate: return "BitwiseHighestSetIsolate";
+      case Opcode::BitwiseHighestSetReset: return "BitwiseHighestSetReset";
+      case Opcode::BitwiseHighestSetMask: return "BitwiseHighestSetMask";
       case Opcode::BitTest: return "BitTest";
       case Opcode::BitSet: return "BitSet";
       case Opcode::BitClear: return "BitClear";

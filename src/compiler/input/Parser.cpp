@@ -2236,21 +2236,21 @@ namespace compiler::input {
     }
 
     ir::Symbol cond = Condition(parent);
-    Instruct(ir::Opcode::BranchIs, subject, cond, entry);
+    Instruct(ir::Opcode::Is, subject, cond, entry);
 
     while (!cursor.Done()) {
       if (cursor.Match(ir::Token::Is)) {
         WhiteSpace(parent);
         ir::Symbol cond2 = Condition(parent);
-        Instruct(ir::Opcode::BranchIs, subject, cond2, entry);
+        Instruct(ir::Opcode::Is, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::Has)) {
         WhiteSpace(parent);
         ir::Symbol cond2 = Condition(parent);
-        Instruct(ir::Opcode::BranchHas, subject, cond2, entry);
+        Instruct(ir::Opcode::Has, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::From)) {
         WhiteSpace(parent);
         ir::Symbol cond2 = Condition(parent);
-        Instruct(ir::Opcode::BranchFrom, subject, cond2, entry);
+        Instruct(ir::Opcode::From, subject, cond2, entry);
       } else {
         break;
       }
@@ -2275,21 +2275,21 @@ namespace compiler::input {
     }
 
     ir::Symbol cond = Condition(parent);
-    Instruct(ir::Opcode::BranchHas, subject, cond, entry);
+    Instruct(ir::Opcode::Has, subject, cond, entry);
 
     while (!cursor.Done()) {
       if (cursor.Match(ir::Token::Is)) {
         WhiteSpace(parent);
         ir::Symbol cond2 = Condition(parent);
-        Instruct(ir::Opcode::BranchIs, subject, cond2, entry);
+        Instruct(ir::Opcode::Is, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::Has)) {
         WhiteSpace(parent);
         ir::Symbol cond2 = Condition(parent);
-        Instruct(ir::Opcode::BranchHas, subject, cond2, entry);
+        Instruct(ir::Opcode::Has, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::From)) {
         WhiteSpace(parent);
         ir::Symbol cond2 = Condition(parent);
-        Instruct(ir::Opcode::BranchFrom, subject, cond2, entry);
+        Instruct(ir::Opcode::From, subject, cond2, entry);
       } else {
         break;
       }
@@ -2314,21 +2314,21 @@ namespace compiler::input {
     }
 
     ir::Symbol cond = Condition(parent);
-    Instruct(ir::Opcode::BranchFrom, subject, cond, entry);
+    Instruct(ir::Opcode::From, subject, cond, entry);
 
     while (!cursor.Done()) {
       if (cursor.Match(ir::Token::Is)) {
         WhiteSpace(parent);
         ir::Symbol cond2 = Condition(parent);
-        Instruct(ir::Opcode::BranchIs, subject, cond2, entry);
+        Instruct(ir::Opcode::Is, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::Has)) {
         WhiteSpace(parent);
         ir::Symbol cond2 = Condition(parent);
-        Instruct(ir::Opcode::BranchHas, subject, cond2, entry);
+        Instruct(ir::Opcode::Has, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::From)) {
         WhiteSpace(parent);
         ir::Symbol cond2 = Condition(parent);
-        Instruct(ir::Opcode::BranchFrom, subject, cond2, entry);
+        Instruct(ir::Opcode::From, subject, cond2, entry);
       } else {
         break;
       }
