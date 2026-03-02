@@ -21,6 +21,7 @@ LASTEXITCODE
 Legalizer
 LIBPATH
 Livelock
+mathrm
 NDEBUG
 nologo
 NOMINMAX

@@ -3227,7 +3227,7 @@ let obj = {
   // Explicitly captures `this`.
   get_a2 = [this] { return this.a; },
 
-  // Does not capture anything; `this` is an error unless the function body has its own topic.
+  // Does not capture anything; `this` is an error.
   get_a3 = [] { return this.a; },
 };
 ```
@@ -4090,6 +4090,28 @@ In either case, A completes in finite time. By induction, all modules at all dep
 ##### Role of deferred imports
 
 `import deferred` is exempt from same-cycle ordering: it reads the dependency's previous committed cycle and is therefore never part of the same-cycle barrier graph. Deferred reads cannot form a wait cycle with normal read barriers, and the circular graph structure they allow is resolved across cycles rather than within a single scheduling pass. This means the presence of deferred imports does not invalidate either argument above.
+
+#### 13.1.9 Cycle History and Pool Health Monitoring
+
+The runtime maintains a global **cycle history buffer**: a fixed-size circular buffer of timestamps, one entry per completed scheduling pass.
+
+At the start of each scheduling pass, each worker compares its own worker cycle counter to a global atomic **fastest cycle counter**. If the worker is ahead, it attempts to advance the fastest cycle counter to match (a single CAS; most threads will not attempt this). The thread that successfully advances the fastest cycle counter is responsible for recording the current timestamp into the next slot of the cycle history buffer.
+
+This keeps the write rate to the buffer at exactly one entry per cycle, originating only from the leading thread, with no contention on the buffer itself.
+
+The buffer provides a rolling history of how long each cycle took. Because all entries are written by a single thread at a time, no synchronization is required on the buffer beyond the CAS that determines the writer.
+
+**Uses of the cycle history:**
+
+* **Stall detection.** If all workers are simultaneously in the no-progress backoff state (§13.1.6) and the elapsed time since the last recorded cycle greatly exceeds historical norms, the pool can declare itself stalled. The cycle history enables a relative threshold rather than a fixed one: a program that has been averaging 3 seconds per cycle should not be declared stalled at 5 seconds, but a program averaging 10ms should. A practical approach is to compute the mean and spread of recent cycle durations and trigger only when the current gap is a significant outlier (e.g., exceeds `mean + k * spread` for some multiplier `k`).
+
+* **Cold-start fallback.** Until the buffer contains enough entries to compute a meaningful spread, stall detection falls back to a conservative fixed timeout.
+
+* **Throttle calibration.** A module that wants to limit its own execution rate (§13.1.6) can read recent cycle durations to make informed decisions — for example, skipping a cycle if it ran less than N milliseconds ago.
+
+* **Runtime diagnostics and profiling.** The buffer provides a lightweight built-in history of scheduling throughput, useful for developer tooling, performance dashboards, and detecting gradual slowdowns over time.
+
+The buffer length is implementation-defined. A length sufficient to cover several seconds of history at typical cycle rates is recommended.
 
 ### 13.2 Atomic Operations
 
