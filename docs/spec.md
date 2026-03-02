@@ -2517,35 +2517,6 @@ byEnum<MyType>;                     // valid — enum matches
 
 This feature is only available for the four structured literal kinds. Strings, characters, and primitive types do not have a destructuring form that would make this meaningful, so they cannot appear as destructuring-typed parameter lists.
 
-##### Phase Matching for Destructuring-Typed Parameters
-
-When a function has a destructuring-typed parameter list, an argument of the matching kind can satisfy the overload in **either** resolution phase when called via the pipeline operator:
-
-* **Phase 1 (whole-value match):** The argument is passed as a single, indivisible value. The function's parameter list wants a value of exactly that structured kind, so the types are compatible and the match succeeds.
-* **Phase 2 (destructuring match):** The argument is destructured, and its elements or properties are mapped to the individual parameters inside the destructuring pattern.
-
-In both cases the outcome is identical. The compiler considers the overload satisfied regardless of which phase it matches in. Both call forms therefore work:
-
-```warble
-// Object
-{ x = 1, y = 2 } -> byObject;   // pipeline — matches in phase 1 or phase 2
-byObject{ x = 1, y = 2 };       // shorthand — skips phase 1, goes directly to phase 2
-
-// Tuple
-(10, 20) -> byTuple;             // pipeline — matches in phase 1 or phase 2
-byTuple(10, 20);                 // shorthand — skips phase 1, goes directly to phase 2
-
-// Array
-[10, 20] -> byArray;             // pipeline — matches in phase 1 or phase 2
-byArray[10, 20];                 // shorthand — skips phase 1, goes directly to phase 2
-
-// Enum
-<MyType> -> byEnum;              // pipeline — matches in phase 1 or phase 2
-byEnum<MyType>;                  // shorthand — skips phase 1, goes directly to phase 2
-```
-
-This straddling behavior is what makes destructuring-typed parameter lists feel natural in both call styles. The shorthand form is always unambiguous (it always destructures), while the pipeline form reaches the same result via whichever phase it first matches.
-
 ### 6.3 Implicit vs. Explicit Calls
 
 Warble provides two ways to call a function:
@@ -2646,7 +2617,7 @@ let func = ((a, b))  { /* tuple only  */ };
 [1, 2] -> func;              // no match — no array overload exists
 ```
 
-Any argument whose kind matches a destructuring-typed parameter list can satisfy the overload in either phase when called via pipeline (see §6.2).
+Destructuring-typed overloads (§6.2) are only eligible in phase 2. Phase 1 does not consider them, so an argument of the matching kind simply falls through to phase 2, where it is destructured normally.
 
 ### 6.5 Compile-Time Specialization
 
@@ -4285,7 +4256,5 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 #### Important Notes:
 
 * The modifier keywords (`mut`, `const`, `private`, `protected`, `public`, `export`) are reserved and participate directly in declaration syntax.
-* The keyword `super`, which was present in earlier drafts, has been removed and is no longer reserved.
-* The previously defined keyword `local` has also been removed.
 
 This reserved keyword set is deliberately minimal and focused on structural, syntactic, and foundational compiler-level operations, preserving maximum flexibility for user-defined functionality within Warble.
