@@ -10,7 +10,7 @@ In this specification, you'll find comprehensive explanations and practical exam
 
 ### 1.1 Five-Minute Tour
 
-Welcome to Warble! This quick tour provides an overview of Warble’s essential features and syntax, giving you a feel for what it’s like to code with the language.
+Welcome to Warble! This quick tour provides an overview of Warble's essential features and syntax, giving you a feel for what it's like to code with the language.
 
 **Hello World**
 
@@ -71,6 +71,31 @@ let factor = 5;
 let multiplyByFactor = (x) { return x * factor; };
 
 print(multiplyByFactor(3)); // prints 15
+```
+
+---
+
+**Function Calls & Pipeline**
+
+Warble's function calls are built on the pipeline operator `->`, which invokes its right-hand side with its left-hand side:
+
+```warble
+"Hello, World!" -> print;
+```
+
+Most literals can be placed directly adjacent to a callable value as shorthand:
+
+```warble
+print("Hello, World!");                  // tuple shorthand
+process{ x = 10, y = 20 };              // object shorthand
+vector<i32>;                             // enum shorthand
+```
+
+The shorthand form always destructures the literal into parameters. The pipeline form first tries to pass the argument as a whole value:
+
+```warble
+func(1, 2);        // always destructures — matches two-parameter overload
+(1, 2) -> func;    // first checks for an overload accepting a 2-tuple
 ```
 
 ---
@@ -141,7 +166,7 @@ print(entity.x);    // prints 10
 
 **Next Steps**
 
-That's just the beginning! Warble offers many more advanced features and constructs designed to make programming delightful, productive, and performant. Dive deeper into this specification to learn all the details about Warble’s design and capabilities.
+That's just the beginning! Warble offers many more advanced features and constructs designed to make programming delightful, productive, and performant. Dive deeper into this specification to learn all the details about Warble's design and capabilities.
 
 ### 1.2 Philosophy & Goals
 
@@ -191,7 +216,7 @@ By adhering to these principles, Warble strives to be a language that is both po
 
 ## 2 Lexical Structure
 
-Warble’s lexical structure defines how source code is broken down into meaningful sequences of characters, known as tokens. These tokens form the basic building blocks of Warble programs.
+Warble's lexical structure defines how source code is broken down into meaningful sequences of characters, known as tokens. These tokens form the basic building blocks of Warble programs.
 
 ### 2.1 Character Set & Encoding
 
@@ -406,7 +431,7 @@ Nested destructuring is permitted:
 let (a, (b, c)) = (1, (true, 'c'));
 ```
 
-Indexed destructuring does not allow skipping positions; use `_` when you don’t care about a value. You are not required to destructure every value.
+Indexed destructuring does not allow skipping positions; use `_` when you don't care about a value. You are not required to destructure every value.
 
 Object destructuring is name-based (order-independent):
 
@@ -460,6 +485,42 @@ Property declarations support shorthand, plus shorthand-prefix operators:
 
 Capture lists are a comma-separated list of capture declarations. The full set of capture rules is still being refined.
 
+#### 3.1.5 Constructor Annotations
+
+A declaration may include a **constructor annotation** using the colon syntax:
+
+```warble
+let name: Ctor = value;
+```
+
+The annotation expression (`Ctor`) is evaluated at compile time to produce a callable. At runtime the compiler initializes `name` by invoking that callable via the **pipeline operator**:
+
+```warble
+value -> Ctor
+```
+
+This is the formal definition. The compiler does **not** wrap the initializer in a container to call it via the shorthand form, as that would subtly change the meaning. Concretely:
+
+```warble
+const p: Point = { x = 1, y = 2 };
+// Initialized as: { x = 1, y = 2 } -> Point
+// NOT as:         Point({ x = 1, y = 2 })
+```
+
+Using the pipeline operator means the two-phase resolution rules (§6.4) apply normally. In the example above, phase 1 checks for a `Point` overload that accepts the object as a whole value. If none is found, phase 2 destructures the object and looks for a `Point` overload with parameters named `x` and `y`. Had the compiler used the shorthand form `Point({...})` instead, phase 1 would be skipped and the object would always be passed as a single argument—a meaningfully different call.
+
+##### The Annotation Is an Expression, Not a Type
+
+Warble has no `class` or `struct` keywords. There are no nominal types, no compiler-recognized constructor forms, and no dedicated syntax for defining a type. The annotation is simply an **arbitrary compile-time expression** that evaluates to a callable. Any function can fill this role:
+
+```warble
+let x: i32 = 42;              // i32 is a built-in callable that produces an integer
+let p: Point = { x=1, y=2 }; // Point is a user-defined factory function
+let v: vector<i32> = [];      // vector<i32> is a partially-applied function call
+```
+
+Functions used this way are conventionally called **constructors**, but this is purely a naming convention. They are not special to the compiler in any way—they are just factory functions that accept some input and return an initialized value. See §8.5 for the constructor pattern in detail.
+
 #### Shadowing
 
 Shadowing occurs whenever a new declaration uses the same name as a previous declaration. This is permitted not only across nested scopes but also within the same scope:
@@ -481,7 +542,7 @@ let value = value * 10;
 print(value); // Prints "100"
 ```
 
-In this example, the second declaration's right-hand side sees the first declaration’s binding (`10`) and uses it to calculate the new binding (`100`). The compiler optimizes memory usage efficiently by reusing the same storage, as it easily identifies that the lifetimes of these shadowed bindings do not overlap.
+In this example, the second declaration's right-hand side sees the first declaration's binding (`10`) and uses it to calculate the new binding (`100`). The compiler optimizes memory usage efficiently by reusing the same storage, as it easily identifies that the lifetimes of these shadowed bindings do not overlap.
 
 **Note on Lifetimes:**
 In Warble, the lifetime of a declaration begins at its first usage and ends immediately after its last usage. Thus, shadowed bindings with non-overlapping lifetimes can efficiently reuse memory. This behavior contributes significantly to Warble's performance and clarity.
@@ -547,7 +608,7 @@ A top-level empty object literal used as a standalone statement requires a termi
 {}; // standalone empty object literal, semicolon required
 ```
 
-The explicit requirement of the `do` keyword for scopes and semicolons for literals clarifies parsing rules and avoids ambiguity, maintaining Warble’s commitment to simplicity and explicitness.
+The explicit requirement of the `do` keyword for scopes and semicolons for literals clarifies parsing rules and avoids ambiguity, maintaining Warble's commitment to simplicity and explicitness.
 
 ## 4 Types
 
@@ -625,7 +686,7 @@ This is intentionally simple and extremely useful internally: many fields can de
 Common uses include:
 
 * A symbol with no name may have its `name` slot set to `undefined`.
-* A declaration that defaults its initializer uses `undefined` to mean “not provided / not set / not present”.
+* A declaration that defaults its initializer uses `undefined` to mean "not provided / not set / not present".
 
 ##### `readonly`
 
@@ -1287,7 +1348,7 @@ If both captures and parameters are present, captures must come first. If neithe
 
 ##### Generic Functions and `auto`
 
-Warble does not have a distinct “template list” syntax for function literals.
+Warble does not have a distinct "template list" syntax for function literals.
 
 All functions are inherently capable of being specialized based on how they are called. The most common way to express this is by using `auto` for parameter types. Each call-site determines a specialization.
 
@@ -1322,10 +1383,10 @@ let temp = vector<i32>;
 let ints2 = temp();
 ```
 
-In this example, `vector<i32>()` is two postfix calls:
+In this example, `vector<i32>()` is two callable literal shorthand calls (see §5.4):
 
-1. `vector<i32>` calls `vector` with the enum literal `<i32>` and returns a function.
-2. `()` then calls the returned function to produce the instance.
+1. `vector<i32>` — the enum literal `<i32>` is placed adjacent to `vector`, destructuring its single element into the parameter `T`.
+2. `()` — the empty tuple literal is placed adjacent to the returned function, destructuring into zero parameters.
 
 ##### Capture List
 
@@ -1419,7 +1480,7 @@ let logSomething = (msg) {
 };
 ```
 
-Function symbol structure in the compiler’s internal representation (child slice):
+Function symbol structure in the compiler's internal representation (child slice):
 
 1. Return symbol (flagged as `Returned`)
 2. Parameter symbols (flagged as `Parameter`, with `ParameterPack` for packs)
@@ -1428,7 +1489,7 @@ Function symbol structure in the compiler’s internal representation (child sli
 
 ##### Shorthand (Arrow) Syntax
 
-Warble also supports a concise shorthand for single-expression functions, inspired by JavaScript’s arrow functions:
+Warble also supports a concise shorthand for single-expression functions, inspired by JavaScript's arrow functions:
 
 * The syntax uses an arrow (`=>`) to denote the function.
 * Omits the curly-braced function body.
@@ -1491,7 +1552,7 @@ Conceptually, borrows behave like pointers with strict, compiler-enforced lifeti
 
 Warble uses borrows to access existing storage without copying it.
 
-Warble does not have raw pointers. Address-like values exist only in the form of compiler-defined reference types (borrows and the owning reference primitives described below). The type system cannot express “raw address” as a value. This restriction applies equally to user code and the standard library.
+Warble does not have raw pointers. Address-like values exist only in the form of compiler-defined reference types (borrows and the owning reference primitives described below). The type system cannot express "raw address" as a value. This restriction applies equally to user code and the standard library.
 
 ##### Borrow optimization (materialized vs. optimized away)
 
@@ -1514,7 +1575,7 @@ To prevent dangling borrows, Warble enforces the following rule:
 In practice, this means a runtime borrow may live only in:
 
 * registers,
-* the current function’s stack frame,
+* the current function's stack frame,
 * temporary values that do not outlive the call.
 
 It is therefore a compile-time error to:
@@ -1557,17 +1618,17 @@ The binary operators `||` and `&&` are **union operators**. They always produce 
 Unlike most languages, these operators do **not** use truthiness. Instead, they branch based on whether the left-hand side is **passing** or **failing**:
 
 * A non-union value is considered **passing**.
-* A union value is **passing** when its runtime tag is in the union’s pass region (`tag >= fail_count`) and **failing** otherwise.
+* A union value is **passing** when its runtime tag is in the union's pass region (`tag >= fail_count`) and **failing** otherwise.
 
 **`a || b`**
 
-* **Result type:** all of `b`’s states (pass and fail), plus `a`’s pass states.
-* **Runtime:** if `a` is passing, the result is `a`’s pass value and `b` is not evaluated; otherwise the result is `b`.
+* **Result type:** all of `b`'s states (pass and fail), plus `a`'s pass states.
+* **Runtime:** if `a` is passing, the result is `a`'s pass value and `b` is not evaluated; otherwise the result is `b`.
 
 **`a && b`**
 
-* **Result type:** all of `b`’s states (pass and fail), plus `a`’s fail states.
-* **Runtime:** if `a` is failing, the result is `a`’s failing value and `b` is not evaluated; otherwise the result is `b`.
+* **Result type:** all of `b`'s states (pass and fail), plus `a`'s fail states.
+* **Runtime:** if `a` is failing, the result is `a`'s failing value and `b` is not evaluated; otherwise the result is `b`.
 
 Example:
 
@@ -1618,7 +1679,7 @@ The union returned by a union function is constructed from the set of types prod
 Promises and generators are not distinct types; they are common patterns of union:
 
 * A **generator** is a union that includes the compiler-defined symbol `compiler.exhausted` as one of its fail arms. `for` loops treat `compiler.exhausted` as the iteration-termination state.
-* A **promise** is a union that includes the compiler-defined symbols `compiler.unresolved` and `compiler.detached` as fail arms. `compiler.unresolved` means “not complete yet”. `compiler.detached` means “the owning future has been dropped; completion results will be discarded”.
+* A **promise** is a union that includes the compiler-defined symbols `compiler.unresolved` and `compiler.detached` as fail arms. `compiler.unresolved` means "not complete yet". `compiler.detached` means "the owning future has been dropped; completion results will be discarded".
 
 `compiler.exhausted`, `compiler.unresolved`, and `compiler.detached` are classified as **fail** states. When a union is in one of these states, its value slot is not meaningful and must not be accessed.
 
@@ -1632,19 +1693,19 @@ Unions have a hard limit of $2^{16}-1$ total arms (65535). The type tag is one b
 
 A **future** is a primitive, compiler-generated type used to represent an in-flight async function call.
 
-In the compiler’s internal representation, a future value is represented as a symbol of kind `Future`.
+In the compiler's internal representation, a future value is represented as a symbol of kind `Future`.
 
 Representation:
 
 * A future value is a pointer-sized memory address (typically 8 bytes).
 * The address points to a **promise union** stored at the beginning of a heap-allocated async frame.
-* Because the promise union begins at offset 0 of the async frame, the future’s address is also the base address of the async frame.
+* Because the promise union begins at offset 0 of the async frame, the future's address is also the base address of the async frame.
 
 Semantics:
 
 * A future is an **owning handle** for its async frame.
 * Futures have **unique ownership**: they cannot be copied, but they may be moved.
-* Futures are typed by the async function they correspond to (not by the promise union’s resolved value type). This gives the compiler static knowledge of the frame layout, enabling cleanup without dynamic dispatch.
+* Futures are typed by the async function they correspond to (not by the promise union's resolved value type). This gives the compiler static knowledge of the frame layout, enabling cleanup without dynamic dispatch.
 
 Dropping a future:
 
@@ -1659,7 +1720,7 @@ The only way to extract the result from a future is `await` (§5.2.1). `await` f
 
 A **unique** is an owning reference with unique ownership, similar to `std::unique_ptr<T>`.
 
-In the compiler’s internal representation, a unique owning reference is represented as a symbol of kind `Unique`.
+In the compiler's internal representation, a unique owning reference is represented as a symbol of kind `Unique`.
 
 Representation:
 
@@ -1682,7 +1743,7 @@ Dropping a unique:
 
 A **shared** is an owning reference with shared ownership, similar to `std::shared_ptr<T>`.
 
-In the compiler’s internal representation, a shared owning reference is represented as a symbol of kind `Shared`.
+In the compiler's internal representation, a shared owning reference is represented as a symbol of kind `Shared`.
 
 Representation:
 
@@ -1714,12 +1775,12 @@ Note: the exact initial values and the sequencing between destroying `T` and rel
 
 A **weak** is a non-owning observer handle associated with a `shared[T]` allocation, similar to `std::weak_ptr<T>`.
 
-In the compiler’s internal representation, a weak reference is represented as a symbol of kind `Weak`.
+In the compiler's internal representation, a weak reference is represented as a symbol of kind `Weak`.
 
 Representation:
 
 * A weak value is pointer-sized (typically 8 bytes).
-* A weak value designates the shared allocation’s header/control block.
+* A weak value designates the shared allocation's header/control block.
 
 Semantics:
 
@@ -1738,23 +1799,23 @@ Upgrading (locking):
 
 A **buffer** is an owning reference to a dynamically-sized heap allocation.
 
-In the compiler’s internal representation, a buffer owning reference is represented as a symbol of kind `Buffer`.
+In the compiler's internal representation, a buffer owning reference is represented as a symbol of kind `Buffer`.
 
 Representation:
 
 * A buffer value is 16 bytes: an address plus an 8-byte size (`size_bytes`).
 * The allocation contains `size_bytes` logically-addressable bytes.
-* The buffer’s stored `size_bytes` is the deallocation size passed to the heap allocator (§9.5).
-* The buffer’s address is never 0. (The address is not observable as a raw value; this invariant exists to support optimizations such as `!null | buffer`.)
+* The buffer's stored `size_bytes` is the deallocation size passed to the heap allocator (§9.5).
+* The buffer's address is never 0. (The address is not observable as a raw value; this invariant exists to support optimizations such as `!null | buffer`.)
 
 Semantics:
 
 * A buffer has **unique ownership**: it cannot be copied, but it may be moved.
 * A buffer is **non-empty**: it always designates an allocation. To represent an empty state, use an optional union `!null | buffer`.
-* A buffer’s designated allocation is fixed for the lifetime of the buffer value (it is not retargetable).
-Operations that conceptually “resize” storage therefore produce a new buffer value. Code that needs to represent “no allocation yet” or “may replace the allocation” uses an optional buffer (`!null | buffer`) and replaces the union value as needed.
+* A buffer's designated allocation is fixed for the lifetime of the buffer value (it is not retargetable).
+Operations that conceptually "resize" storage therefore produce a new buffer value. Code that needs to represent "no allocation yet" or "may replace the allocation" uses an optional buffer (`!null | buffer`) and replaces the union value as needed.
 
-Operations that conceptually “resize” storage therefore produce a new buffer value. Code that needs to represent “no allocation yet” or “may replace the allocation” uses an optional buffer (`null || buffer`) and replaces the union value as needed.
+Operations that conceptually "resize" storage therefore produce a new buffer value. Code that needs to represent "no allocation yet" or "may replace the allocation" uses an optional buffer (`null || buffer`) and replaces the union value as needed.
 
 The standard library uses this pattern for containers such as `vector` and `string`: their internal storage is represented as an optional buffer so they can be empty and can grow/shrink by rebuilding that optional buffer.
 
@@ -1764,13 +1825,13 @@ Warble provides no way to extract a raw address from a buffer. All interaction w
 
 A **view** is a non-owning, dynamically-sized reference to a contiguous region of memory.
 
-In the compiler’s internal representation, a view is represented as a symbol of kind `View`.
+In the compiler's internal representation, a view is represented as a symbol of kind `View`.
 
 Representation:
 
 * A view value is 16 bytes: an address plus an 8-byte size (`size_bytes`).
 * A view does not own storage; it does not free memory when dropped.
-* A view’s address is never 0, even when `size_bytes == 0`.
+* A view's address is never 0, even when `size_bytes == 0`.
 
 Semantics:
 
@@ -1786,7 +1847,7 @@ In addition to the general non-escaping rule, the compiler enforces a *stability
 * In particular, if a view is derived (directly or indirectly) from an *optional buffer slot* (`!null | buffer`), then the underlying slot must not be replaced (retargeted) for the lifetime of the view.
 To enforce this, the compiler performs a conservative analysis based on a per-function **retarget set**:
 ##### Optional reference values (`!null | ...`)
-Unique, shared, weak, future, buffer, and view values are non-empty primitives. The conventional way to represent an “optional reference” is to use a union with a failing `null` arm:
+Unique, shared, weak, future, buffer, and view values are non-empty primitives. The conventional way to represent an "optional reference" is to use a union with a failing `null` arm:
 
 * `!null | unique[T]`
 * `!null | shared[T]`
@@ -1801,14 +1862,14 @@ The compiler may optimize unions of the form `!null | X` when `X` is a non-empty
 
 To enforce this, the compiler performs a conservative analysis based on a per-function **retarget set**:
 
-* A function’s retarget set is the set of optional-buffer slots (including fields/paths) whose value the function may replace, either directly or transitively through calls.
+* A function's retarget set is the set of optional-buffer slots (including fields/paths) whose value the function may replace, either directly or transitively through calls.
 * While a view derived from a particular optional-buffer slot is live, it is a compile-time error to perform any operation that the compiler cannot prove does not replace that slot.
 
-This rule may forbid calls that are *logically* safe but not provably safe under the compiler’s analysis; this is permitted.
+This rule may forbid calls that are *logically* safe but not provably safe under the compiler's analysis; this is permitted.
 
 ##### Optional reference values (`null || ...`)
 
-Unique, shared, weak, future, buffer, and view values are non-empty primitives. The conventional way to represent an “optional reference” is to use a union with `null`, such as:
+Unique, shared, weak, future, buffer, and view values are non-empty primitives. The conventional way to represent an "optional reference" is to use a union with `null`, such as:
 
 ```warble
 let maybeFuture = null || future;
@@ -1826,7 +1887,7 @@ This is an optimization: the abstract semantics remain a union.
 
 ##### Automatic destruction and leaks
 
-These reference primitives are designed to make “forgot to free” a non-problem in Warble: dropping an owning reference deterministically triggers destruction and deallocation.
+These reference primitives are designed to make "forgot to free" a non-problem in Warble: dropping an owning reference deterministically triggers destruction and deallocation.
 
 It is still possible to exhaust memory in safe Warble code (for example, by growing a container without bound). Additionally, cyclic graphs built purely out of `shared[T]` may keep memory alive indefinitely; Warble does not attempt to provide general cycle collection.
 
@@ -1870,7 +1931,7 @@ Because a symbol is just an index, each property lives in its own column and is 
 
 * `kindof(sym)` – an 8-bit **kind** ID (stored in a standalone `kinds` column). This is the primary classification of a symbol.
 * `flagsof(sym)` – a 64-bit bitset of flags (modifiers, size hints, etc).
-* `payloadof(sym)` – a 64-bit typeless payload interpreted according to the symbol’s kind (immediate values, packed indexes, pointers, etc).
+* `payloadof(sym)` – a 64-bit typeless payload interpreted according to the symbol's kind (immediate values, packed indexes, pointers, etc).
 * `offsetof(sym)` – a 32-bit byte offset used for runtime memory layout.
 * `parentof(sym)` – the parent symbol index.
 * `nameof(sym)` – a symbol index naming this symbol (typically a `String` or `Enum` symbol), or `0` for anonymous symbols.
@@ -1905,7 +1966,7 @@ Addressing strategies depend on the context:
 
 ##### Reflection and Runtime Access
 
-Users access symbol metadata at runtime through Warble’s reflection operator `$`:
+Users access symbol metadata at runtime through Warble's reflection operator `$`:
 
 ```warble
 let sym = $namedValue;
@@ -1916,7 +1977,7 @@ Reflection provides a powerful, dynamic interface for debugging, logging, and ru
 
 ##### Type-Checking and Identity Operators
 
-Warble offers powerful type-checking operators leveraging symbols’ structural metadata:
+Warble offers powerful type-checking operators leveraging symbols' structural metadata:
 
 * **`is`**: Verifies structural equivalence between symbols.
 
@@ -1938,7 +1999,7 @@ Warble offers powerful type-checking operators leveraging symbols’ structural 
 
 ##### Object-Oriented Programming via Symbols
 
-Warble’s object-oriented system is fully symbol-based:
+Warble's object-oriented system is fully symbol-based:
 
 * Constructor functions define object structures.
 * Spread (`...`) syntax supports composition by marking child symbols with the `Spread` flag.
@@ -1947,11 +2008,11 @@ Warble’s object-oriented system is fully symbol-based:
 
 ##### Performance and Memory Considerations
 
-Warble’s columnar internal symbol layout provides excellent memory locality and efficiency. Rather than pretending a symbol is a contiguous struct, Warble exposes its columnar nature directly through the accessor functions above. Symbols are lightweight indexes, and all property lookups go through these compiler‑defined helpers. This straightforward model keeps memory compact while still allowing high‑level reflection and analysis.
+Warble's columnar internal symbol layout provides excellent memory locality and efficiency. Rather than pretending a symbol is a contiguous struct, Warble exposes its columnar nature directly through the accessor functions above. Symbols are lightweight indexes, and all property lookups go through these compiler‑defined helpers. This straightforward model keeps memory compact while still allowing high‑level reflection and analysis.
 
 This columnar design allows Warble symbols to scale linearly with the number of program operations, ensuring predictable memory usage even in large codebases.
 
-Symbols thus form the backbone of Warble’s powerful and expressive type system, providing efficient representation, strong type guarantees, flexible reflection capabilities, and performance-oriented internal design.
+Symbols thus form the backbone of Warble's powerful and expressive type system, providing efficient representation, strong type guarantees, flexible reflection capabilities, and performance-oriented internal design.
 
 ##### Symbol Columns
 
@@ -2029,9 +2090,9 @@ Both `||` and `&&` are union operators. They produce a union and short-circuit b
 * `a || b` returns `a` (without evaluating `b`) when `a` is passing; otherwise it returns `b`.
 * `a && b` returns `a` (without evaluating `b`) when `a` is failing; otherwise it returns `b`.
 
-The resulting union type always includes all of the right-hand side’s states, plus either the left-hand side’s pass states (`||`) or fail states (`&&`).
+The resulting union type always includes all of the right-hand side's states, plus either the left-hand side's pass states (`||`) or fail states (`&&`).
 
-A non-union value is treated as a union with a single passing arm for the purposes of `||` and `&&`. This is a semantic model; the compiler is expected to optimize the “single-arm union” case by eliding any runtime tag, since the active arm is statically known.
+A non-union value is treated as a union with a single passing arm for the purposes of `||` and `&&`. This is a semantic model; the compiler is expected to optimize the "single-arm union" case by eliding any runtime tag, since the active arm is statically known.
 
 **Pass/Fail flip (`!`):**
 
@@ -2040,13 +2101,13 @@ Warble defines the unary prefix operator `!` as a built-in **union operator** th
 * If `x` is a non-union value of type `T` (treated as a single passing arm), then `!x` is a single failing arm of type `T`.
 * If `x` is a union value, then `!x` flips the category of every arm: passing arms become failing arms and failing arms become passing arms.
 
-In this specification’s type notation, a union arm prefixed with `!` denotes a failing arm. For example:
+In this specification's type notation, a union arm prefixed with `!` denotes a failing arm. For example:
 
-* `A | B` means “pass `A`, pass `B`”.
-* `!A | B` means “fail `A`, pass `B`”.
+* `A | B` means "pass `A`, pass `B`".
+* `!A | B` means "fail `A`, pass `B`".
 * `!(A | B)` is equivalent to `!A | !B` (all arms flipped).
 
-`!` is the primary way to explicitly communicate “this value is failing” in expression form.
+`!` is the primary way to explicitly communicate "this value is failing" in expression form.
 
 Example:
 
@@ -2146,9 +2207,9 @@ This operator is intentionally designed so that optional chaining is spelled as 
 
 Many operators in Warble are *applied to* their left operand and are therefore subject to overload resolution and structural checking (for example member access `.` and calls `()`). Borrows and other reference-like types are specified in terms of forwarding; unions follow the same overall pattern.
 
-In contrast, the union operators `||` and `&&` are built-in control operators defined directly in terms of pass/fail state; they are not overloadable and are not “applied to” their left operand in this dispatch sense.
+In contrast, the union operators `||` and `&&` are built-in control operators defined directly in terms of pass/fail state; they are not overloadable and are not "applied to" their left operand in this dispatch sense.
 
-When such an operation is applied to a **union** value, the compiler must account for the fact that the active arm is not known at compile-time. Conceptually, the operation is lowered as a dispatch on the union’s runtime tag:
+When such an operation is applied to a **union** value, the compiler must account for the fact that the active arm is not known at compile-time. Conceptually, the operation is lowered as a dispatch on the union's runtime tag:
 
 * For each arm type, select the appropriate member / overload / implementation for that arm.
 * Generate a code region for each arm that performs the operation with full static type knowledge.
@@ -2161,11 +2222,11 @@ Type rule:
 * The compiler flattens the resulting union (§4.3.2).
 * When the union has only a single arm, the compiler is expected to elide the runtime tag and treat the value equivalently to the non-union case.
 
-Implementations typically use a compact jump table indexed by the union’s tag, but any equivalent strategy is permitted.
+Implementations typically use a compact jump table indexed by the union's tag, but any equivalent strategy is permitted.
 
 For an unguarded operation on a union (for example `pet.speak()` where `pet` is a union), the operation must be well-typed for **every** arm of the union. If any arm does not support the operation (for example `null.speak()`), it is a compile-time error.
 
-The postfix `?` operator is the primary mechanism for making such operations conditional on the union’s pass/fail state by splitting evaluation into a failing path and a passing path.
+The postfix `?` operator is the primary mechanism for making such operations conditional on the union's pass/fail state by splitting evaluation into a failing path and a passing path.
 
 ##### 4.3.4.1 Standalone form: `x?`
 
@@ -2307,23 +2368,298 @@ Full semantics (including the overload hook `question()`) are defined in §4.3.4
 
 ### 5.3 Operator Overloading via Symbols
 
-### 5.4 Call Forms (explicit `->`, implicit destructuring, chaining)
+### 5.4 Call Forms (Pipeline `->` and Callable Literal Shorthand)
+
+The foundation of function calling in Warble is the **pipeline operator** `->`. This binary operator invokes its right-hand side with its left-hand side as the argument:
+
+```warble
+arg -> func;           // calls func with arg
+"Hello!" -> print;     // calls print with "Hello!"
+```
+
+Like any binary operator, `->` produces a result—the return value of the called function.
+
+A pipeline call is resolved in two phases (detailed in §6.4):
+
+1. **Phase 1 (whole-value match):** The compiler searches for an overload that accepts the argument as a single value.
+2. **Phase 2 (automatic destructuring):** If phase 1 fails and the argument's kind supports destructuring, the compiler attempts to map the argument's elements onto the function's parameters.
+
+Because `->` works with any expression, not just literals, it is equally effective when the left-hand side is an identifier or a more complex expression—the compiler uses the static type to decide how to resolve the call:
+
+```warble
+const tuple = (1, true, 'c');
+tuple -> func;    // compiler knows it's a tuple and can destructure it
+```
+
+#### Callable Literal Shorthand
+
+Most literals in Warble are classified as **callable literals**. A callable literal can be placed directly adjacent to a callable value to form a function call, without writing the `->` operator explicitly. The arguments appear to the right of the function name:
+
+```warble
+print("Hello, World!");        // tuple literal
+func{ y = 2, x = 1 };         // object literal
+vector<i32>;                   // enum literal
+process[data];                 // array literal
+func'c';                       // character literal
+func"Hello world";             // string literal
+```
+
+Numeric literals are also callable literals, but because digits can appear in identifiers, the shorthand form is written in the **opposite direction**—the number comes first:
+
+```warble
+42func;             // shorthand for 42 -> func
+3.14process;        // shorthand for 3.14 -> process
+```
+
+Writing `func42` would be parsed as the single identifier `func42`, so the reversed direction is required.
+
+**Keyword literals** (`true`, `false`, `null`, `undefined`, `readonly`) do **not** have a shorthand form. To call a function with a keyword literal, either wrap it in a destructurable container or use the pipeline operator:
+
+```warble
+func(null);         // tuple is destructured — passes null as parameter
+null -> func;       // pipeline — passes null directly
+```
+
+#### Pipeline vs. Shorthand: The Phase 1 Distinction
+
+The pipeline form and callable literal shorthand are *almost* identical, but there is one critical difference:
+
+* **Pipeline** (`arg -> func`): Always begins with phase 1—checking whether there is an overload that accepts the argument as a whole, single value. Only if that fails does the compiler proceed to phase 2 (destructuring).
+* **Shorthand** (`func(args)`): **Skips phase 1** for literal kinds that support destructuring (tuples, objects, arrays, enums). The literal is always destructured directly into parameters. In this sense, the literal itself takes the place of the call operator—it *is* the argument list, not a single value being passed.
+
+```warble
+func();             // always destructures the empty tuple — matches zero-parameter overload
+() -> func;         // first checks for an overload accepting an empty tuple; only then destructures
+
+func(1, 2);         // always destructures — matches a two-parameter overload
+(1, 2) -> func;     // first checks for an overload accepting a 2-tuple; only then destructures
+```
+
+This distinction does **not** apply to non-destructurable literals (characters, strings, numerics), because destructuring is never an option for them. For those kinds, the shorthand and pipeline forms are truly identical:
+
+```warble
+func"Hello";        // identical to "Hello" -> func
+42func;             // identical to 42 -> func
+```
+
+To pass a destructurable literal as a single value using the shorthand form, wrap it in another literal that will be destructured:
+
+```warble
+func(());           // outer tuple is destructured, passing the inner empty tuple as one parameter
+func((1, 2));       // outer tuple is destructured, passing the inner (1, 2) as one tuple parameter
+```
 
 ## 6 Functions & Calling Convention
 
 ### 6.1 Function Declarations
 
+All functions in Warble are first-class values declared using function literal syntax (see §4.1.11). There is no separate `fn` or `function` keyword. A function is simply a value assigned to a binding:
+
+```warble
+let add = (a, b) { return a + b; };
+let greet = (name) => "Hello, {name}!";
+```
+
+Functions are called using the pipeline operator `->` or callable literal shorthand (see §5.4).
+
 ### 6.2 Parameters, Default Values, Packs
+
+Function parameters are declared in the parameter list and are immutable by default (use `mut` for mutable parameters). See §4.1.11 for full parameter syntax.
+
+#### Parameter Packs
+
+A parameter list may end with a **parameter pack**, written as `...` followed by an identifier. The pack collects any remaining arguments that were not matched by preceding parameters.
+
+```warble
+let first = (head, ...tail) { return head; };
+```
+
+The type of the pack depends on the kind of the argument being destructured:
+
+* **Tuple argument** → the pack is a tuple containing the remaining elements.
+* **Array argument** → the pack is an array containing the remaining elements.
+* **Enum argument** → the pack is an enum containing the remaining elements.
+* **Object argument** → the pack is an object containing all properties that did not match a named parameter.
+
+Only one parameter pack is permitted per parameter list, and it must appear at the end.
+
+A parameter pack may be empty (collecting zero elements), so a function with a pack can accept shorter argument sequences than the total count might suggest—as long as every non-pack parameter receives a value.
+
+#### Destructuring-Typed Parameters
+
+A parameter list may itself contain a **destructuring declaration** in place of a flat list of individual parameter names. When it does, the function's parameter list explicitly states what kind of argument it expects to destructure, restricting invocation to only that kind.
+
+Warble supports this for all four structured literal kinds: objects, tuples, arrays, and enums.
+
+```warble
+const byObject = ({ x, y }) {};     // requires object argument
+const byTuple  = ((a, b)) {};       // requires tuple argument
+const byArray  = ([a, b]) {};       // requires array argument
+const byEnum   = (<T>) {};          // requires enum argument
+```
+
+Compare this with a flat parameter list, which places no restriction on the argument kind:
+
+```warble
+const byAny = (a, b) {};   // accepts tuple, array, object, or any other destructurable kind
+```
+
+A destructuring-typed parameter list is simply a more specific overload signature. It participates in the same two-phase resolution as any other overload (see §6.4). The destructuring form in the parameter list is only used to match arguments of the stated kind; it will not match arguments of a different kind.
+
+```warble
+byObject{ x = 1, y = 2 };          // valid — object matches
+byObject(1, 2);                     // error — tuple does not match an object parameter list
+
+byTuple(10, 20);                    // valid — tuple matches
+byArray[10, 20];                    // valid — array matches
+byEnum<MyType>;                     // valid — enum matches
+```
+
+This feature is only available for the four structured literal kinds. Strings, characters, and primitive types do not have a destructuring form that would make this meaningful, so they cannot appear as destructuring-typed parameter lists.
+
+##### Phase Matching for Destructuring-Typed Parameters
+
+When a function has a destructuring-typed parameter list, an argument of the matching kind can satisfy the overload in **either** resolution phase when called via the pipeline operator:
+
+* **Phase 1 (whole-value match):** The argument is passed as a single, indivisible value. The function's parameter list wants a value of exactly that structured kind, so the types are compatible and the match succeeds.
+* **Phase 2 (destructuring match):** The argument is destructured, and its elements or properties are mapped to the individual parameters inside the destructuring pattern.
+
+In both cases the outcome is identical. The compiler considers the overload satisfied regardless of which phase it matches in. Both call forms therefore work:
+
+```warble
+// Object
+{ x = 1, y = 2 } -> byObject;   // pipeline — matches in phase 1 or phase 2
+byObject{ x = 1, y = 2 };       // shorthand — skips phase 1, goes directly to phase 2
+
+// Tuple
+(10, 20) -> byTuple;             // pipeline — matches in phase 1 or phase 2
+byTuple(10, 20);                 // shorthand — skips phase 1, goes directly to phase 2
+
+// Array
+[10, 20] -> byArray;             // pipeline — matches in phase 1 or phase 2
+byArray[10, 20];                 // shorthand — skips phase 1, goes directly to phase 2
+
+// Enum
+<MyType> -> byEnum;              // pipeline — matches in phase 1 or phase 2
+byEnum<MyType>;                  // shorthand — skips phase 1, goes directly to phase 2
+```
+
+This straddling behavior is what makes destructuring-typed parameter lists feel natural in both call styles. The shorthand form is always unambiguous (it always destructures), while the pipeline form reaches the same result via whichever phase it first matches.
 
 ### 6.3 Implicit vs. Explicit Calls
 
+Warble provides two ways to call a function:
+
+* **Explicit (pipeline):** `arg -> func` — uses the pipeline operator.
+* **Implicit (shorthand):** `func(arg1, arg2)` — a callable literal adjacent to a callable value.
+
+The key semantic difference: the shorthand form **always destructures** callable literals that support destructuring (tuples, objects, arrays, enums), skipping the whole-value match phase entirely. The pipeline form first attempts to pass the argument as a whole value before falling back to destructuring.
+
+For non-destructurable kinds (characters, strings, numerics), both forms are identical in behavior. See §5.4 for syntax details and §6.4 for the full resolution algorithm.
+
 ### 6.4 Overload Resolution
+
+When a function is called via the pipeline operator `arg -> func`, the compiler resolves the call in two phases:
+
+#### Phase 1: Whole-Value Match
+
+The compiler searches for an overload of `func` that accepts exactly one parameter whose type is compatible with the type of `arg` as a whole.
+
+```warble
+let process = (values: [i32; 3]) { /* handles the array as one value */ };
+let process = (a, b, c) { /* handles three separate integers */ };
+
+[1, 2, 3] -> process; // Phase 1 matches the first overload (array of 3 i32)
+```
+
+If a matching overload is found, the call is resolved and phase 2 is skipped.
+
+#### Phase 2: Automatic Destructuring
+
+If no whole-value overload matches, the compiler attempts to destructure the argument into the function's parameters. This phase is skipped entirely if the argument is a **non-destructurable** type (booleans, integers, floats, characters, strings, marker symbols). These types are treated as indivisible units.
+
+The destructuring strategy depends on the argument's kind:
+
+##### Indexed Destructuring (Arrays, Tuples, Enums)
+
+For indexed containers, elements are mapped to parameters **by position**:
+
+* The first element maps to the first parameter, the second to the second, and so on.
+* If any element's type is incompatible with the corresponding parameter's type, that overload is rejected.
+* The number of elements must exactly equal the number of parameters—unless the parameter list ends with a parameter pack (`...identifier`), which collects any remaining elements into a new container of the same kind.
+
+```warble
+let plot = (x, y) { /* ... */ };
+
+(10, 20) -> plot;          // Phase 1 fails; Phase 2 destructures: x=10, y=20
+[10, 20] -> plot;          // same two-phase process, indexed destructuring of the array
+
+let first = (head, ...rest) { return head; };
+
+(1, 2, 3, 4) -> first;    // head=1, rest=(2, 3, 4) — rest is a tuple
+[1, 2, 3, 4] -> first;    // head=1, rest=[2, 3, 4] — rest is an array
+```
+
+##### Named Destructuring (Objects)
+
+For objects, properties are mapped to parameters **by name**:
+
+* Each parameter name must exactly match a property name in the argument object.
+* Every non-pack parameter must find a matching property. However, extra properties in the argument object that have no corresponding parameter are allowed—they are simply ignored (or collected by a pack).
+* If a parameter pack is present, it collects all properties that did not match any named parameter, forming a new object.
+* Because matching is by name, the order of properties in the argument and parameters in the function is irrelevant (though the pack must still be last in the parameter list).
+
+```warble
+let greet = (name, age) { print("{name} is {age}"); };
+
+{ age = 30, name = "Alice" } -> greet;              // name="Alice", age=30 (order irrelevant)
+{ name = "Bob", age = 25, role = "dev" } -> greet;  // name="Bob", age=25 (extra "role" ignored)
+
+let extract = (id, ...rest) { return rest; };
+
+{ id = 1, x = 10, y = 20 } -> extract;             // id=1, rest={ x = 10, y = 20 }
+```
+
+#### Shorthand Form and Phase Skipping
+
+When using callable literal shorthand (§5.4), phase 1 is **skipped** for argument literals whose kinds support destructuring. The compiler proceeds directly to phase 2:
+
+```warble
+greet("Alice", 30);                        // always destructures — never checks for a tuple overload
+greet{ age = 30, name = "Alice" };         // always destructures — never checks for an object overload
+
+// Pipeline form runs both phases:
+("Alice", 30) -> greet;                    // checks for tuple overload first, then destructures
+{ age = 30, name = "Alice" } -> greet;     // checks for object overload first, then destructures
+```
+
+#### Destructuring-Typed Parameter Matching
+
+When a function overload uses a destructuring-typed parameter list (§6.2), the overload is only eligible when the argument is of the required kind. An argument of a different kind cannot match that overload in any phase:
+
+```warble
+let func = ({ x, y }) { /* object only */ };
+let func = ((a, b))  { /* tuple only  */ };
+
+{ x = 1, y = 2 } -> func;   // matches the object overload
+(1, 2) -> func;              // matches the tuple overload
+[1, 2] -> func;              // no match — no array overload exists
+```
+
+Any argument whose kind matches a destructuring-typed parameter list can satisfy the overload in either phase when called via pipeline (see §6.2).
 
 ### 6.5 Compile-Time Specialization
 
+Functions in Warble are inherently specializable. Parameters typed as `auto` create a new specialization for each distinct set of argument types encountered at call sites (see §4.1.11). Enum destructuring in parameter lists enables template-like patterns for passing type symbols explicitly:
+
+```warble
+let make = (<T>) => { element_type = T, data = [] };
+let instance = make<i32>;   // specializes with T = i32
+```
+
 ## 7 Statements & Control Flow
 
-Warble’s statements provide structured control flow, clearly and predictably managing how code executes. Statements include blocks, conditionals, loops, and jumps, each serving distinct roles in controlling program execution.
+Warble's statements provide structured control flow, clearly and predictably managing how code executes. Statements include blocks, conditionals, loops, and jumps, each serving distinct roles in controlling program execution.
 
 ### 7.1 Block Statements
 
@@ -2405,7 +2741,7 @@ Using a statement function makes your intent clear and concise, removing the nee
 
 #### 7.2.2 Return Rules & Type Consistency
 
-Within a statement function, `return` statements indicate the expression’s resulting value. All possible code paths must return a value of the same (or compatible) type. Warble enforces this at compile-time, ensuring safety and consistency:
+Within a statement function, `return` statements indicate the expression's resulting value. All possible code paths must return a value of the same (or compatible) type. Warble enforces this at compile-time, ensuring safety and consistency:
 
 ```warble
 // Valid: consistent return types
@@ -2448,13 +2784,13 @@ let found = [values, target]() {
 Because statement functions are always immediately invoked and have no references stored anywhere, the compiler guarantees they will always be fully inlined. No actual function calls or runtime overhead occurs:
 
 ```warble
-// This incurs no overhead; it’s fully optimized:
+// This incurs no overhead; it's fully optimized:
 let value = if (a) { return b; } else { return c; };
 ```
 
 The function interpretation is purely conceptual—an abstraction for understanding control flow. The compiled program never creates a real callable function object. You can freely use statement functions without concern about performance.
 
-Statement functions are syntactic sugar—convenience shorthand for constructs you could write explicitly as an immediately-invoked function. However, because Warble handles this optimization seamlessly, there's no reason to write such functions manually. Statement functions are particularly useful given Warble’s omission of a traditional ternary operator. They provide a clear, expressive alternative:
+Statement functions are syntactic sugar—convenience shorthand for constructs you could write explicitly as an immediately-invoked function. However, because Warble handles this optimization seamlessly, there's no reason to write such functions manually. Statement functions are particularly useful given Warble's omission of a traditional ternary operator. They provide a clear, expressive alternative:
 
 ```warble
 let minValue = if (a < b) { return a; } else { return b; };
@@ -2464,11 +2800,11 @@ This construct neatly captures conditional logic within expression contexts, pro
 
 ### 7.3 Conditional Statements
 
-Conditional statements in Warble allow branching execution paths based on runtime conditions. Warble’s primary conditional construct is the familiar `if` statement, optionally followed by an `else` branch.
+Conditional statements in Warble allow branching execution paths based on runtime conditions. Warble's primary conditional construct is the familiar `if` statement, optionally followed by an `else` branch.
 
 #### 7.3.1 Branching (`if`, `else`)
 
-The basic syntax of Warble’s `if` statement resembles that of many traditional languages. The condition must be enclosed in parentheses, followed by a body, either inline or within curly braces (`{}`):
+The basic syntax of Warble's `if` statement resembles that of many traditional languages. The condition must be enclosed in parentheses, followed by a body, either inline or within curly braces (`{}`):
 
 ```warble
 if (x > 0) {
@@ -2488,9 +2824,9 @@ However, allowing inline bodies remains a design decision under consideration an
 
 **Condition Topics (`this`)**
 
-Each conditional arm that has a condition expression (an `if` or `else if` arm) introduces a new topic for the duration of that arm’s body.
+Each conditional arm that has a condition expression (an `if` or `else if` arm) introduces a new topic for the duration of that arm's body.
 
-Within that arm’s body, `this` refers to the value produced by evaluating the condition expression.
+Within that arm's body, `this` refers to the value produced by evaluating the condition expression.
 
 Unconditional `else` arms do not introduce a topic.
 
@@ -2698,7 +3034,7 @@ tick {
 Rules:
 
 * A `tick` loop may appear anywhere in **module context**. It is a compile-time error to place a `tick` loop inside a function body.
-  * **Module context** means code that executes as part of the module’s top-level evaluation, including nested statement arms (`if`, `while`, `for`, `do`, etc.). Function bodies (including function literals) are not module context.
+  * **Module context** means code that executes as part of the module's top-level evaluation, including nested statement arms (`if`, `while`, `for`, `do`, etc.). Function bodies (including function literals) are not module context.
 * A module may contain multiple `tick` loops. Control flows forward: after a `tick` loop terminates, execution continues with the statements that follow it.
 * A `tick` loop runs until it terminates via `break` or until the program is shutting down (in which case it terminates as if `break` had executed).
 * A module must not contain any `export` declaration after the compiler has encountered any `tick` loop while scanning the module from top to bottom. In other words: all exported declarations must appear (textually) before the first `tick` loop in the file, even if that `tick` loop is nested inside other module-context statements.
@@ -2706,7 +3042,7 @@ Rules:
 
 Scheduling semantics:
 
-* Each iteration of a `tick` loop ends with an implicit **suspension point**. This suspension point is not written by the user, but it is part of the loop’s semantics.
+* Each iteration of a `tick` loop ends with an implicit **suspension point**. This suspension point is not written by the user, but it is part of the loop's semantics.
 * Suspending returns control back to the runtime scheduler, which may run other modules or other work before resuming this module for the next iteration. The runtime may also immediately continue the same module to catch up (§13.1.6).
 
 The `tick` loop is the primary surface syntax hook for the module scheduler described in §13.
@@ -2869,7 +3205,7 @@ Errors:
 Topic expressions specified so far:
 
 * **Object literals**: when the compiler begins building an object literal, it pushes the symbol index of that object literal onto the topic stack.
-* **Statement arms**: each arm with a condition introduces a topic for the duration of that arm’s body. This includes `if` / `else if` arms, `while` bodies (condition checked before entry), and conditional-matching clause bodies (`is`, `has`, `from`). Unconditional `else` arms do not introduce a topic.
+* **Statement arms**: each arm with a condition introduces a topic for the duration of that arm's body. This includes `if` / `else if` arms, `while` bodies (condition checked before entry), and conditional-matching clause bodies (`is`, `has`, `from`). Unconditional `else` arms do not introduce a topic.
 
 These rules are what make `this` (and in nested cases, `that`) meaningful inside object literal bodies and inside statement arm bodies.
 
@@ -2898,7 +3234,32 @@ let obj = {
 
 ### 8.4 Custom Property Resolution (operator overrides)
 
-### 8.5 Function-Based “Constructors”
+### 8.5 Function-Based "Constructors"
+
+Warble has no `class`, `struct`, or `new` keyword. There is no built-in notion of a nominal type or a compiler-privileged constructor. Instead, Warble relies entirely on ordinary functions to produce structured values, using a pattern conventionally called a **constructor**.
+
+A constructor is any function that returns a value of a particular shape. Nothing in the language distinguishes a constructor from any other function—the term is purely conventional, describing *how* a function is used rather than anything special about how it is defined:
+
+```warble
+// A simple constructor for a 2D point
+let Point = ({ x, y }) => { x, y };
+
+const p: Point = { x = 1, y = 2 };   // calls: { x = 1, y = 2 } -> Point
+const q = Point{ x = 3, y = 4 };     // same call via shorthand
+const r = { x = 5, y = 6 } -> Point; // same call via explicit pipeline
+```
+
+Because a constructor is just a function, it participates in normal overload resolution. Multiple overloads can represent different ways to construct the same conceptual value:
+
+```warble
+let Color = (r, g, b) => { r, g, b };                    // from components
+let Color = (hex: u32) => { /* decompose hex */ };        // from a packed integer
+let Color = (name: compiler.string) => { /* lookup */ };  // from a name
+```
+
+The three overloads are simply shadow declarations of the same name (§3.1 Shadowing and §4.1.9 backward lookup). Calling `Color` resolves to the appropriate overload based on the argument.
+
+Constructors work identically everywhere a callable is valid: as standalone calls, as the target of a pipeline, or as a constructor annotation (§3.1.5). In each case the same two-phase overload resolution applies.
 
 ## 9 Lifetime & Memory Model
 
@@ -2912,7 +3273,7 @@ let obj = {
 
 ### 9.5 Allocation Strategies (power-of-2, etc.)
 
-Warble’s runtime uses a power-of-two free-list allocator optimized for frequent, short-lived allocations.
+Warble's runtime uses a power-of-two free-list allocator optimized for frequent, short-lived allocations.
 
 The heap allocator is organized into:
 
@@ -2920,7 +3281,7 @@ The heap allocator is organized into:
 * An **atomic global free list**, used to share memory between threads.
 * An **OS allocation path**, used for very large allocations and for refilling the global pool.
 
-This section describes the allocator’s observable behavior and its internal invariants. Exact data structures may vary as long as the semantics below are preserved.
+This section describes the allocator's observable behavior and its internal invariants. Exact data structures may vary as long as the semantics below are preserved.
 
 #### 9.5.1 Size classes
 
@@ -2968,7 +3329,7 @@ Where `bit_width(x)` is $\lfloor \log_2(x) \rfloor + 1$ for $x > 0$.
 
 The heap allocator does not maintain per-allocation headers.
 
-* When the runtime hands out a block, it does not retain any record of that block’s size or origin.
+* When the runtime hands out a block, it does not retain any record of that block's size or origin.
 * Freeing is therefore **size-aware**: the caller must provide the correct byte count for the allocation being freed.
 * Freeing with an incorrect size is undefined behavior.
 
@@ -3021,9 +3382,9 @@ Claiming a global chain:
 
 * To refill from class `j`, the thread claims the entire global chain in `slots[j]` by compare-exchanging the head pointer to `null`.
 * The claimed chain is transferred into a private thread-local staging list for class `j`.
-  * Until the thread performs its local “checkout” decision, the claimed chain is still considered to belong to the global free list for accounting purposes (§9.5.6).
+  * Until the thread performs its local "checkout" decision, the claimed chain is still considered to belong to the global free list for accounting purposes (§9.5.6).
 
-Partial “checkout” and republishing:
+Partial "checkout" and republishing:
 
 * After claiming a chain from global, the thread may keep only some number of blocks locally and republish the remainder back to global.
 * The number of blocks the thread keeps is implementation-defined and may be guided by heuristics.
@@ -3048,7 +3409,7 @@ Each local free list and the global free list maintain a `size_bytes` counter.
 * `global.size_bytes` represents the total number of bytes that **belong to** the global free list.
   * This is an ownership accounting concept, not an availability guarantee.
   * Claiming a global chain does not immediately change `global.size_bytes`.
-  * Ownership transfers only when the thread decides how many blocks it will keep locally (the “checkout” step).
+  * Ownership transfers only when the thread decides how many blocks it will keep locally (the "checkout" step).
 
 When a thread keeps `k` blocks of class `j` from a claimed global chain:
 
@@ -3077,20 +3438,32 @@ Seeding when global is empty:
 
 * If a thread fails to find any suitable global chain, it allocates a block from the OS of size $2^{max\_index + 4}$ bytes (the next power of two beyond the maximum pooled size).
 * It splits that OS block into two blocks of size $2^{max\_index + 3}$ bytes.
-  * One block is added to the thread’s local slot `max_index`.
+  * One block is added to the thread's local slot `max_index`.
   * The other block is published to the global slot `max_index`.
 
 #### 9.5.8 Publishing to the global free list
 
 Publishing a chain to the global list is done by compare-exchange.
 
-* The thread first attempts to publish by CAS’ing `slots[j]` from `null` to `chain_head`.
+* The thread first attempts to publish by CAS'ing `slots[j]` from `null` to `chain_head`.
 * If the CAS fails, some other thread published first. In that case:
-  * The thread claims the newly-published chain (by CAS’ing `slots[j]` to `null`),
+  * The thread claims the newly-published chain (by CAS'ing `slots[j]` to `null`),
   * links it onto its own chain (merging),
   * and retries the publish.
 
 This retry-merge loop continues until the publish succeeds.
+
+##### ABA safety
+
+The claim/publish protocol is inherently free of the ABA problem.
+
+The two CAS operations are asymmetric: claiming always transitions a slot from a non-null chain head to `null`, while publishing always transitions from `null` to a non-null chain head. This means:
+
+* **Publish CAS** (`null → Y`): An ABA scenario would require the slot to cycle `null → X → null` between a thread's read and its CAS. If that happens, the publishing thread's CAS simply succeeds into a freshly-empty slot. Correctness is not affected.
+
+* **Claim CAS** (`X → null`): An ABA scenario would require `X` to be claimed by another thread, then a new chain starting at address `X` to be published before the first thread's CAS fires. Even in this case, the first thread's CAS atomically captures the *entire* chain currently attached to `X`. There is no pre-CAS read of `X.next` that becomes stale, because the thread reads the chain from scratch (starting at `X`) only *after* the CAS succeeds. No blocks are silently lost.
+
+The root reason the ABA problem cannot manifest injuriously here is that claim always takes whole chains: there is no partial-pop operation that leaves a stale `.next` pointer dangling.
 
 #### 9.5.9 Bitset maintenance
 
@@ -3113,7 +3486,7 @@ When freeing a heap block with size `n`:
 
 1. If `n` exceeds the maximum pooled block size, free the block to the OS and decrement `os_bytes` by the freed byte count.
 2. Otherwise, compute `i = index(n)`.
-3. Push the block onto the freeing thread’s local free list slot `i`:
+3. Push the block onto the freeing thread's local free list slot `i`:
    * Write the current slot head pointer into the first 8 bytes of the block.
    * Update the slot head to point at the freed block.
    * Set `local.present[i]`.
@@ -3124,7 +3497,7 @@ Because blocks may be freed by threads other than the allocating thread, impleme
 
 #### 9.5.11 Rebalancing local vs global memory
 
-Blocks may freely migrate between threads: a block allocated by one thread may be freed by another, and the free operation pushes it onto the freeing thread’s local free list.
+Blocks may freely migrate between threads: a block allocated by one thread may be freed by another, and the free operation pushes it onto the freeing thread's local free list.
 
 To prevent long-term imbalance, each worker thread should implement a rebalancing policy that publishes excess local blocks to the global free list.
 
@@ -3132,7 +3505,7 @@ Inputs available to a rebalancing heuristic include:
 
 * `os_bytes`: total bytes allocated from the OS for the program.
 * `worker_count`: the number of worker threads.
-* `local.size_bytes`: bytes currently held by this thread’s local free list.
+* `local.size_bytes`: bytes currently held by this thread's local free list.
 
 Exact thresholds are implementation-defined. A reasonable approach is to compare `local.size_bytes` to an estimate of a fair share (for example, `os_bytes / worker_count`) and publish blocks to global until the local share falls under a chosen multiple.
 
@@ -3151,8 +3524,8 @@ Global coalescing workflow (one reasonable strategy):
 
 1. Claim an entire chain from a global slot `j` (CAS head pointer to `null`).
 2. Locally partition the claimed blocks into:
-   * an “unmerged” chain of class `j` blocks that could not be paired with their buddies, and
-   * a “merged” chain of class `j+1` blocks produced by successful buddy merges.
+   * an "unmerged" chain of class `j` blocks that could not be paired with their buddies, and
+   * a "merged" chain of class `j+1` blocks produced by successful buddy merges.
 3. Republish the unmerged chain back to global slot `j`.
 4. To continue coalescing upward, claim the global chain from slot `j+1`, merge it together with the locally-produced merged chain, and repeat the process.
 
@@ -3258,8 +3631,8 @@ Imports always produce immutable bindings, regardless of the original export mut
 Semantics:
 
 * Deferred imports may participate in cycles.
-* Reads through a deferred import observe the dependency module’s exported state from the **previous successful suspension point** (the previous committed module cycle), not necessarily the state produced in the current scheduling pass.
-* Because this can observe “stale” values by design, deferred imports are intended for cyclic dataflow and feedback loops where a one-cycle delay is acceptable (or desired).
+* Reads through a deferred import observe the dependency module's exported state from the **previous successful suspension point** (the previous committed module cycle), not necessarily the state produced in the current scheduling pass.
+* Because this can observe "stale" values by design, deferred imports are intended for cyclic dataflow and feedback loops where a one-cycle delay is acceptable (or desired).
 
 Initialization restriction:
 
@@ -3268,7 +3641,7 @@ Initialization restriction:
 
 #### 10.3.2 Exports
 
-To expose functionality from a module, Warble uses explicit `export` declarations at the module’s top-level scope:
+To expose functionality from a module, Warble uses explicit `export` declarations at the module's top-level scope:
 
 ```warble
 export fn = (){};
@@ -3299,7 +3672,7 @@ The entire Warble package and module system is built around transparency, explic
 
 * A package declaring `["filesystem", "http"]` explicitly informs you of its elevated capabilities. This doesn't imply malicious intent—such a package might legitimately implement an HTTP server—but it clearly communicates where review and trust matter most.
 
-Warble’s approach ensures no hidden surprises, fostering a safer and more responsible ecosystem.
+Warble's approach ensures no hidden surprises, fostering a safer and more responsible ecosystem.
 
 ## 11 Compile-Time & Metaprogramming
 
@@ -3319,7 +3692,7 @@ Warble’s approach ensures no hidden surprises, fostering a safer and more resp
 
 ### 12.4 Union-based Error Propagation (`expect`, `assume`)
 
-Warble’s primary structured error flow is an extension of the existing union system.
+Warble's primary structured error flow is an extension of the existing union system.
 
 Any union may include both **pass** arms and **fail** arms. A union is **passing** when its current runtime tag is in the pass region, and **failing** when its current runtime tag is in the fail region.
 
@@ -3387,7 +3760,7 @@ Execution model:
 
 * The runtime always calls the same function entry point when attempting to run a module.
 * The entry point performs a fast eligibility check and then attempts to claim the module.
-* After a successful claim, control transfers (via an internal jump) to the module’s current resume point.
+* After a successful claim, control transfers (via an internal jump) to the module's current resume point.
 
 Initially, the resume point is the location immediately after this jump, so the first successful claim starts execution at the top of the module.
 
@@ -3412,7 +3785,7 @@ Each module maintains an atomic unsigned 64-bit **cycle counter**.
 * The counter is advanced by **one** when a worker thread successfully claims the module for execution.
 * The counter is advanced by **one** again when the worker thread finishes its current run of the module (either by suspending at a `tick` boundary, or by reaching module completion).
 
-This means each full “cycle” of module execution advances the counter by 2; the intermediate value is a **half-cycle**.
+This means each full "cycle" of module execution advances the counter by 2; the intermediate value is a **half-cycle**.
 
 Interpretation:
 
@@ -3430,7 +3803,7 @@ Each worker thread maintains an atomic, publicly observable unsigned 64-bit **wo
 * The worker advances its cycle counter by one when it begins a scheduling pass.
 * The worker advances its cycle counter by one again when it completes that pass (when it swaps its buffers; see §13.1.6).
 
-This makes the worker’s cycle counter a half-cycle counter in the same sense as module cycle counters.
+This makes the worker's cycle counter a half-cycle counter in the same sense as module cycle counters.
 
 The worker cycle counter is a core part of the scheduling design: it provides an anchor value that prevents a worker from accidentally running the same module multiple times within a single scheduling pass.
 
@@ -3438,14 +3811,14 @@ The worker cycle counter is a core part of the scheduling design: it provides an
 
 This scheduler model uses **optimistic execution with compiler-inserted barriers**.
 
-At the start of a module entry call, the entry point performs a fast eligibility check based on the `target_cycle` parameter and the module’s cycle counter `cm`:
+At the start of a module entry call, the entry point performs a fast eligibility check based on the `target_cycle` parameter and the module's cycle counter `cm`:
 
 * If `cm >= target_cycle`, the module is considered already handled for this scheduling pass and returns `false`.
 * If `cm` is odd, the module is currently in progress on some worker and returns `false`.
 
 Otherwise, `cm` is even and `cm < target_cycle`, so the entry point attempts to claim the module (§13.1.5). If the claim succeeds, the module begins executing user code at its resume point.
 
-Instead of attempting to fully establish dependency readiness up front, the compiler inserts read and write barriers directly into module code to prevent data races and to enforce safe ordering *only when data is actually accessed*.
+Instead of attempting to fully establish dependency readiness up front, the compiler inserts read and write barriers directly into module code to prevent data races and to enforce safe ordering close to where data is actually accessed. A minimum of one read barrier is always emitted per import, even when no bindings are read (see below).
 
 ##### Read barriers (imports)
 
@@ -3462,22 +3835,34 @@ To avoid deadlocking write barriers, `B` must release its claim before attemptin
 
 * `B` updates its resume point to the barrier site (or an equivalent internal block).
 * `B` undoes its claim (odd → prior even) by decrementing its cycle counter by 1.
-* The worker then attempts to call `A`’s entry point once with the same `target_cycle`.
+* The worker then attempts to call `A`'s entry point once with the same `target_cycle`.
 * `B` then returns `true` (blocked) so it will be retried later in the current scheduling pass.
 
 The second check enforces ordering: while module `M` is running for `target_cycle`, it may only read an imported binding from a dependency module that has already **completed** this scheduling pass. Since successful completion advances a module cycle counter by 2, this is exactly the condition `dependency_cycle > target_cycle` (and even).
 
+##### Guaranteed barrier per import
+
+The compiler must ensure that every normal `import` produces **at least one read barrier** against the imported module somewhere in the importing module's code, regardless of whether any binding from that module is ever actually read.
+
+If a module imports another module purely for side effects and never reads any of its bindings, the compiler must insert a synthetic read barrier against that dependency. This barrier is logically equivalent to a read of a non-existent binding — it checks the dependency's cycle counter and suspends if the dependency has not yet completed the current scheduling pass, but it does not access any data.
+
+**Rationale:** Without this guarantee, an import with no reads creates no ordering constraint at runtime. The two modules would be free to cycle independently, violating the semantic contract of `import`: that the dependency has run at least once before the importer runs.
+
+The barrier must cover every import individually. It is not sufficient for the importing module to happen to be constrained *transitively* through a different import that does have reads. Transitive constraints do not compose in the right direction to guarantee per-edge ordering.
+
+In practice, the compiler can check this trivially at compile time: for each import edge, if no read barrier was emitted against that module anywhere in the compilation of the module body, emit one synthetic barrier at the start of the module's entry point, before any user code.
+
 ##### Deferred read barriers (`import deferred`)
 
-Reads through `import deferred` do not require the dependency to be ahead of the current module’s `target_cycle`.
+Reads through `import deferred` do not require the dependency to be ahead of the current module's `target_cycle`.
 
-Instead, a deferred import reads the dependency’s exports from the **previous committed cycle** (the previous successful suspension point). This makes cyclic dataflow possible without deadlocking on same-pass ordering.
+Instead, a deferred import reads the dependency's exports from the **previous committed cycle** (the previous successful suspension point). This makes cyclic dataflow possible without deadlocking on same-pass ordering.
 
 Barrier requirements for deferred reads:
 
-* A deferred read is a compile-time error before the importing module’s first successful suspension point (§10.3.1).
-* At runtime, a deferred read must not observe uninitialized dependency state, and it must read from the dependency’s committed snapshot for the **previous** scheduling pass (one full module cycle behind the current pass).
-  * Therefore, after the usual “in progress” check (`A.cycle` odd), the deferred read barrier must suspend unless `A.cycle + 2 > target_cycle`.
+* A deferred read is a compile-time error before the importing module's first successful suspension point (§10.3.1).
+* At runtime, a deferred read must not observe uninitialized dependency state, and it must read from the dependency's committed snapshot for the **previous** scheduling pass (one full module cycle behind the current pass).
+  * Therefore, after the usual "in progress" check (`A.cycle` odd), the deferred read barrier must suspend unless `A.cycle + 2 > target_cycle`.
     * This is equivalent to checking `A.cycle > target_cycle - 2` ("completed at least the previous scheduling pass"), but expressed without unsigned underflow.
   * If the barrier blocks and `A.cycle` is even, the importing module may attempt to run `A` once for the same `target_cycle` before returning (as with strict imports).
 
@@ -3526,24 +3911,24 @@ Warble has no general-purpose keyword to manually suspend module execution. Modu
 
 At the implicit suspension point at the end of each `tick` iteration, the module either schedules itself to run again later or (if it is lagging) immediately begins another cycle to catch up:
 
-* The module updates its resume point to the location where execution should continue (typically the `tick` loop’s iteration check).
+* The module updates its resume point to the location where execution should continue (typically the `tick` loop's iteration check).
 * The worker then decides whether to release the module or immediately run another cycle to catch up.
 
-Let `c` be the module’s current cycle counter value at the suspension point. At this moment the module is owned by the worker and `c` is odd (the half-cycle acquired by the successful claim).
+Let `c` be the module's current cycle counter value at the suspension point. At this moment the module is owned by the worker and `c` is odd (the half-cycle acquired by the successful claim).
 
-Catch-up rule (to prevent falling behind a worker’s target cycle):
+Catch-up rule (to prevent falling behind a worker's target cycle):
 
 * If releasing the module would still leave it behind the current `target_cycle` (i.e. if $c + 1 < target\_cycle$), then the worker must not release the module yet. Instead it:
   * advances the module cycle counter by 2 (`c` → `c + 2`), keeping it odd and still owned,
   * immediately transfers control to the resume point it just selected.
 
-This represents “finish this run” (+1) and “claim the next run immediately” (+1) without ever transitioning the module to an idle (even) state.
+This represents "finish this run" (+1) and "claim the next run immediately" (+1) without ever transitioning the module to an idle (even) state.
 
 If the module remains behind `target_cycle` after beginning the next cycle, this catch-up behavior may repeat, allowing the module to run multiple cycles back-to-back while it remains owned by the same worker.
 
 Otherwise (the module is caught up for this `target_cycle`), the normal suspension behavior occurs:
 
-* The worker enqueues the module’s (fixed) entry point into a thread-local **inactive** buffer.
+* The worker enqueues the module's (fixed) entry point into a thread-local **inactive** buffer.
 * The worker advances the module cycle counter by 1 (`c` → `c + 1`) to mark the module idle again and returns to the scheduler.
 
 **Implementation note:** The cycle advancement at the end of a run (whether `+1` for release or `+2` for catch-up) does not require a compare-exchange. While the cycle counter is odd, the module is exclusively owned by one worker, so this step can be performed as an atomic store of the previously observed value plus the increment (for example `cycle.store(c + 1)` or `cycle.store(c + 2)`).
@@ -3560,7 +3945,7 @@ When a barrier suspends a run attempt, the module is considered **blocked** and 
 * The module undoes its claim by decrementing its cycle counter by 1 (odd → prior even).
 * The module returns `true` to request a retry later in the current scheduling pass.
 
-This rollback rule ensures that a barrier collision does not incorrectly “consume” the current scheduling pass.
+This rollback rule ensures that a barrier collision does not incorrectly "consume" the current scheduling pass.
 
 Each worker thread maintains two private buffers of pending module entry points.
 
@@ -3571,7 +3956,7 @@ These buffers store module entry points (conceptually, functions of the form `u6
 
 Each worker also maintains an index into the active buffer.
 
-At the beginning of each scheduling pass, the worker also records the active buffer’s initial length `start_length`.
+At the beginning of each scheduling pass, the worker also records the active buffer's initial length `start_length`.
 
 * To get work, the worker reads the function pointer at `active[index]`, increments `index`, and calls it with `target_cycle = worker_cycle`.
 * When `index` reaches `active.length`, the worker has no more work in the active buffer. It then:
@@ -3597,7 +3982,7 @@ This same-pass retry rule applies to top-level scheduling calls anchored to the 
 
 Same-pass retry by requeueing into the active buffer is an optimization that can become pathological when a worker has exhausted all other work: if the only runnable candidate(s) repeatedly hit barriers and yield, a naive loop would continuously re-attempt the same blocked modules, rapidly appending duplicates and wasting CPU.
 
-To prevent this, each worker must implement a backoff strategy that detects “no progress” while processing rescheduled work and avoids tight spinning.
+To prevent this, each worker must implement a backoff strategy that detects "no progress" while processing rescheduled work and avoids tight spinning.
 
 Definitions:
 
@@ -3659,6 +4044,53 @@ This makes module completion idempotent and safe:
 * Eligibility checks treat the module as already handled because its cycle count is far ahead and *even*.
 * If a worker erroneously claims a completed module, its compare-exchange makes the cycle counter *odd* (to the maximum `u64`). The resume-point epilogue immediately decrements it back to the maximum *even* value and returns without rescheduling.
 
+#### 13.1.8 Deadlock and Livelock Freedom
+
+Given the static guarantee that the normal import graph is a DAG (no true circular dependencies), the scheduling system is provably free of both deadlock and livelock.
+
+##### Structural setup
+
+Assign each module a **topological depth** in the import DAG: leaf modules (no dependencies) have depth 0; a module's depth is one greater than the maximum depth of its dependencies. Because the graph is acyclic, this depth is well-defined and finite for every module.
+
+The two ways a module can block are:
+
+* **Read barrier** — Module B (depth D) is waiting for dependency A (depth < D) to complete. Before blocking, B releases its claim (B becomes even) and the worker tries to run A.
+* **Write barrier** — Module A (depth D) is waiting for dependent B (depth > D) to stop being in-progress. Before blocking, A releases its claim (A becomes even).
+
+In both cases the key invariant holds: **a blocked module is always even — it is never in-progress while waiting**.
+
+##### Deadlock freedom
+
+Deadlock requires a cycle: M₁ waits for M₂, M₂ waits for M₃, …, Mₖ waits for M₁, with every module stuck.
+
+* A read barrier on Mᵢ → Mⱼ requires Mⱼ to be a **dependency** of Mᵢ (strictly lower depth).
+* A write barrier on Mᵢ → Mⱼ requires Mⱼ to be a **dependent** of Mᵢ (strictly higher depth).
+
+Any cycle in the wait graph would have to include at least one edge going up (write barrier) and at least one edge going down (read barrier). Consider the critical crossing: A (depth D) is blocked by a write barrier because B (depth > D) is odd (in-progress). For this to be part of a deadlock cycle, B must simultaneously be waiting for A in some way — but if B is waiting for A, B hit a read barrier and already released its claim, making B **even**. An even B does not trigger A's write barrier. The conflict is self-resolving: the act of B releasing its claim to pursue its read barrier simultaneously unblocks A's write barrier.
+
+More formally: for a deadlock cycle to exist, some module in the cycle would have to be simultaneously **odd** (blocking another's write barrier) and **even** (waiting at a barrier of its own). That is a contradiction.
+
+##### Livelock freedom
+
+Livelock would require modules to cycle through claim and release indefinitely without any module completing. The argument proceeds by induction on topological depth.
+
+**Base case (depth 0):** A depth-0 module has no dependencies, so it has no read barriers. It runs to completion unconditionally. No module can hold a blocking write barrier against it for more than a bounded number of retries, because its dependents (depth 1+) can also always release their claims.
+
+**Inductive step (depth D):** Assume every module at depth < D eventually completes within the current scheduling pass.
+
+A module A at depth D has read barriers only on depth < D dependencies, all of which complete by the inductive hypothesis. So A's read barriers pass in finite time.
+
+A may have write barriers on dependents (depth > D). That dependent B is initially in-progress (odd). Within a finite number of executed instructions, B either:
+
+1. **Completes** — B's cycle advances to the completion sentinel. A's write barrier passes permanently on retry.
+2. **Hits its own barriers and releases** — B becomes even (not in-progress). This immediately unblocks A's write barrier. A resumes, and its read barriers on depth < D modules have already passed (by hypothesis), so A completes. Once A is complete, B's read barrier on A passes, and B can complete.
+
+In either case, A completes in finite time. By induction, all modules at all depths complete.
+
+##### Role of deferred imports
+
+`import deferred` is exempt from same-cycle ordering: it reads the dependency's previous committed cycle and is therefore never part of the same-cycle barrier graph. Deferred reads cannot form a wait cycle with normal read barriers, and the circular graph structure they allow is resolved across cycles rather than within a single scheduling pass. This means the presence of deferred imports does not invalidate either argument above.
+
 ### 13.2 Atomic Operations
 
 The standard library provides atomic counters and flags. They offer lock‑free read, write and compare‑exchange operations with explicit memory ordering.
@@ -3671,14 +4103,14 @@ In addition to module execution, worker threads also execute **async tasks** cre
 
 Calling an async function:
 
-1. Heap-allocates an **async frame** large enough to hold the function’s state (promise union, parameters, locals, and internal bookkeeping).
+1. Heap-allocates an **async frame** large enough to hold the function's state (promise union, parameters, locals, and internal bookkeeping).
 2. Initializes the promise tag in the frame to `compiler.unresolved`.
 3. Returns a `future` handle pointing to the promise union at the beginning of the frame (§4.2.3).
-4. Enqueues an async task entry into the calling worker’s async-task queue.
+4. Enqueues an async task entry into the calling worker's async-task queue.
 
 The async task entry consists of:
 
-* a function pointer (the async function’s entry point), and
+* a function pointer (the async function's entry point), and
 * a context pointer (the async frame pointer).
 
 #### 13.3.2 Per-thread async-task queues
@@ -3699,7 +4131,7 @@ Exact ordering between module work and async-task work is implementation-defined
 
 When an async task reaches completion:
 
-* It writes its result payload into the promise union’s value slot in its async frame.
+* It writes its result payload into the promise union's value slot in its async frame.
 * It atomically compare-exchanges the promise tag from `compiler.unresolved` to the correct tag representing the completed result arm.
 
 If the compare-exchange succeeds, the result is now observable via `await`.
@@ -3813,7 +4245,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 
 #### Literals
 
-* **`undefined`** — Keyword literal that evaluates to a compiler-defined marker symbol used to mean “not provided / not set / not present”.
+* **`undefined`** — Keyword literal that evaluates to a compiler-defined marker symbol used to mean "not provided / not set / not present".
 * **`null`** — Keyword literal that evaluates to a compiler-defined marker symbol used as an absence / empty / failing state label.
 * **`readonly`** — Keyword literal that evaluates to a compiler-defined marker symbol used as an immutable-interface policy contract for libraries.
 * **`true`** — Boolean literal for logical truth.

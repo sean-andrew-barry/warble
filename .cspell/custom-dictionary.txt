@@ -20,6 +20,7 @@ kindof
 LASTEXITCODE
 Legalizer
 LIBPATH
+Livelock
 NDEBUG
 nologo
 NOMINMAX
@@ -36,6 +37,7 @@ retarget
 retargetable
 retargeted
 significand
+specializable
 srcs
 stdcpp
 stdcpplatest
