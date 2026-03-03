@@ -337,6 +337,7 @@ Warble uses **explicit semicolons** to mark the end of most statements, but the 
 let count = 0;
 count += 1;
 let fn = () { return count; };      // function literal is an expression ⇒ needs ;
+let fn2(x) { return x * 2; };       // callable literal shorthand form ⇒ still needs ;
 
 import fs from "filesystem" in "std";
 register "pkg" from "../pkg";
@@ -465,6 +466,26 @@ let obj = {
 
 This distinction ensures clear and intuitive syntax, simplifies parsing, and maintains flexibility in declarations.
 
+##### Callable Literal Initializer Shorthand
+
+When a declaration has no constructor annotation (i.e., the annotation is implicitly `: auto`) and the initializer is a **callable literal**, the `=` operator may be omitted. The callable literal is placed directly after the name and any modifiers:
+
+```warble
+let double(x) => x * 2;                        // equivalent to: let double = (x) => x * 2;
+let add(a, b) { return a + b; };               // equivalent to: let add = (a, b) { return a + b; };
+let greet[name](msg) { print(name, msg); };    // equivalent to: let greet = [name](msg) { print(name, msg); };
+```
+
+This shorthand applies to any callable literal kind—tuples `()`, arrays `[]`, enums `<>`, strings, characters, and numerics—but it is most naturally used with function literals.
+
+The declaration still requires a trailing semicolon, just like any other declaration statement (see §2.4).
+
+This shorthand is **not** available when a constructor annotation is present. The annotation syntax requires an explicit `=`:
+
+```warble
+let add: MyFunc = (a, b) { return a + b; };  // annotation requires explicit `=`
+```
+
 #### 3.1.2 Parameter Declaration Mode
 
 Parameter declarations appear inside function parameter lists. Because the compiler already expects declarations there, parameters do not require a leading `let` or a modifier keyword.
@@ -521,7 +542,7 @@ let v: vector<i32> = [];      // vector<i32> is a partially-applied function cal
 
 Functions used this way are conventionally called **constructors**, but this is purely a naming convention. They are not special to the compiler in any way—they are just factory functions that accept some input and return an initialized value. See §8.5 for the constructor pattern in detail.
 
-#### Shadowing
+#### 3.1.6 Shadowing
 
 Shadowing occurs whenever a new declaration uses the same name as a previous declaration. This is permitted not only across nested scopes but also within the same scope:
 
@@ -1538,11 +1559,11 @@ This avoids ambiguity when distinguishing between implicit object literals and e
 Warble presents all dynamic memory through a small set of compiler-defined **reference primitives**. These are fully known to and implemented by the compiler, and each corresponds to a dedicated symbol kind:
 
 * **Non-owning:** `&T` (borrow) and `view`.
-* **Owning:** `unique[T]`, `shared[T]`, `weak[T]`, `future`, and `buffer`.
+* **Owning:** `unique<T>`, `shared<T>`, `weak<T>`, `future`, and `buffer`.
 
 These primitives define how heap-allocated blocks are created, accessed, and freed in Warble. There is no raw-pointer escape hatch.
 
-Among owning references, `unique[T]`, `shared[T]`, `weak[T]`, and `future` have fixed runtime size and use compile-time-known deallocation sizes, while `buffer` carries a runtime `size_bytes`.
+Among owning references, `unique<T>`, `shared<T>`, `weak<T>`, and `future` have fixed runtime size and use compile-time-known deallocation sizes, while `buffer` carries a runtime `size_bytes`.
 
 #### 4.2.1 Borrow
 
@@ -1591,8 +1612,6 @@ Passing a runtime borrow through other function calls is permitted, but the same
 External borrows (borrows to imported bindings) must remain transparent to the compiler.
 
 In particular, the compiler must always be able to determine exactly which imported binding is being borrowed, so it can preserve memory safety rules and (for the module scheduler model) insert barriers at every external read site (§13.1.4).
-
-Therefore, it is a compile-time error to make an external borrow opaque by copying it into constructs that hide its identity, such as unions. For example, storing an external borrow into a union (such as `null || &T`) is a compile-time error.
 
 Therefore, it is a compile-time error to make an external borrow opaque by copying it into constructs that hide its identity, such as unions. For example, storing an external borrow into a union (such as `!null | &T`) is a compile-time error.
 
@@ -1683,13 +1702,140 @@ Promises and generators are not distinct types; they are common patterns of unio
 
 `compiler.exhausted`, `compiler.unresolved`, and `compiler.detached` are classified as **fail** states. When a union is in one of these states, its value slot is not meaningful and must not be accessed.
 
-In an async function, the promise union is produced asynchronously. The call returns a `future` handle (§4.2.3) that designates the promise union in an async frame. The `await` operator consumes a `future` and waits until its promise is complete.
+In an async function, the promise union is produced asynchronously. The call returns a `future` handle (§4.2.4) that designates the promise union in an async frame. The `await` operator consumes a `future` and waits until its promise is complete.
 
 ##### Limits
 
 Unions have a hard limit of $2^{16}-1$ total arms (65535). The type tag is one byte when there are 256 or fewer arms; otherwise it is two bytes.
 
-#### 4.2.3 Future
+#### 4.2.3 Intersection
+
+An **intersection** in Warble is a compile-time constraint that requires a value to satisfy *all* of the listed arms simultaneously. Where a union says "this value is one of these types", an intersection says "this value must be compatible with every one of these types".
+
+In the compiler's internal representation, an intersection is represented as a symbol of kind `Intersection`.
+
+##### Creation and Syntax
+
+Intersections are created with the binary `&` operator, applied to symbols or functions:
+
+```warble
+let I = Cat & Dog;
+```
+
+This produces an intersection with two arms: `Cat` and `Dog`. The `&` operator may be chained:
+
+```warble
+let J = Cat & Dog & Animal;
+```
+
+Chained intersections are flattened into a single intersection with all listed arms, analogous to how nested unions are flattened (§4.3.2).
+
+The `&` operator used here is the **infix** (binary) form. It is syntactically distinct from the **prefix** (unary) `&` that creates a borrow (§4.2.1). The parser disambiguates the two based on position: when `&` appears between two expressions it is the intersection operator; when it appears before a single operand it is the borrow operator.
+
+##### Internal Representation
+
+An intersection symbol's payload is stored as a `std::pair<uint32_t, uint32_t>` representing (data start index, length) into the module's per-module data buffer.
+
+This is similar to unions, but meaningfully different: a union's payload splits its second `u32` into two `u16` fields in order to encode both a total arm count and a fail count. An intersection has no concept of pass/fail arms, so no such split is needed—the full `u32` is used for the length.
+
+The data slice is a sequence of `u32` symbol indexes. The **first slot** (index 0 of the slice) is always reserved for the **true type** of the intersection—the concrete type of the value currently held. The remaining slots (index 1 onward) are the **constraint arms**.
+
+When an intersection is created abstractly (not yet holding a value), the true-type slot is set to the symbol index for `Undefined`:
+
+```warble
+let I = Cat & Dog;
+// I is an intersection: true type = Undefined, arms = [Cat, Dog]
+```
+
+##### Instantiation
+
+An intersection acquires a concrete value through a constructor annotation (§3.1.5). The annotation uses the pipeline operator to pass the initializer through the intersection:
+
+```warble
+let value: I = Dog("Fido", 3);
+// Initialized as: Dog("Fido", 3) -> I
+```
+
+The compiler evaluates `Dog("Fido", 3)` to produce a concrete `Dog` value, then checks that this value satisfies every constraint arm of `I`. If the check succeeds, the resulting symbol is of kind `Intersection` with its true-type slot set to the resolved type of the `Dog` value. At runtime, the memory layout is that of the true type (`Dog`).
+
+If any arm is not satisfied—for example, if `Dog` does not support an operation that `Cat` requires—the compiler emits an error at the point of instantiation.
+
+##### Constraint Checking (Operation Forwarding)
+
+The defining behavior of an intersection is its static constraint check. Before any operation applied to an intersection value is forwarded to the underlying true type, the compiler verifies that **every** constraint arm of the intersection also supports that operation. Only then is the operation applied to the true type.
+
+For example:
+
+```warble
+let Animal(noise: string, name: string, age: i32) => {
+  noise,
+  name,
+  age,
+
+  public speak() => "{this.name} says {this.noise}",
+  public getName() => this.name,
+  public getAge() => this.age,
+};
+
+let Cat(name: string, age: i32) => {
+  ...Animal("Meow", name, age),
+
+  public purr() => "Purr...",
+};
+
+let Dog(name: string, age: i32) => {
+  ...Animal("Woof", name, age),
+
+  public fetch() => "Fetching!",
+};
+
+let I = Cat & Dog;
+let pet: I = Dog("Fido", 3);
+
+pet.speak();  // OK — both Cat and Dog have `speak`
+pet.fetch();  // Error — Cat does not have `fetch`
+pet.purr();   // Error — Dog does not have `purr`
+```
+
+The constraint check is purely static. At runtime there is no tag, no dispatch table, and no overhead—the value is stored exactly as its true type. The intersection's arms serve only as a compile-time contract.
+
+This is the key distinction from a union:
+
+| | Union | Intersection |
+|---|---|---|
+| Meaning | "one of" (the value is *one* of the arms) | "all of" (the value must satisfy *every* arm) |
+| Runtime representation | value slot + type tag | value slot only (true type); no tag |
+| Operation dispatch | jump-table dispatch across arms | forwarded to true type after static arm check |
+| Memory overhead | largest arm + tag | true type only |
+
+##### Common Use Case: Constraining Template Parameters
+
+Intersections are especially useful for constraining generic (template) parameters. A bare parameter declaration or `p: auto` accepts any type. By intersecting `auto` with one or more constraint arms, you narrow what may be passed:
+
+```warble
+let greet = (creature: auto & Animal) {
+  creature.speak();
+};
+```
+
+Here `auto & Animal` is an intersection whose first arm is `auto` (resolved at each call site) and whose second arm is `Animal`. Whatever concrete type `auto` resolves to, the compiler verifies that `Animal`'s interface is also satisfied. This is conceptually similar to bounded generics or trait bounds in other languages, expressed through Warble's uniform intersection mechanism.
+
+Multiple constraints compose naturally:
+
+```warble
+let process = (x: auto & Serializable & Printable) {
+  x.serialize();
+  x.print();
+};
+```
+
+##### Intersections with `auto`
+
+When `auto` appears as an arm of an intersection, the `auto` arm is resolved at each call site to the concrete type of the argument. The remaining arms act as static constraints on that resolved type.
+
+Because `auto` on its own already means "accept anything", writing `auto & C` is the idiomatic way to say "accept anything that also satisfies `C`".
+
+#### 4.2.4 Future
 
 A **future** is a primitive, compiler-generated type used to represent an in-flight async function call.
 
@@ -1716,7 +1862,7 @@ Dropping a future:
 
 The only way to extract the result from a future is `await` (§5.2.1). `await` forwards to the underlying promise union and consumes the future handle.
 
-#### 4.2.4 Unique
+#### 4.2.5 Unique
 
 A **unique** is an owning reference with unique ownership, similar to `std::unique_ptr<T>`.
 
@@ -1731,7 +1877,7 @@ Representation:
 Semantics:
 
 * A unique has **unique ownership**: it cannot be copied, but it may be moved.
-* A unique is **non-empty**: it always designates an allocation. To represent an empty state, use an optional union `!null | unique[T]`.
+* A unique is **non-empty**: it always designates an allocation. To represent an empty state, use an optional union `!null | unique<T>`.
 * Using a unique to access members or elements forwards to the owned value (conceptually via an implicit borrow of the owned storage).
 
 Dropping a unique:
@@ -1739,7 +1885,7 @@ Dropping a unique:
 * Dropping a unique destroys the owned value and frees its allocation.
 * The compiler knows the deallocation size as `sizeof(T)` and passes that size to the heap allocator (§9.5).
 
-#### 4.2.5 Shared
+#### 4.2.6 Shared
 
 A **shared** is an owning reference with shared ownership, similar to `std::shared_ptr<T>`.
 
@@ -1761,7 +1907,7 @@ Semantics:
 * A shared has **shared ownership**: it may be copied.
 * Copying a shared atomically increments `strong_count`.
 * Dropping a shared atomically decrements `strong_count`.
-* A shared is **non-empty**: it always designates an allocation. To represent an empty state, use an optional union `!null | shared[T]`.
+* A shared is **non-empty**: it always designates an allocation. To represent an empty state, use an optional union `!null | shared<T>`.
 
 Finalization and deallocation:
 
@@ -1771,9 +1917,9 @@ Finalization and deallocation:
 
 Note: the exact initial values and the sequencing between destroying `T` and releasing the allocation follow the conventional weak-pointer control-block design. The intent is that weak references can observe liveness and attempt to acquire shared ownership without risking use-after-free.
 
-#### 4.2.6 Weak
+#### 4.2.7 Weak
 
-A **weak** is a non-owning observer handle associated with a `shared[T]` allocation, similar to `std::weak_ptr<T>`.
+A **weak** is a non-owning observer handle associated with a `shared<T>` allocation, similar to `std::weak_ptr<T>`.
 
 In the compiler's internal representation, a weak reference is represented as a symbol of kind `Weak`.
 
@@ -1787,15 +1933,15 @@ Semantics:
 * A weak may be copied.
 * Copying a weak atomically increments `weak_count`.
 * Dropping a weak atomically decrements `weak_count`.
-* A weak does not provide direct access to `T`. The only way to obtain access is to attempt to upgrade it to a `shared[T]`.
+* A weak does not provide direct access to `T`. The only way to obtain access is to attempt to upgrade it to a `shared<T>`.
 
 Upgrading (locking):
 
-* Upgrading a weak produces `!null | shared[T]`.
+* Upgrading a weak produces `!null | shared<T>`.
 * If the `T` object is already destroyed (`strong_count == 0`), the result is `null`.
-* Otherwise, upgrading atomically increments `strong_count` and returns a `shared[T]` designating the `T` object.
+* Otherwise, upgrading atomically increments `strong_count` and returns a `shared<T>` designating the `T` object.
 
-#### 4.2.7 Buffer
+#### 4.2.8 Buffer
 
 A **buffer** is an owning reference to a dynamically-sized heap allocation.
 
@@ -1815,13 +1961,11 @@ Semantics:
 * A buffer's designated allocation is fixed for the lifetime of the buffer value (it is not retargetable).
 Operations that conceptually "resize" storage therefore produce a new buffer value. Code that needs to represent "no allocation yet" or "may replace the allocation" uses an optional buffer (`!null | buffer`) and replaces the union value as needed.
 
-Operations that conceptually "resize" storage therefore produce a new buffer value. Code that needs to represent "no allocation yet" or "may replace the allocation" uses an optional buffer (`null || buffer`) and replaces the union value as needed.
-
 The standard library uses this pattern for containers such as `vector` and `string`: their internal storage is represented as an optional buffer so they can be empty and can grow/shrink by rebuilding that optional buffer.
 
 Warble provides no way to extract a raw address from a buffer. All interaction with buffer contents occurs through compiler-defined operations that preserve bounds safety.
 
-#### 4.2.8 View
+#### 4.2.9 View
 
 A **view** is a non-owning, dynamically-sized reference to a contiguous region of memory.
 
@@ -1836,7 +1980,7 @@ Representation:
 Semantics:
 
 * A view is non-owning, and therefore must obey non-escaping rules similar to borrows.
-* A view may be created from an owning reference (such as `buffer`, `unique[T]`, or `shared[T]`) or from other views.
+* A view may be created from an owning reference (such as `buffer`, `unique<T>`, or `shared<T>`) or from other views.
 * Warble provides no way to extract a raw address from a view.
 
 ##### View stability (no retargeting while a view is live)
@@ -1845,20 +1989,6 @@ In addition to the general non-escaping rule, the compiler enforces a *stability
 
 * A view must not outlive the stability of the region it designates.
 * In particular, if a view is derived (directly or indirectly) from an *optional buffer slot* (`!null | buffer`), then the underlying slot must not be replaced (retargeted) for the lifetime of the view.
-To enforce this, the compiler performs a conservative analysis based on a per-function **retarget set**:
-##### Optional reference values (`!null | ...`)
-Unique, shared, weak, future, buffer, and view values are non-empty primitives. The conventional way to represent an "optional reference" is to use a union with a failing `null` arm:
-
-* `!null | unique[T]`
-* `!null | shared[T]`
-* `!null | weak[T]`
-* `!null | future`
-* `!null | buffer`
-* `!null | view`
-
-Such unions typically arise from union-producing control flow (for example, `return pass ref` on one path and `return fail null` on another).
-
-The compiler may optimize unions of the form `!null | X` when `X` is a non-empty reference-like value:
 
 To enforce this, the compiler performs a conservative analysis based on a per-function **retarget set**:
 
@@ -1867,31 +1997,26 @@ To enforce this, the compiler performs a conservative analysis based on a per-fu
 
 This rule may forbid calls that are *logically* safe but not provably safe under the compiler's analysis; this is permitted.
 
-##### Optional reference values (`null || ...`)
+##### Optional reference values (`!null | ...`)
 
-Unique, shared, weak, future, buffer, and view values are non-empty primitives. The conventional way to represent an "optional reference" is to use a union with `null`, such as:
+Unique, shared, weak, future, buffer, and view values are non-empty primitives. The conventional way to represent an "optional reference" is to use a union with a failing `null` arm:
 
-```warble
-let maybeFuture = null || future;
-let maybeUnique = null || unique[T];
-let maybeBuffer = null || buffer;
-let maybeView = null || view;
-```
+* `!null | unique<T>`
+* `!null | shared<T>`
+* `!null | weak<T>`
+* `!null | future<F>`
+* `!null | buffer<T>`
+* `!null | view<T>`
 
-The compiler may optimize unions of the form `null || X` when `X` is a non-empty reference-like value:
-
-* For pointer-sized reference values (such as `unique[T]`, `shared[T]`, `weak[T]`, and `future`), the union may be represented as a single pointer-sized slot, using address 0 to represent the `null` arm.
-* For `(address, size_bytes)` reference values (such as `buffer` and `view`), the union may be represented as a pair where `(0, 0)` represents the `null` arm.
-
-This is an optimization: the abstract semantics remain a union.
+Such unions typically arise from union-producing control flow (for example, `return pass ref` on one path and `return fail null` on another).
 
 ##### Automatic destruction and leaks
 
 These reference primitives are designed to make "forgot to free" a non-problem in Warble: dropping an owning reference deterministically triggers destruction and deallocation.
 
-It is still possible to exhaust memory in safe Warble code (for example, by growing a container without bound). Additionally, cyclic graphs built purely out of `shared[T]` may keep memory alive indefinitely; Warble does not attempt to provide general cycle collection.
+It is still possible to exhaust memory in safe Warble code (for example, by growing a container without bound). Additionally, cyclic graphs built purely out of `shared<T>` may keep memory alive indefinitely; Warble does not attempt to provide general cycle collection.
 
-#### 4.2.9 Module
+#### 4.2.10 Module
 
 In Warble, a **module** represents a single imported source file. For every source file included in a project, exactly one corresponding module object is created—no matter how many times that file is imported. The module acts as the root scope and primary container for all information defined within that source file.
 
@@ -1921,7 +2046,7 @@ All module data described above are statically allocated and stored directly wit
 
 Additionally, the module object may contain user-defined top-level declarations. To accommodate these declarations, the compiler reserves a dedicated static memory block for each module. Each top-level declaration is assigned a specific slot within this memory block, analogous to how a function call uses a stack frame for its local variables.
 
-#### 4.2.10 Symbol
+#### 4.2.11 Symbol
 
 Symbols are fundamental building blocks of Warble's type and runtime systems. Every value in Warble, whether it's a literal, an object, a function, or any other entity, is represented internally by a **symbol**. In practice, a symbol is simply a 32‑bit index into a module's columnar symbol table. Each column stores one property (such as the kind or name) for all symbols. Users do not manipulate these columns directly; instead, they obtain a symbol index and query properties through compiler-provided functions.
 
@@ -2192,8 +2317,6 @@ Then the resulting union has `new_fail_count = n - f`, and the runtime tag is re
 * otherwise (was passing, becomes failing): `new_tag = tag - f`
 
 This remapping preserves the active payload and keeps pass/fail testing as a single comparison.
-#### 4.3.4 Operator forwarding and postfix question (`?`)
-Warble provides a unary postfix operator `?` for operating on a value as a pass/fail union.
 
 #### 4.3.4 Operator forwarding and postfix question (`?`)
 
@@ -2238,15 +2361,11 @@ Overload hook:
 * The return type of `question()` must be a union type. Otherwise it is a compile-time error.
 
 Default behavior (when there is no `question()` member):
-Default behavior (when there is no `question()` member):
 
 * If `x` is already a union value, `x?` is the identity (it yields the same union).
 * Otherwise, `x?` treats `x` as a union with a single passing arm.
 
 Because a single passing arm does not require a runtime tag, `x?` on a non-union value is typically optimized to a no-op unless it is immediately followed by guarded postfix chaining.
-This is what makes patterns like `pet?.speak()` usable when `pet` is `!null | Cat | Dog`: the failing `null` arm short-circuits, and the `Cat` and `Dog` arms dispatch to their respective `speak()` implementations.
-When `x` is a union that includes failing arms (for example `!null | Cat | Dog`) and an operation is written as `x?.member` / `x?.member()` / `x?[index]` (lexed as `x` `?` `.` ...), the compiler typically performs two distinct dispatch steps:
-`?` is a unary postfix operator that introduces a control-flow split (fail vs pass) at that point in the expression.
 
 ##### 4.3.4.2 Guarded postfix chaining
 
@@ -2320,7 +2439,7 @@ After these steps, evaluation continues normally at the join point. Any subseque
 
 ### 5.2 Built-in Operators
 
-### 5.2.1 Control-flow Unary Operators `await`, `expect`, `assume`
+#### 5.2.1 Control-flow Unary Operators `await`, `expect`, `assume`
 
 | Operator     | Operand requirement | Fast path                                            | Slow path                                                 | Result type |
 | ------------ | ------------------- | ---------------------------------------------------- | --------------------------------------------------------- | ----------- |
@@ -2356,11 +2475,10 @@ After these steps, evaluation continues normally at the join point. Any subseque
 > **Guideline:** Default to `expect`.  Reach for `assume` only when recovery is
 > impossible or not worthwhile (e.g. out-of-memory on a desktop program).
 
-### 5.2.2 Postfix Union Operator `?`
+#### 5.2.2 Postfix Union Operator `?`
 
 `?` is a unary postfix operator that produces a pass/fail union and introduces a control-flow split (fail vs pass) at that point in the expression.
 
-* Standalone: `x?` yields a union (defaulting to `null || x` for non-union `x`).
 * Standalone: `x?` yields a union view of `x` (identity for unions; a single passing arm for non-unions).
 * Chaining: `x?.prop` and `x?.method()` short-circuit when `x?` is failing.
 
@@ -2642,7 +2760,7 @@ Warble block statements have these characteristics:
 * Declarations inside a block are scoped to that block and inaccessible from outside.
 * Blocks may contain any number of statements, including further nested blocks, declarations, expressions, and control-flow constructs.
 
-### 7.1.1 Scoped Block (`do`)
+#### 7.1.1 Scoped Block (`do`)
 
 To explicitly define a scoped block in Warble, you must use the `do` keyword followed by curly braces:
 
@@ -3067,7 +3185,7 @@ The `return` keyword immediately terminates execution of the current function co
 ```warble
 let add(a, b) {
   return a + b; // Returns the sum of `a` and `b`
-}
+};
 ```
 
 * A function without an explicit `return` statement implicitly returns `null`. This behavior matches a function explicitly written as `return null;`.
@@ -3079,7 +3197,7 @@ Warble does not directly support multiple return values using the `return` keywo
 ```warble
 let getCoordinates() {
   return (x, y, z); // Returns a tuple
-}
+};
 
 let (x, y, z) = getCoordinates(); // Destructures the tuple
 ```
@@ -3095,7 +3213,7 @@ For non-union functions, Warble requires all explicit `return` statements within
 let example(a) {
   if (a) return "string";
   return 42; // Compiler error due to type mismatch
-}
+};
 ```
 
 **Union Returns (`return` modifiers):**
@@ -3113,7 +3231,7 @@ let getValue(condition) {
   } else {
     return fail "Unknown condition";
   }
-}
+};
 ```
 
 Rules:
@@ -4098,7 +4216,7 @@ Calling an async function:
 
 1. Heap-allocates an **async frame** large enough to hold the function's state (promise union, parameters, locals, and internal bookkeeping).
 2. Initializes the promise tag in the frame to `compiler.unresolved`.
-3. Returns a `future` handle pointing to the promise union at the beginning of the frame (§4.2.3).
+3. Returns a `future` handle pointing to the promise union at the beginning of the frame (§4.2.4).
 4. Enqueues an async task entry into the calling worker's async-task queue.
 
 The async task entry consists of:
@@ -4135,7 +4253,7 @@ If the compare-exchange fails because the tag is `compiler.detached`, the future
 
 The `await` operator is defined in terms of the **promise union**: it waits until the promise tag transitions away from `compiler.unresolved`.
 
-A `future` is a transparent handle to a promise union stored at the beginning of an async frame (§4.2.3). Using `await` on a future forwards to `await` on the underlying promise union.
+A `future` is a transparent handle to a promise union stored at the beginning of an async frame (§4.2.4). Using `await` on a future forwards to `await` on the underlying promise union.
 
 Once complete, `await` destroys the async frame and returns the completed result as a union value with `compiler.unresolved` and `compiler.detached` removed.
 
@@ -4155,13 +4273,13 @@ Once complete, `await` destroys the async frame and returns the completed result
 
 ## 18 Appendices
 
-#### Operator Precedence
+### 18.1 Operator Precedence
 
 > TODO: Include a small table or paragraph cross-referencing the earlier operator precedence definition.
 
 See §5.2 for operator descriptions; a dedicated precedence table is TODO.
 
-#### Semantics Cross-References
+### 18.2 Semantics Cross-References
 
 For detailed semantics and behavior of specific constructs, see relevant chapters:
 
@@ -4172,6 +4290,7 @@ For detailed semantics and behavior of specific constructs, see relevant chapter
 * **Statements & Control Flow**: §7
 * **Objects & Composition**: §8
 * **Unions**: §4.2.2
+* **Intersections**: §4.2.3
 * **Conditional Matching**: §7.3.2
 * **Lifetime & Memory Model**: §9
 * **Modules & Packages**: §10
@@ -4179,7 +4298,7 @@ For detailed semantics and behavior of specific constructs, see relevant chapter
 * **Error Handling & Diagnostics**: §12
 * **Concurrency & Parallelism**: §13
 
-### 18.2 Reserved Words
+### 18.3 Reserved Words
 
 This appendix lists all reserved keywords in Warble. A reserved keyword is a token that is explicitly recognized by the Warble lexer and parser and cannot be redefined or used as an identifier name within the language.
 

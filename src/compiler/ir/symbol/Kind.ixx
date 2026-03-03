@@ -20,6 +20,7 @@ namespace compiler::ir::symbol {
     String, // Payload is a `std::pair<uint32_t, uint32_t>` of the data start index and length
     Enum, // Payload is a `std::pair<uint32_t, uint32_t>` of the data start index and length
     Union, // Payload is a `std::tuple<uint32_t, uint32_t, uint16_t, uint16_t>` of the data start index, length, and fail count
+    Intersection, // Payload is a `std::pair<uint32_t, uint32_t>` of the data start index and length
     Array, // Payload is a `std::pair<uint32_t, uint32_t>` of the symbol start index and length
     Tuple,
     TemplateString,
@@ -63,6 +64,7 @@ namespace compiler::ir::symbol {
       case Kind::Identifier: return "Identifier";
       case Kind::Symbol: return "Symbol";
       case Kind::Reference: return "Reference";
+      case Kind::Intersection: return "Intersection";
       case Kind::Array: return "Array";
       case Kind::String: return "String";
       case Kind::Enum: return "Enum";
