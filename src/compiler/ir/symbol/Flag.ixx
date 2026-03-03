@@ -24,6 +24,7 @@ namespace compiler::ir::symbol {
     Mut, // Modifier: symbol is mutable
     Const, // Modifier: symbol is constant
     Let, // Modifier: symbol is neutral
+    Symbolic, // Symbol only has a symbol address, no value address
     Async, // Modifier: symbol is asynchronous
     Volatile, // Modifier: symbol is volatile
     Generator, // Marks a function as a generator, so it returns an iterable.

@@ -276,12 +276,12 @@ Literals represent fixed values directly embedded in Warble source code. They fo
   * Numeric literals:
     * Integer: `42`, `0x2A`, `0b101010`
     * Float: `3.14`, `1.0e3`
+  * String literals: `"Hello, Warble!"`
   * Marker symbol literals: `undefined`, `null`, `readonly`
 
 * **Structured Literals**: Represent complex data structures.
 
   * Arrays: `[1, 2, 3]`
-  * Strings: `"Hello, Warble!"`
   * Enums: `<Red, Green, Blue>`
   * Tuples: `(1, "Warble", true)`
   * Objects: `{ x = 1, y = 2 }`
@@ -637,7 +637,7 @@ The explicit requirement of the `do` keyword for scopes and semicolons for liter
 
 Literals in Warble represent explicit, directly-written values within the source code. They form the foundational building blocks of expressions and declarations throughout the language, serving as the simplest way to express data clearly and explicitly.
 
-Warble provides a variety of literal types, broadly categorized into primitive and structured literals. Primitive literals, such as boolean, integer, float, and character, represent fundamental data values. Structured literals, including arrays, strings (including template strings), enums, tuples, objects, functions, and ranges, offer powerful and flexible ways to organize and represent more complex data patterns.
+Warble provides a variety of literal types, broadly categorized into primitive and structured literals. Primitive literals, such as boolean, integer, float, character, and string, represent fundamental data values. Structured literals, including arrays, template strings, enums, tuples, objects, functions, and ranges, offer powerful and flexible ways to organize and represent more complex data patterns.
 
 Each literal type is carefully designed to be both intuitive and expressive, balancing familiarity from other programming languages with Warble's distinctive features and syntactic clarity. The sections that follow explain each literal type in detail, along with their syntax, semantics, and notable characteristics.
 
@@ -799,7 +799,7 @@ let scientificFloat = 1.23e4;
 
 #### 4.1.5 String
 
-String literals in Warble represent textual data and are essentially a specialized subtype of array literals. However, they have their own dedicated syntax and internal representation for efficiency and convenience.
+String literals in Warble represent textual data. Despite their conceptual similarity to arrays of characters, they are classified as primitive literals: they store their content as a slice into a per-module data buffer rather than as child symbols, and they cannot be destructured.
 
 ##### Syntax and Representation
 
@@ -1558,7 +1558,8 @@ This avoids ambiguity when distinguishing between implicit object literals and e
 
 Warble presents all dynamic memory through a small set of compiler-defined **reference primitives**. These are fully known to and implemented by the compiler, and each corresponds to a dedicated symbol kind:
 
-* **Non-owning:** `&T` (borrow) and `view`.
+* **Non-owning:** `&T` / `*T` (borrow) and `view`.
+* **Symbolic:** `$T` (symbolic borrow) — designates a symbol address, not a value address.
 * **Owning:** `unique<T>`, `shared<T>`, `weak<T>`, `future`, and `buffer`.
 
 These primitives define how heap-allocated blocks are created, accessed, and freed in Warble. There is no raw-pointer escape hatch.
@@ -1567,17 +1568,49 @@ Among owning references, `unique<T>`, `shared<T>`, `weak<T>`, and `future` have 
 
 #### 4.2.1 Borrow
 
-A **borrow** (written `&T`) is a runtime value that designates an existing object without owning it.
+A **borrow** is a symbol of kind `Borrow` that designates an existing symbol. There are three borrow variants, distinguished by their flag:
 
-Conceptually, borrows behave like pointers with strict, compiler-enforced lifetime rules.
+| Prefix operator | Flag | Meaning |
+|---|---|---|
+| `&x` | `Const` | Immutable borrow — designates the **value address** of `x`. Cannot be used to mutate the target. |
+| `*x` | `Mut` | Mutable borrow — designates the **value address** of `x`. Permits mutation of the target. |
+| `$x` | `Symbolic` | Symbolic borrow — designates the **symbol address** of `x`. Has no value address; accessing it as a runtime value is a compile-time error. |
 
-Warble uses borrows to access existing storage without copying it.
+All three variants share the same kind (`Borrow`) and the same payload encoding: a `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index).
+
+The parser disambiguates these prefix operators from their infix counterparts based on position. For example, `&` between two expressions is the intersection operator (§4.2.3); `*` between two expressions is multiplication; `&` or `*` before a single operand is a borrow.
+
+##### Immutable Borrow (`&`)
+
+An immutable borrow (`&x`) produces a kind `Borrow` flagged `Const`. It designates the value address of an existing object without owning it.
+
+Conceptually, immutable borrows behave like const pointers with strict, compiler-enforced lifetime rules. Warble uses them to access existing storage without copying it.
 
 Warble does not have raw pointers. Address-like values exist only in the form of compiler-defined reference types (borrows and the owning reference primitives described below). The type system cannot express "raw address" as a value. This restriction applies equally to user code and the standard library.
 
+##### Mutable Borrow (`*`)
+
+A mutable borrow (`*x`) produces a kind `Borrow` flagged `Mut`. It designates the value address of an existing object and permits mutation through the borrow.
+
+Mutable borrows follow the same lifetime and non-escaping rules as immutable borrows. The additional constraint is that while a mutable borrow to a value is live, no other borrow (mutable or immutable) to the same value may be live.
+
+##### Symbolic Borrow (`$`)
+
+A symbolic borrow (`$x`) produces a kind `Borrow` flagged `Symbolic`. It designates the **symbol address** of `x`—that is, it refers to the symbol table entry itself rather than to any runtime value storage.
+
+A symbolic borrow has no value address. Its offset column is unused. Any operation that would require a value address is a compile-time error. Symbolic borrows are used for reflection, runtime type introspection, and metaprogramming:
+
+```warble
+let sym = $namedValue;
+print(nameof(sym)); // Prints "namedValue"
+print(kindof(sym)); // Prints the kind of namedValue
+```
+
+Because symbolic borrows carry no runtime data beyond a symbol index, they are always compile-time transparent and never need to be materialized as pointer-sized runtime values.
+
 ##### Borrow optimization (materialized vs. optimized away)
 
-A borrow is always *conceptually* the same kind of value. However, the compiler aggressively optimizes redundant storage.
+Immutable and mutable borrows are always *conceptually* the same kind of value. However, the compiler aggressively optimizes redundant storage.
 
 If the compiler knows exactly what a borrow designates for the entire lifetime of that borrow, it may choose not to allocate an 8-byte slot to hold an address. Instead, it folds the address calculation directly into each use site (for example, lowering to a base register plus displacement). This is a normal optimization (constant folding / propagation and related lowering).
 
@@ -1607,6 +1640,8 @@ It is therefore a compile-time error to:
 
 Passing a runtime borrow through other function calls is permitted, but the same non-escaping rule applies transitively: callees must not store the borrow beyond their own call frames.
 
+This non-escaping rule applies to immutable and mutable borrows. Symbolic borrows do not carry runtime addresses and are not subject to these restrictions.
+
 ##### External-borrow transparency
 
 External borrows (borrows to imported bindings) must remain transparent to the compiler.
@@ -1630,9 +1665,27 @@ Unions are used for optional values, multi-type expression results, and (most im
 
 ##### Creation and Syntax
 
-Unlike many languages, Warble does not directly specify unions through type annotations. Instead, unions are created by expressions or by union-returning control flow.
+Unions are created by expressions or by union-returning control flow.
 
-The binary operators `||` and `&&` are **union operators**. They always produce a union type.
+The binary operator `|` is the **symbolic union operator**. It produces a kind `Union` flagged `Symbolic`—a union that describes which arms are valid but holds no value:
+
+```warble
+let PetType = Cat | Dog;
+// PetType is kind Union, flagged Symbolic
+// It has no value address — using it as a runtime value is a compile-time error
+```
+
+A symbolic union acquires a concrete value through a constructor annotation (§3.1.5):
+
+```warble
+let pet: Cat | Dog = Dog("Fido", 3);
+// Initialized as: Dog("Fido", 3) -> (Cat | Dog)
+// pet is kind Union, NOT flagged Symbolic — it holds a live Dog value
+```
+
+The `|` operator may be chained. Chained symbolic unions are flattened into a single union with all listed arms.
+
+The binary operators `||` and `&&` are **value-level union operators**. They always produce a union that holds a value (not flagged `Symbolic`).
 
 Unlike most languages, these operators do **not** use truthiness. Instead, they branch based on whether the left-hand side is **passing** or **failing**:
 
@@ -1716,13 +1769,15 @@ In the compiler's internal representation, an intersection is represented as a s
 
 ##### Creation and Syntax
 
-Intersections are created with the binary `&` operator, applied to symbols or functions:
+Intersections are created with the infix `&` operator, applied to symbols or functions:
 
 ```warble
 let I = Cat & Dog;
 ```
 
-This produces an intersection with two arms: `Cat` and `Dog`. The `&` operator may be chained:
+This produces an intersection with two arms: `Cat` and `Dog`. The result is kind `Intersection` flagged `Symbolic`—it describes the constraint but holds no value. Its offset column is unused, and using it as a runtime value is a compile-time error.
+
+The `&` operator may be chained:
 
 ```warble
 let J = Cat & Dog & Animal;
@@ -1740,11 +1795,13 @@ This is similar to unions, but meaningfully different: a union's payload splits 
 
 The data slice is a sequence of `u32` symbol indexes. The **first slot** (index 0 of the slice) is always reserved for the **true type** of the intersection—the concrete type of the value currently held. The remaining slots (index 1 onward) are the **constraint arms**.
 
-When an intersection is created abstractly (not yet holding a value), the true-type slot is set to the symbol index for `Undefined`:
+When an intersection is created via the `&` operator, the true-type slot is set to the symbol index for `Undefined` and the intersection is flagged `Symbolic`:
 
 ```warble
 let I = Cat & Dog;
-// I is an intersection: true type = Undefined, arms = [Cat, Dog]
+// I is kind Intersection, flagged Symbolic
+// true type = Undefined, arms = [Cat, Dog]
+// No value address — using I as a runtime value is a compile-time error
 ```
 
 ##### Instantiation
@@ -1756,7 +1813,7 @@ let value: I = Dog("Fido", 3);
 // Initialized as: Dog("Fido", 3) -> I
 ```
 
-The compiler evaluates `Dog("Fido", 3)` to produce a concrete `Dog` value, then checks that this value satisfies every constraint arm of `I`. If the check succeeds, the resulting symbol is of kind `Intersection` with its true-type slot set to the resolved type of the `Dog` value. At runtime, the memory layout is that of the true type (`Dog`).
+The compiler evaluates `Dog("Fido", 3)` to produce a concrete `Dog` value, then checks that this value satisfies every constraint arm of `I`. If the check succeeds, the resulting symbol is of kind `Intersection` with its true-type slot set to the resolved type of the `Dog` value. The `Symbolic` flag is not present on the resulting symbol—it has a real value address. At runtime, the memory layout is that of the true type (`Dog`).
 
 If any arm is not satisfied—for example, if `Dog` does not support an operation that `Cat` requires—the compiler emits an error at the point of instantiation.
 
@@ -2079,6 +2136,15 @@ let namedValue = 100; // assigns the symbol for '100' a name
 
 ##### Symbol Addressing and Lookup
 
+Every symbol has the capability to represent two addresses simultaneously:
+
+* **Symbol address**: The offset into the module's symbol table, calculated from the symbol's index. Every symbol has a symbol address.
+* **Value address**: A byte offset relative to some enclosing context (such as a function's stack frame or a module's static memory block), stored in the symbol's `offsetof` column.
+
+For example, `const i = 42;` inside a function is represented by a symbol of kind `Integer` with its offset column set to the byte displacement from the enclosing function. This allows the runtime value address to be calculated as a displacement from `RSP`. But the symbol also has a symbol address—the index that leads to the entry in the symbol table where the kind, flags, name, and other metadata can be read. Symbol table data is embedded into the compiled binary as read-only data, so symbol addresses are available at runtime.
+
+A symbol flagged as `Symbolic` only has a symbol address. It does not have a value address. Its offset column is unused. Any operation that requires a value address is a compile-time error.
+
 Warble utilizes symbols extensively for efficient address resolution through a two-phase lookup process:
 
 * **Downward Resolution**: To access nested symbols, Warble sums the displacements of child symbols.
@@ -2091,14 +2157,15 @@ Addressing strategies depend on the context:
 
 ##### Reflection and Runtime Access
 
-Users access symbol metadata at runtime through Warble's reflection operator `$`:
+Users access symbol metadata at runtime through the symbolic borrow operator `$` (§4.2.1). The expression `$x` produces a kind `Borrow` flagged `Symbolic`, designating the symbol table entry for `x`:
 
 ```warble
 let sym = $namedValue;
 print(nameof(sym)); // Prints "namedValue"
+print(kindof(sym)); // Prints the kind of namedValue
 ```
 
-Reflection provides a powerful, dynamic interface for debugging, logging, and runtime type introspection.
+Because a symbolic borrow carries no value address, it is purely a handle to symbol metadata. Reflection provides a powerful, dynamic interface for debugging, logging, and runtime type introspection.
 
 ##### Type-Checking and Identity Operators
 
@@ -2156,6 +2223,7 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - Impure / Used / Inline / Immediate / Internal / Accumulator: Miscellaneous analysis and lowering flags.
 - Comtime / Runtime: Compile-time vs. runtime knowledge.
 - NonZero / NonMax: Optimization hints.
+- Symbolic: Symbol only has a symbol address, no value address. Its offset column is unused. Using it as a runtime value (any operation that requires a value address) is a compile-time error. See §4.2.1 for how borrows use this flag, and §4.2.2/§4.2.3 for how unions and intersections use it.
 - Halts: Indicates a function is proven to halt.
 - Topic: Indicates that this symbol is a topic and is accessible via `this` or `that`.
 
@@ -2167,8 +2235,8 @@ Core kinds:
 
 - Undefined, Unresolved, Auto, Null, Readonly
 - Raw, Boolean, Character, Integer, Float
-- Symbol, Borrow, Unique, Shared, Weak, Future, Buffer, View
-- Identifier, String, Enum, Union
+- Borrow, Unique, Shared, Weak, Future, Buffer, View
+- Identifier, String, Enum, Union, Intersection
 - Array, Tuple, TemplateString, Object, Range
 - Phi, Function, Module, Label
 
@@ -2191,8 +2259,7 @@ Common payload encodings (in terms of C++ types):
 - Character: `char32_t`.
 - Integer: `std::pair<uint32_t, uint32_t>` of (data slice start, limb count).
 - Float: `std::pair<uint32_t, uint32_t>` of (data slice start, limb count). The referenced slice stores significand limbs followed by two exponent limbs.
-- Symbol: `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index).
-- Borrow: `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index).
+- Borrow: `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index). The flag (`Const`, `Mut`, or `Symbolic`) determines the borrow variant.
 - Identifier / String / Enum: `std::pair<uint32_t, uint32_t>` of (data slice start, slice length).
 - Union: `std::tuple<uint32_t, uint32_t, uint16_t, uint16_t>` containing a data slice plus 16-bit counts (including `fail_count`).
 - Label: `std::pair<uint32_t, uint32_t>` of (instruction start index, length).
@@ -2204,13 +2271,24 @@ Common payload encodings (in terms of C++ types):
 
 This section provides a detailed explanation of how unions are created, manipulated, and represented in memory. Unions in Warble are conceptually straightforward as tagged unions, and Warble provides several powerful and ergonomic operators for working with them, ensuring both expressive power and performance efficiency.
 
-#### 4.3.1 Creation (`||`, `&&`, `return`, `yield`)
+#### 4.3.1 Creation (`|`, `||`, `&&`, `return`, `yield`)
 
-Unions in Warble are created implicitly through certain expressions rather than explicit type annotations. The main ways unions arise are:
+Unions in Warble are created through expressions or by union-returning control flow. The main ways unions arise are:
 
-**Union Operators (`||`, `&&`):**
+**Symbolic Union Operator (`|`):**
 
-Both `||` and `&&` are union operators. They produce a union and short-circuit based on whether the left-hand side is passing or failing (rather than on truthiness).
+The binary `|` operator produces a kind `Union` flagged `Symbolic`. It describes which arms are valid but holds no runtime value:
+
+```warble
+let PetType = Cat | Dog;
+// kind Union, flagged Symbolic — no value address
+```
+
+A symbolic union is used purely as a type descriptor. It can appear in constructor annotations to specify which types a union may hold. When a value is actually initialized into a symbolic union (via a constructor annotation or assignment), the result is a normal (non-symbolic) union with a live value.
+
+**Value-Level Union Operators (`||`, `&&`):**
+
+Both `||` and `&&` are value-level union operators. They produce a union that holds a value (not flagged `Symbolic`) and short-circuit based on whether the left-hand side is passing or failing (rather than on truthiness).
 
 * `a || b` returns `a` (without evaluating `b`) when `a` is passing; otherwise it returns `b`.
 * `a && b` returns `a` (without evaluating `b`) when `a` is failing; otherwise it returns `b`.
