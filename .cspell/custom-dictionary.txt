@@ -47,3 +47,4 @@ tfnua
 vsdev
 vsroot
 vswhere
+wakeup

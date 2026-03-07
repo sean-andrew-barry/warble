@@ -1560,11 +1560,11 @@ Warble presents all dynamic memory through a small set of compiler-defined **ref
 
 * **Non-owning:** `&T` / `*T` (borrow) and `view`.
 * **Symbolic:** `$T` (symbolic borrow) — designates a symbol address, not a value address.
-* **Owning:** `unique<T>`, `shared<T>`, `weak<T>`, `future`, and `buffer`.
+* **Owning:** `unique<T>`, `shared<T>`, `weak<T>`, `future<F>`, and `buffer`.
 
 These primitives define how heap-allocated blocks are created, accessed, and freed in Warble. There is no raw-pointer escape hatch.
 
-Among owning references, `unique<T>`, `shared<T>`, `weak<T>`, and `future` have fixed runtime size and use compile-time-known deallocation sizes, while `buffer` carries a runtime `size_bytes`.
+Among owning references, `unique<T>`, `shared<T>`, `weak<T>`, and `future<F>` have fixed runtime size and use compile-time-known deallocation sizes, while `buffer` carries a runtime `size_bytes`.
 
 #### 4.2.1 Borrow
 
@@ -1646,7 +1646,7 @@ This non-escaping rule applies to immutable and mutable borrows. Symbolic borrow
 
 External borrows (borrows to imported bindings) must remain transparent to the compiler.
 
-In particular, the compiler must always be able to determine exactly which imported binding is being borrowed, so it can preserve memory safety rules and (for the module scheduler model) insert barriers at every external read site (§13.1.4).
+In particular, the compiler must always be able to determine exactly which imported binding is being borrowed, so it can preserve memory safety rules and (for the module scheduler model) insert barriers at every external read site (§13.2.4).
 
 Therefore, it is a compile-time error to make an external borrow opaque by copying it into constructs that hide its identity, such as unions. For example, storing an external borrow into a union (such as `!null | &T`) is a compile-time error.
 
@@ -1690,6 +1690,7 @@ The binary operators `||` and `&&` are **value-level union operators**. They alw
 Unlike most languages, these operators do **not** use truthiness. Instead, they branch based on whether the left-hand side is **passing** or **failing**:
 
 * A non-union value is considered **passing**.
+> TODO: The above isn't quite right. A non-union value is default to passing, but it's more complex than that.
 * A union value is **passing** when its runtime tag is in the union's pass region (`tag >= fail_count`) and **failing** otherwise.
 
 **`a || b`**
@@ -3210,7 +3211,7 @@ Rules:
 Scheduling semantics:
 
 * Each iteration of a `tick` loop ends with an implicit **suspension point**. This suspension point is not written by the user, but it is part of the loop's semantics.
-* Suspending returns control back to the runtime scheduler, which may run other modules or other work before resuming this module for the next iteration. The runtime may also immediately continue the same module to catch up (§13.1.6).
+* Suspending returns control back to the runtime scheduler, which may run other modules or other work before resuming this module for the next iteration. The runtime may also immediately continue the same module to catch up (§13.2.6).
 
 The `tick` loop is the primary surface syntax hook for the module scheduler described in §13.
 
@@ -3678,7 +3679,7 @@ Exact thresholds are implementation-defined. A reasonable approach is to compare
 
 #### 9.5.12 Coalescing (buddy merges) and OS release
 
-In addition to rebalancing, workers may perform background heap maintenance when they are otherwise idle (for example, while waiting for barriers to clear; see §13.1.6).
+In addition to rebalancing, workers may perform background heap maintenance when they are otherwise idle (for example, while waiting for barriers to clear; see §13.2.6).
 
 Coalescing is an optional optimization that merges free buddy blocks into larger blocks.
 
@@ -3905,11 +3906,48 @@ Warble programs are inherently concurrent. A pool of worker threads executes mod
 
 Note: the `yield` statement is a feature of union / generator functions (§4.2.2, §7.5) and is unrelated to module scheduling.
 
-### 13.1 Module Scheduling
+### 13.1 Program Lifecycle
+
+A Warble program begins execution on a single operating-system thread: the **main thread**. The main thread's first responsibility is to create and initialize the **thread pool**, spawning one worker thread per logical CPU core. Once all workers are active, the main thread's role as launcher is complete.
+
+The main thread then enters a waiting state, waking periodically on a repeating interval (for example, once per second) to perform lightweight health monitoring. Its remaining responsibilities are to confirm that the pool is running smoothly, and to shut it down when it finishes—whether normally or due to an error.
+
+#### 13.1.1 Normal Execution
+
+Under normal operation, the main thread sleeps while the worker threads execute modules concurrently. When the pool finishes—all workers exhaust their work queues and stop—the pool wakes the main thread. The main thread tears down the pool (joining all worker threads and releasing pool resources) and returns, allowing the process to exit cleanly.
+
+#### 13.1.2 Health Monitoring
+
+On each monitoring wakeup, the main thread reads the pool's shared metadata to verify that progress is still being made. Workers publish lightweight diagnostics—their current worker cycle counter and a recent timestamp—that the main thread can inspect without acquiring locks. Using these values alongside the cycle history buffer (§13.2.9), the main thread checks whether the pool is advancing at a reasonable rate. Under normal operation this check is cheap and the main thread returns to sleep immediately.
+
+#### 13.1.3 Stall Recovery
+
+A **stall** occurs when workers are failing to make progress but have not detected this themselves. The no-progress backoff mechanism (§13.2.6) handles most stalls internally: when workers detect they are stuck, they stop and wake the main thread. If a stall goes undetected by the workers, the main thread's periodic monitoring wakeup provides the fallback.
+
+When the main thread determines—via cycle history and timing heuristics (§13.2.9)—that the pool is in an unrecoverable stall, it:
+
+1. Sets the pool's stop flag to signal all workers to halt.
+2. Waits for all workers to exit.
+3. Collects debug information (cycle counters, timestamps, scheduling state).
+4. Tears down the pool and returns with an error status.
+
+#### 13.1.4 Panic Handling
+
+When a worker encounters a fatal runtime error, it immediately transfers control to a small **panic stub**. The stub performs exactly the following actions:
+
+1. Updates the worker's metadata to record that a panic occurred and document relevant state for debugging.
+2. Atomically sets the pool's stop flag.
+3. Exits the worker thread.
+
+The panic stub deliberately performs **no stack allocation**. This constraint is critical: a panic may originate from a stack overflow, in which case further stack use would be unsafe or impossible. All state written by the stub resides in the worker's pre-allocated metadata region.
+
+When the main thread wakes—either because other workers stopped or because the monitoring interval fired—it observes the panic flag in the pool metadata. It then collects debug information from the panicked worker's metadata, tears down the pool, and returns with an error status.
+
+### 13.2 Module Scheduling
 
 This section describes the runtime model used to execute **modules** concurrently.
 
-#### 13.1.1 Modules as Singleton Tasks
+#### 13.2.1 Modules as Singleton Tasks
 
 At runtime, each module is a singleton instance:
 
@@ -3921,7 +3959,7 @@ Module entry points are runtime-owned (users do not call them directly). Concept
 
 * `bool module_entry(u64 target_cycle)`
 
-Where `target_cycle` is the scheduling anchor used for eligibility checks, and the return value indicates whether the module should be retried again in the current scheduling pass (§13.1.6).
+Where `target_cycle` is the scheduling anchor used for eligibility checks, and the return value indicates whether the module should be retried again in the current scheduling pass (§13.2.6).
 
 Execution model:
 
@@ -3931,21 +3969,21 @@ Execution model:
 
 Initially, the resume point is the location immediately after this jump, so the first successful claim starts execution at the top of the module.
 
-#### 13.1.2 Dependency Lists (Imports)
+#### 13.2.2 Dependency Lists (Imports)
 
 Each module instance carries a dependency list of pointers to other module instances.
 
 * A module depends on another module exactly when it imports it via a normal `import`.
 * The normal import graph must be acyclic (a DAG) and is known at compile time.
-* Using `import deferred` is an explicit escape hatch that relaxes same-pass ordering and may participate in cycles (§10.3.1, §13.1.4).
+* Using `import deferred` is an explicit escape hatch that relaxes same-pass ordering and may participate in cycles (§10.3.1, §13.2.4).
 
 Additionally, the runtime and compiler conceptually also operate on the reverse relationship:
 
 * A module has a **dependent** when that other module imports it.
 
-Dependents are used by the compiler to build write barriers for exported state (§13.1.4).
+Dependents are used by the compiler to build write barriers for exported state (§13.2.4).
 
-#### 13.1.3 Module Cycle Counters (Half-Cycles)
+#### 13.2.3 Module Cycle Counters (Half-Cycles)
 
 Each module maintains an atomic unsigned 64-bit **cycle counter**.
 
@@ -3961,20 +3999,20 @@ Interpretation:
 
 The runtime stores cycle counters in `u64` and assumes they do not overflow during a program run.
 
-A module may also temporarily *abort* a run attempt after claiming (for example, because it hit a compiler-inserted barrier). In this case the module must undo the claim by decrementing its cycle counter back to the prior even value before returning to the scheduler (§13.1.6).
+A module may also temporarily *abort* a run attempt after claiming (for example, because it hit a compiler-inserted barrier). In this case the module must undo the claim by decrementing its cycle counter back to the prior even value before returning to the scheduler (§13.2.6).
 
 ##### Worker Cycle Counter (Core)
 
 Each worker thread maintains an atomic, publicly observable unsigned 64-bit **worker cycle counter**.
 
 * The worker advances its cycle counter by one when it begins a scheduling pass.
-* The worker advances its cycle counter by one again when it completes that pass (when it swaps its buffers; see §13.1.6).
+* The worker advances its cycle counter by one again when it completes that pass (when it swaps its buffers; see §13.2.6).
 
 This makes the worker's cycle counter a half-cycle counter in the same sense as module cycle counters.
 
 The worker cycle counter is a core part of the scheduling design: it provides an anchor value that prevents a worker from accidentally running the same module multiple times within a single scheduling pass.
 
-#### 13.1.4 Eligibility and Barriers
+#### 13.2.4 Eligibility and Barriers
 
 This scheduler model uses **optimistic execution with compiler-inserted barriers**.
 
@@ -3983,7 +4021,7 @@ At the start of a module entry call, the entry point performs a fast eligibility
 * If `cm >= target_cycle`, the module is considered already handled for this scheduling pass and returns `false`.
 * If `cm` is odd, the module is currently in progress on some worker and returns `false`.
 
-Otherwise, `cm` is even and `cm < target_cycle`, so the entry point attempts to claim the module (§13.1.5). If the claim succeeds, the module begins executing user code at its resume point.
+Otherwise, `cm` is even and `cm < target_cycle`, so the entry point attempts to claim the module (§13.2.5). If the claim succeeds, the module begins executing user code at its resume point.
 
 Instead of attempting to fully establish dependency readiness up front, the compiler inserts read and write barriers directly into module code to prevent data races and to enforce safe ordering close to where data is actually accessed. A minimum of one read barrier is always emitted per import, even when no bindings are read (see below).
 
@@ -4059,7 +4097,7 @@ These barriers rely on the compiler being able to observe and reason about every
 
 Warble therefore requires that external borrows remain transparent and must not be made opaque to the compiler (§4.2.1).
 
-#### 13.1.5 Claiming a Module
+#### 13.2.5 Claiming a Module
 
 To claim a runnable module `m`, the worker thread performs an atomic compare-exchange:
 
@@ -4070,7 +4108,7 @@ If the compare-exchange succeeds, the worker exclusively owns the module until i
 
 If it fails, some other worker either claimed the module or advanced it; the worker must abandon this attempt and look for other work.
 
-#### 13.1.6 Suspension and Rescheduling (`tick`)
+#### 13.2.6 Suspension and Rescheduling (`tick`)
 
 The primary source-level suspension mechanism for modules is the `tick` loop (§7.4.4).
 
@@ -4104,7 +4142,7 @@ In practice, this catch-up behavior is only expected to matter for top-level mod
 
 ##### Barrier-triggered suspension (blocked run attempt)
 
-In addition to `tick` suspension, module code may suspend due to a compiler-inserted read or write barrier (§13.1.4).
+In addition to `tick` suspension, module code may suspend due to a compiler-inserted read or write barrier (§13.2.4).
 
 When a barrier suspends a run attempt, the module is considered **blocked** and it must not advance its cycle:
 
@@ -4136,14 +4174,14 @@ At the beginning of each scheduling pass, the worker also records the active buf
 
 The module entry point returns a boolean that represents whether the attempt was **blocked**.
 
-* `true` means: **blocked**. The module began a run attempt but suspended at a compiler-inserted barrier (§13.1.4), rolled back its claim, and should be retried later in the same scheduling pass.
+* `true` means: **blocked**. The module began a run attempt but suspended at a compiler-inserted barrier (§13.2.4), rolled back its claim, and should be retried later in the same scheduling pass.
 * `false` means: **not blocked**. Do not requeue it for retry in this scheduling pass. This includes cases where the module successfully ran (or suspended and scheduled itself via `tick`), chose not to run because it was already handled for this `target_cycle`, observed that it is already in progress, or observed that it is complete.
 
 When a worker calls a module entry point from its active buffer:
 
-* If the call returns `true`, the worker arranges for that same module entry point to be reconsidered later in the same scheduling pass. The exact mechanism depends on which phase the worker is in (§13.1.6).
+* If the call returns `true`, the worker arranges for that same module entry point to be reconsidered later in the same scheduling pass. The exact mechanism depends on which phase the worker is in (§13.2.6).
 
-This same-pass retry rule applies to top-level scheduling calls anchored to the worker cycle. Module code does not recursively schedule dependencies in general; the only dependency-running behavior is the read-barrier attempt described in §13.1.4.
+This same-pass retry rule applies to top-level scheduling calls anchored to the worker cycle. Module code does not recursively schedule dependencies in general; the only dependency-running behavior is the read-barrier attempt described in §13.2.4.
 
 ##### Progress Detection and Backoff
 
@@ -4197,7 +4235,7 @@ The exact heuristics (how often to scan globals, how long to yield/sleep, and ho
 
 To reduce contention at startup, the runtime may partition the initial module set across workers (for example, by giving each worker a contiguous range of module indexes to seed its active buffer). The exact distribution strategy is implementation-defined.
 
-#### 13.1.7 Module Completion
+#### 13.2.7 Module Completion
 
 When a module reaches the end of its top-level code (falls off the end of the file), it is complete and is never scheduled again.
 
@@ -4211,7 +4249,7 @@ This makes module completion idempotent and safe:
 * Eligibility checks treat the module as already handled because its cycle count is far ahead and *even*.
 * If a worker erroneously claims a completed module, its compare-exchange makes the cycle counter *odd* (to the maximum `u64`). The resume-point epilogue immediately decrements it back to the maximum *even* value and returns without rescheduling.
 
-#### 13.1.8 Deadlock and Livelock Freedom
+#### 13.2.8 Deadlock and Livelock Freedom
 
 Given the static guarantee that the normal import graph is a DAG (no true circular dependencies), the scheduling system is provably free of both deadlock and livelock.
 
@@ -4258,7 +4296,7 @@ In either case, A completes in finite time. By induction, all modules at all dep
 
 `import deferred` is exempt from same-cycle ordering: it reads the dependency's previous committed cycle and is therefore never part of the same-cycle barrier graph. Deferred reads cannot form a wait cycle with normal read barriers, and the circular graph structure they allow is resolved across cycles rather than within a single scheduling pass. This means the presence of deferred imports does not invalidate either argument above.
 
-#### 13.1.9 Cycle History and Pool Health Monitoring
+#### 13.2.9 Cycle History and Pool Health Monitoring
 
 The runtime maintains a global **cycle history buffer**: a fixed-size circular buffer of timestamps, one entry per completed scheduling pass.
 
@@ -4270,25 +4308,25 @@ The buffer provides a rolling history of how long each cycle took. Because all e
 
 **Uses of the cycle history:**
 
-* **Stall detection.** If all workers are simultaneously in the no-progress backoff state (§13.1.6) and the elapsed time since the last recorded cycle greatly exceeds historical norms, the pool can declare itself stalled. The cycle history enables a relative threshold rather than a fixed one: a program that has been averaging 3 seconds per cycle should not be declared stalled at 5 seconds, but a program averaging 10ms should. A practical approach is to compute the mean and spread of recent cycle durations and trigger only when the current gap is a significant outlier (e.g., exceeds `mean + k * spread` for some multiplier `k`).
+* **Stall detection.** If all workers are simultaneously in the no-progress backoff state (§13.2.6) and the elapsed time since the last recorded cycle greatly exceeds historical norms, the pool can declare itself stalled. The cycle history enables a relative threshold rather than a fixed one: a program that has been averaging 3 seconds per cycle should not be declared stalled at 5 seconds, but a program averaging 10ms should. A practical approach is to compute the mean and spread of recent cycle durations and trigger only when the current gap is a significant outlier (e.g., exceeds `mean + k * spread` for some multiplier `k`).
 
 * **Cold-start fallback.** Until the buffer contains enough entries to compute a meaningful spread, stall detection falls back to a conservative fixed timeout.
 
-* **Throttle calibration.** A module that wants to limit its own execution rate (§13.1.6) can read recent cycle durations to make informed decisions — for example, skipping a cycle if it ran less than N milliseconds ago.
+* **Throttle calibration.** A module that wants to limit its own execution rate (§13.2.6) can read recent cycle durations to make informed decisions — for example, skipping a cycle if it ran less than N milliseconds ago.
 
 * **Runtime diagnostics and profiling.** The buffer provides a lightweight built-in history of scheduling throughput, useful for developer tooling, performance dashboards, and detecting gradual slowdowns over time.
 
 The buffer length is implementation-defined. A length sufficient to cover several seconds of history at typical cycle rates is recommended.
 
-### 13.2 Atomic Operations
+### 13.3 Atomic Operations
 
 The standard library provides atomic counters and flags. They offer lock‑free read, write and compare‑exchange operations with explicit memory ordering.
 
-### 13.3 Async Tasks (Futures)
+### 13.4 Async Tasks (Futures)
 
 In addition to module execution, worker threads also execute **async tasks** created by async function calls.
 
-#### 13.3.1 Async function calls
+#### 13.4.1 Async function calls
 
 Calling an async function:
 
@@ -4302,9 +4340,9 @@ The async task entry consists of:
 * a function pointer (the async function's entry point), and
 * a context pointer (the async frame pointer).
 
-#### 13.3.2 Per-thread async-task queues
+#### 13.4.2 Per-thread async-task queues
 
-Each worker thread maintains private async-task queues distinct from the module entry-point queues described in §13.1.
+Each worker thread maintains private async-task queues distinct from the module entry-point queues described in §13.2.
 
 Unlike module scheduling, async task scheduling requires both a code pointer and a context pointer, so each queue element is a pair `(fn_ptr, ctx_ptr)`.
 
@@ -4316,7 +4354,7 @@ Scheduling point:
 
 Exact ordering between module work and async-task work is implementation-defined, but the runtime must ensure that async tasks are eventually executed (they must not starve behind module work forever).
 
-#### 13.3.3 Completion and detachment
+#### 13.4.3 Completion and detachment
 
 When an async task reaches completion:
 
@@ -4327,7 +4365,7 @@ If the compare-exchange succeeds, the result is now observable via `await`.
 
 If the compare-exchange fails because the tag is `compiler.detached`, the future was dropped while the task was still unresolved. In this case the task must destroy the async frame (run any required cleanup and free the allocation).
 
-#### 13.3.4 Awaiting
+#### 13.4.4 Awaiting
 
 The `await` operator is defined in terms of the **promise union**: it waits until the promise tag transitions away from `compiler.unresolved`.
 
