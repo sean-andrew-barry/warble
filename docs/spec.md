@@ -3758,6 +3758,33 @@ register extended_package from "https://github.com/user/extended_package" with <
 
 If the same package is registered multiple times, it is shared, not duplicated.
 
+##### Exported registrations (`register export`)
+
+A `register` statement may be followed by the `export` keyword. This makes the resulting `Package` binding available both as a local name within the current module and as an export visible to any module that imports the current module.
+
+This is useful when a module acts as a central place to declare and expose third-party dependencies, so that importers of that aggregating module gain access to the registered package identifiers without having to register them again themselves.
+
+```warble
+// deps.wbl — centralizes all third-party dependency registrations for the project
+import {string, vector, math} from "permissions/safe" in compiler;
+import fs from "filesystem" in compiler;
+import http from "http" in compiler;
+
+register export serializer from "https://github.com/example/serializer" with <string, vector>;
+register export data_store from "https://github.com/example/data_store" with <string, fs>;
+register export web_client from "https://github.com/example/web_client" with <string, http>;
+```
+
+```warble
+// app.wbl — imports deps.wbl and uses the re-exported package bindings directly
+import {serializer, data_store, web_client} from "./deps";
+
+import {serialize} from "encoding" in serializer;
+import {connect} from "client" in web_client;
+```
+
+Only the package binding itself is re-exported, not the contents of the package. Any module that receives the exported binding must still issue its own `import` statements to access modules within that package.
+
 #### 10.2.2 Permissions & Security Model
 
 Warble adopts a security-first approach to package dependencies. Packages must be explicitly granted permission to access standard library modules. These permissions form an **allow list**, specifying precisely what the package can import from the standard library.
@@ -3853,6 +3880,43 @@ import vector from "vector" in compiler;           // Import a specific standard
 
 Imports always produce immutable bindings, regardless of the original export mutability. Modules are shared: multiple imports of the same module access the same instance.
 
+##### Exported imports (`import export`)
+
+An `import` statement may be followed by the `export` keyword. This makes the imported binding both locally available within the current module and visible as an export to any module that imports the current module. In other words, `import export` is a single-statement way to simultaneously import and re-export.
+
+This works with both whole-module imports and destructured imports:
+
+```warble
+// io.wbl — assembles a focused public I/O API by re-exporting from the standard library
+import export fs from "filesystem" in compiler;
+import export net from "network" in compiler;
+// Consumers of io.wbl receive fs and net as Module bindings, exactly as if they had
+// imported those modules from the standard library themselves.
+```
+
+```warble
+// math.wbl — selectively re-exports individual symbols from the standard library math module
+import export {sin, cos, tan, sqrt, floor, ceil} from "math" in compiler;
+// Only the six named exports are made available. Other exports of the "math" module
+// (e.g. log, exp) are not re-exported and remain inaccessible through this module.
+```
+
+```warble
+// geometry.wbl — uses re-exported symbols locally and exposes results
+import export {sin, cos, pi} from "math" in compiler;
+
+export to_cartesian = (r: float, theta: float) {
+  return {
+    x = r * cos(theta),
+    y = r * sin(theta),
+  };
+};
+
+export tau = 2.0 * pi; // pi is also available locally for use within this module
+```
+
+With destructuring, only the specifically named bindings are exported — not the module they came from, and not any of its other exports. This makes `import export {a, b} from ...` a precise tool for building minimal, deliberate public APIs.
+
 ##### Deferred imports (`import deferred`)
 
 `import deferred` is an explicit escape hatch that relaxes same-pass ordering between modules.
@@ -3877,7 +3941,7 @@ export fn = (){};
 export mut mutableValue = 42; // Only mutable internally, dependency modules cannot mutate
 ```
 
-Only declarations explicitly marked with `export` become visible outside the module.
+Only declarations explicitly marked with `export` become visible outside the module. The `export` keyword may also follow `import` and `register` statements to simultaneously create a local binding and export it (see §10.3.1 and §10.2.1).
 
 #### 10.3.3 Pseudo-Modules
 
@@ -4511,7 +4575,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`private`** — Declares a binding or property as private.
 * **`protected`** — Declares a binding or property as protected.
 * **`public`** — Declares a binding or property as public.
-* **`export`** — Declares a binding as exported from its module.
+* **`export`** — Declares a binding as exported from its module. May also follow `import` and `register` statements to simultaneously create a local binding and re-export it.
 
 #### Control Flow
 
@@ -4547,8 +4611,8 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 
 #### Module and Imports
 
-* **`import`** — Imports symbols from external modules.
-* **`register`** — Registers a URL as a package, creating a local binding of kind `Package` used as the base for imports.
+* **`import`** — Imports symbols from external modules. May be followed by `export` to simultaneously import and re-export the binding.
+* **`register`** — Registers a URL as a package, creating a local binding of kind `Package` used as the base for imports. May be followed by `export` to simultaneously register and re-export the package binding.
 * **`with`** — Used in conjunction with `register` statements to specify allowed standard library modules for a package.
 * **`in`** — Used in `import` statements to specify the package to import from. Also used in `for` loops.
 
