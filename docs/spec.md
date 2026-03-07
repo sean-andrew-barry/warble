@@ -120,13 +120,15 @@ else { print("Unknown result."); }
 Easily handle optional or uncertain data:
 
 ```warble
+import {integer} from "primitives" in compiler;
+
 mut optionalValue = 42 || !null; // Create a union with a `null` absence state
 
 optionalValue = null;   // now represents no value
 optionalValue = 7;      // set to integer
 
 if (optionalValue)
-is (compiler.integer) { print("Got an integer: {this}"); }
+is (integer) { print("Got an integer: {this}"); }
 is (null) { print("No value available."); }
 ```
 
@@ -339,8 +341,8 @@ count += 1;
 let fn = () { return count; };      // function literal is an expression ⇒ needs ;
 let fn2(x) { return x * 2; };       // callable literal shorthand form ⇒ still needs ;
 
-import fs from "filesystem" in "std";
-register "pkg" from "../pkg";
+import fs from "filesystem" in compiler;
+register pkg from "../pkg";
 
 // 2. Compound statements – semicolon *optional*
 if (cond) {
@@ -1150,7 +1152,7 @@ let user = {
   mut age = 32,            // mutable
   private email = "...",  // visibility modifier
 
-  <compiler.constructor> = (){}, // object-mode enum key
+  <MyTag> = (){}, // object-mode enum key
   "label" = "OK", // object-mode string key
 
   let counter = 0,         // normal-mode
@@ -1706,7 +1708,7 @@ Unlike most languages, these operators do **not** use truthiness. Instead, they 
 Example:
 
 ```warble
-let data = 42 || ""; // type <compiler.integer, compiler.string>, value is 42
+let data = 42 || ""; // type <integer, string>, value is 42
 ```
 
 ##### Union Functions (`return` / `yield`)
@@ -1724,7 +1726,7 @@ Any function that contains a `yield` statement is automatically a **generator fu
 
 Any function that contains an `async`-augmented `return` or `yield` is an **async function**.
 
-For an async function, the compiler constructs a **promise union type** by taking the inferred union from its `return`/`yield` arms and adding `compiler.unresolved` and `compiler.detached` as additional fail arms (deduplicated if already present).
+For an async function, the compiler constructs a **promise union type** by taking the inferred union from its `return`/`yield` arms and adding `unresolved` and `detached` as additional fail arms (deduplicated if already present).
 
 Both `return` and `yield` may be augmented with the keywords `async`, `pass`, and `fail`:
 
@@ -1751,10 +1753,10 @@ The union returned by a union function is constructed from the set of types prod
 
 Promises and generators are not distinct types; they are common patterns of union:
 
-* A **generator** is a union that includes the compiler-defined symbol `compiler.exhausted` as one of its fail arms. `for` loops treat `compiler.exhausted` as the iteration-termination state.
-* A **promise** is a union that includes the compiler-defined symbols `compiler.unresolved` and `compiler.detached` as fail arms. `compiler.unresolved` means "not complete yet". `compiler.detached` means "the owning future has been dropped; completion results will be discarded".
+* A **generator** is a union that includes the compiler-defined symbol `exhausted` as one of its fail arms. `for` loops treat `exhausted` as the iteration-termination state.
+* A **promise** is a union that includes the compiler-defined symbols `unresolved` and `detached` as fail arms. `unresolved` means "not complete yet". `detached` means "the owning future has been dropped; completion results will be discarded".
 
-`compiler.exhausted`, `compiler.unresolved`, and `compiler.detached` are classified as **fail** states. When a union is in one of these states, its value slot is not meaningful and must not be accessed.
+`exhausted`, `unresolved`, and `detached` are classified as **fail** states. When a union is in one of these states, its value slot is not meaningful and must not be accessed.
 
 In an async function, the promise union is produced asynchronously. The call returns a `future` handle (§4.2.4) that designates the promise union in an async frame. The `await` operator consumes a `future` and waits until its promise is complete.
 
@@ -1913,8 +1915,8 @@ Semantics:
 
 Dropping a future:
 
-* If the promise tag is no longer `compiler.unresolved`, the future destroys the async frame immediately.
-* Otherwise, the future attempts to detach by atomically compare-exchanging the tag from `compiler.unresolved` to `compiler.detached`.
+* If the promise tag is no longer `unresolved`, the future destroys the async frame immediately.
+* Otherwise, the future attempts to detach by atomically compare-exchanging the tag from `unresolved` to `detached`.
   * If the compare-exchange succeeds, the async task becomes responsible for cleanup when it eventually completes.
   * If the compare-exchange fails because the task completed concurrently, the future destroys the async frame immediately.
 
@@ -2317,8 +2319,8 @@ Example:
 
 ```warble
 let parse_int = (text) {
-  if (compiler.can_parse_int(text)) {
-    return pass compiler.parse_int(text);
+  if (can_parse_int(text)) {
+    return pass parse_int(text);
   }
   return fail "not an int";
 };
@@ -2342,7 +2344,7 @@ Example:
 
 ```warble
 let nested = 1 || false || "Hello";
-// Instead of <compiler.integer, <compiler.boolean, compiler.string>>, Warble flattens it to <compiler.integer, compiler.boolean, compiler.string>
+// Instead of <integer, <boolean, string>>, Warble flattens it to <integer, boolean, string>
 ```
 
 Flattening occurs at compile-time, merging all potential union types into a single, flat union type.
@@ -2377,7 +2379,7 @@ If the current runtime tag is `tag`, then:
 * The union is in a failing state when `tag < fail_count`.
 * The union is in a passing state when `tag >= fail_count`.
 
-The compiler-defined `compiler.unresolved` (promise) and `compiler.exhausted` (generator) states are classified as failing states.
+The compiler-defined `unresolved` (promise) and `exhausted` (generator) states are classified as failing states.
 
 This ordering is important, because it allows any union to be tested for pass/fail status by a single comparison.
 
@@ -2485,7 +2487,7 @@ Illustrative lowering (conceptual):
 
 ```warble
 let u = pet?;
-if (compiler.is_failing(u)) {
+if (is_failing(u)) {
   return u; // propagate fail state (e.g. null)
 }
 
@@ -2522,7 +2524,7 @@ After these steps, evaluation continues normally at the join point. Any subseque
 
 | Operator     | Operand requirement | Fast path                                            | Slow path                                                 | Result type |
 | ------------ | ------------------- | ---------------------------------------------------- | --------------------------------------------------------- | ----------- |
-| `await`      | a promise union (a union with `compiler.unresolved` and `compiler.detached` fail arms), or a `future` that forwards to such a promise | If not unresolved: returns the union with `compiler.unresolved` and `compiler.detached` removed. If the operand is a future, it is consumed and its frame is destroyed as part of this fast path. | Suspends the current thread while the promise tag is `compiler.unresolved`, repeatedly returning to the work queue between checks. If the operand is a future, it remains owned by the awaiting site and is destroyed once the await completes. | union without `compiler.unresolved`/`compiler.detached` |
+| `await`      | a promise union (a union with `unresolved` and `detached` fail arms), or a `future` that forwards to such a promise | If not unresolved: returns the union with `unresolved` and `detached` removed. If the operand is a future, it is consumed and its frame is destroyed as part of this fast path. | Suspends the current thread while the promise tag is `unresolved`, repeatedly returning to the work queue between checks. If the operand is a future, it remains owned by the awaiting site and is destroyed once the await completes. | union without `unresolved`/`detached` |
 | **`expect`** | a union value        | If passing: returns the union with all fail arms removed. | If failing: `return fail <fail-value>`                    | pass-only union |
 | **`assume`** | a union value        | If passing: returns the union with all fail arms removed. | If failing: `panic <fail-value>`                          | pass-only union |
 
@@ -2540,11 +2542,11 @@ After these steps, evaluation continues normally at the join point. Any subseque
 
   ```warble
   let __tmp = expr;
-  if (compiler.is_failing(__tmp)) {
-    // expect → return fail compiler.fail_value(__tmp);
-    // assume → panic compiler.fail_value(__tmp);
+  if (is_failing(__tmp)) {
+    // expect → return fail fail_value(__tmp);
+    // assume → panic fail_value(__tmp);
   }
-  let value = compiler.drop_fails(__tmp);
+  let value = drop_fails(__tmp);
   ```
 
 * Because `assume` aborts the program on failure, the compiler may treat the
@@ -3183,7 +3185,7 @@ Stepping (changing an iterable to skip values or reverse iteration) is intention
   }
   ```
 
-  The loop advances each iterable in lockstep. Iteration stops as soon as **any** of the iterables transitions to `compiler.exhausted`.
+  The loop advances each iterable in lockstep. Iteration stops as soon as **any** of the iterables transitions to `exhausted`.
 
 This flexible `for` loop design makes Warble iterations expressive, concise, and efficient, covering most common iteration patterns without the complexity of a traditional `for` loop syntax.
 
@@ -3331,7 +3333,7 @@ yield fail error;
 yield async pass value;
 ```
 
-When a generator is exhausted, its union tag transitions to `compiler.exhausted` (a failing-state arm). In the `compiler.exhausted` state, the union's value slot is not meaningful and must not be accessed.
+When a generator is exhausted, its union tag transitions to `exhausted` (a failing-state arm). In the `exhausted` state, the union's value slot is not meaningful and must not be accessed.
 
 #### 7.5.4 Panic (`panic`)
 
@@ -3422,7 +3424,7 @@ Because a constructor is just a function, it participates in normal overload res
 ```warble
 let Color = (r, g, b) => { r, g, b };                    // from components
 let Color = (hex: u32) => { /* decompose hex */ };        // from a packed integer
-let Color = (name: compiler.string) => { /* lookup */ };  // from a name
+let Color = (name: string) => { /* lookup */ };  // from a name
 ```
 
 The three overloads are simply shadow declarations of the same name (§3.1 Shadowing and §4.1.9 backward lookup). Calling `Color` resolves to the appropriate overload based on the argument.
@@ -3714,51 +3716,109 @@ Warble organizes code through a carefully designed system of **packages** and **
 
 ### 10.1 Overview
 
-* A **package** represents the root directory of a Warble project, explicitly defined via a `register` statement.
+* A **package** represents the root directory of a Warble project. External packages are explicitly registered via a `register` statement.
 * A **module** corresponds to a single source file (`.wbl`) within a package, imported and exported explicitly to manage code reuse and visibility.
+* The **standard library** is represented by the pre-bound keyword `compiler`, which is a symbol of kind `Package` implicitly available in every module without needing to be registered.
 
 Both packages and modules prioritize security through clear permissions and explicit declarations of dependencies.
 
 ### 10.2 Packages
 
-A **package** is explicitly registered and named through the `register` statement. The structure of a `register` statement is:
+A **package** is explicitly registered through the `register` statement. The structure of a `register` statement is:
 
 ```
-register "package_name" from "package_url" [with permissions_array in "target_package"];
+register name from "package_url" [with <symbols>];
 ```
+
+The `register` statement creates a local binding of kind `Package` with the given identifier name. This identifier is then used in `import` statements to reference the package.
 
 #### 10.2.1 Registering Packages
 
 Packages are registered at the top level of the project. The registration includes:
 
-* A **package name** as a string literal, for referencing in imports.
-* A **URL**, specifying the root directory location of the package. URLs can be:
-  * Absolute (`file://...`)
+* A **package name** as a plain identifier, creating a local binding of kind `Package`.
+* A **URL** as a string literal, specifying the root directory location of the package. URLs can be:
+  * Absolute (`file:///...`)
   * Relative (`../local/path`)
   * Remote (`https://...`)
-* Optional **permissions**, explicitly allowing the registered package to import specified modules from the standard library (`std`) or other packages.
+* Optional **permissions** via a `with` clause, explicitly allowing the registered package to import specified modules from the standard library (see §10.2.2).
 
 **Examples**:
 
 ```warble
-register "local_package" from "../relative/path";
-register "absolute_package" from "file:///C:/absolute/path" with ["vector", "string", "math"] in "std";
-register "remote_package" from "https://github.com/user/package" with ["math", "memory"] in "std";
-register "extended_package" from "https://github.com/user/extended_package" with [...compiler.permissions.safe, "filesystem"] in "std";
+import safe from "permissions/safe" in compiler;
+import {vector, string, math} from "permissions/safe" in compiler;
+import fs from "filesystem" in compiler;
+
+register local_package from "../relative/path";
+register absolute_package from "file:///C:/absolute/path" with <vector, string, math>;
+register remote_package from "https://github.com/user/package" with <math>;
+register extended_package from "https://github.com/user/extended_package" with <safe, fs>;
 ```
 
-If the same package is imported multiple times, it is shared, not duplicated.
+If the same package is registered multiple times, it is shared, not duplicated.
 
 #### 10.2.2 Permissions & Security Model
 
-Warble adopts a security-first approach to package dependencies. Packages must explicitly declare permissions they require. These permissions form an **allow list**, specifying precisely what the package can import.
+Warble adopts a security-first approach to package dependencies. Packages must be explicitly granted permission to access standard library modules. These permissions form an **allow list**, specifying precisely what the package can import from the standard library.
 
-* Built-in permission sets simplify security declarations:
+The `with` clause on a `register` statement specifies which standard library modules the registered package is allowed to access. The clause uses enum literal syntax (`<>`), and its items must be symbols of kind `Module` or `Borrow` pointing to an external module:
 
-  * `compiler.permissions.safe`: Grants safe standard library modules (no dangerous access like filesystem or network).
-  * `compiler.permissions.all`: Grants access to the entire standard library. Should be used only for fully trusted packages (typically your own code).
+```warble
+import safe from "permissions/safe" in compiler;
+register pkg from "file:///path" with <safe>;
+// pkg can import anything that safe re-exports
+```
 
-Permissions are inherited strictly; a package cannot grant permissions it doesn't have itself. If a package is registered without certain permissions, it cannot grant those permissions to packages it registers.
+```warble
+import {vector} from "permissions/safe" in compiler;
+register pkg from "file:///path" with <vector>;
+// pkg can only import vector, nothing else from safe
+```
+
+The permission grant follows a hierarchy:
+
+* **Giving a `Module` symbol** (a whole-module import) grants the registered package access to all of that module's exports.
+* **Giving a `Borrow` symbol** (a specific named export from a module) grants access to only that export and whatever *it* exports—not the entire module it came from.
+
+The compiler always resolves symbols to their canonical module identity, regardless of how many times they have been imported or re-exported. Granting `vector` obtained through the `safe` permission aggregate is identical to granting `vector` obtained any other way—it always resolves to the same canonical module.
+
+##### Scope of Permissions
+
+The permission system is **only** concerned with what packages are allowed to import from the standard library (`compiler`). It does not govern what one third-party package can access from another third-party package.
+
+The reasoning: the standard library is the only thing that connects Warble code to the outside world (filesystem, network, hardware, etc.). Two third-party packages communicating with each other cannot cause harm without the standard library being involved. Restricting inter-package access would add complexity without addressing any real security concern.
+
+Inter-package access is still implicitly constrained by the propagation rule: a package cannot grant permissions it does not have. If package B wants to register package A, and package A requires `filesystem`, then B must itself have `filesystem` in its own grant—otherwise it cannot grant it to A and the registration is a compile-time error. This handles the inter-package case naturally without needing explicit syntax.
+
+##### Permission Aggregates
+
+The standard library provides permission aggregate modules that re-export groups of standard library modules. These are ordinary modules within the standard library:
+
+* `"permissions/safe"`: A standard library module that re-exports all standard library modules considered safe (no filesystem, network, or other sensitive capabilities).
+* `"permissions/all"`: A standard library module that re-exports the entire standard library.
+
+These aggregate modules are accessed through normal imports:
+
+```warble
+import safe from "permissions/safe" in compiler;
+import all from "permissions/all" in compiler;
+```
+
+They can then be used in `with` clauses to grant broad permission sets:
+
+```warble
+register trusted_pkg from "../trusted" with <all>;
+register sandboxed_pkg from "../sandboxed" with <safe>;
+```
+
+To grant a permission aggregate plus additional specific modules, list them together:
+
+```warble
+import safe from "permissions/safe" in compiler;
+import fs from "filesystem" in compiler;
+register pkg from "file:///path" with <safe, fs>;
+```
 
 **Recommended Practice**:
 Package authors clearly document required permissions. Users review and manually insert these into their `register` statements, making permission grants deliberate and transparent.
@@ -3772,22 +3832,23 @@ A **module** corresponds to a single Warble source file (`.wbl`) and is accessed
 Modules import code explicitly. The syntax for importing is:
 
 ```warble
-import identifier from "specifier" [in "package_name"];
-import {a, b as alias} from "specifier" [in "package_name"];
+import identifier from "specifier" [in package];
+import {a, b as alias} from "specifier" [in package];
 
-import deferred identifier from "specifier" [in "package_name"];
-import deferred {a, b as alias} from "specifier" [in "package_name"];
+import deferred identifier from "specifier" [in package];
+import deferred {a, b as alias} from "specifier" [in package];
 ```
 
-* The **specifier** is resolved as a relative URL from the package root directory.
+* The **specifier** is a string literal resolved as a relative path from the package root directory.
 * If no file extension is specified, `.wbl` is implicitly assumed.
-* If the optional `in` portion is omitted, imports resolve within the current package context.
+* The optional `in` clause takes a package identifier (a binding of kind `Package`). If omitted, imports resolve within the current package context.
 
 **Examples**:
 
 ```warble
-import fs from "filesystem" in "std"; // Imports from standard library
+import fs from "filesystem" in compiler;          // Imports from standard library
 import {util, helper as h} from "./local_module"; // Local module imports
+import vector from "vector" in compiler;           // Import a specific standard library module
 ```
 
 Imports always produce immutable bindings, regardless of the original export mutability. Modules are shared: multiple imports of the same module access the same instance.
@@ -3818,11 +3879,24 @@ export mut mutableValue = 42; // Only mutable internally, dependency modules can
 
 Only declarations explicitly marked with `export` become visible outside the module.
 
+#### 10.3.3 Pseudo-Modules
+
+Not every module in the standard library maps to a real `.wbl` source file. The compiler may define **pseudo-modules** that expose internal compiler concepts through the normal module/import interface, without having a backing file on disk.
+
+For example, the compiler-defined symbols `unresolved`, `detached`, and `exhausted` (used by promises and generators) are exports from pseudo-modules within the standard library. Similarly, primitive type symbols such as `integer`, `float`, `boolean`, and `character` are exports from the `"primitives"` pseudo-module:
+
+```warble
+import {integer, float, boolean, character} from "primitives" in compiler;
+```
+
+The access pattern is uniform (normal import syntax), even though the backing implementation is compiler-internal. From the user's perspective, pseudo-modules are indistinguishable from regular modules—they are imported the same way and their exports behave identically.
+
 ### 10.4 Dependency Graph & Build Process
 
 Warble packages and modules form a clear, explicit dependency graph defined by their registration, imports, and permissions:
 
-* The compilation process begins with an implicitly trusted project file, granted `compiler.permissions.all`.
+* The project's own root package is the **trust root** of the entire dependency graph. It is implicitly granted full access to the standard library without needing an explicit `with` clause.
+* All other packages must be explicitly registered and granted permissions via `register` statements with `with` clauses.
 * Each package registers other packages explicitly, clearly defining access and security permissions.
 * Modules import other modules explicitly, creating a deterministic and transparent dependency graph.
 
@@ -3832,13 +3906,19 @@ The dependency graph determines build order and module initialization. Modules e
 
 The entire Warble package and module system is built around transparency, explicit permissions, and proactive security considerations. Unlike traditional package managers (e.g., Node.js), Warble intentionally avoids implicit trust in imported packages:
 
-* Packages must explicitly declare the permissions they require. No implicit file-system, network, or sensitive access occurs without explicit consent.
-* Developers can quickly identify packages requiring deeper security reviews (e.g., those requesting `filesystem`, `http`, or other sensitive modules).
-* Harmless packages requesting only safe permissions require minimal scrutiny.
+* Packages must be explicitly granted the standard library modules they are allowed to access. No implicit file-system, network, or sensitive access occurs without explicit consent.
+* Developers can quickly identify packages requiring deeper security reviews (e.g., those granted `filesystem` or `http` modules).
+* Packages granted only safe permissions (via the `"permissions/safe"` aggregate) require minimal scrutiny.
 
 **Example Security Consideration**:
 
-* A package declaring `["filesystem", "http"]` explicitly informs you of its elevated capabilities. This doesn't imply malicious intent—such a package might legitimately implement an HTTP server—but it clearly communicates where review and trust matter most.
+```warble
+import fs from "filesystem" in compiler;
+import http from "http" in compiler;
+register server_pkg from "https://example.com/server" with <fs, http>;
+```
+
+Granting `filesystem` and `http` explicitly informs you of the package's elevated capabilities. This does not imply malicious intent—such a package might legitimately implement an HTTP server—but it clearly communicates where review and trust matter most.
 
 Warble's approach ensures no hidden surprises, fostering a safer and more responsible ecosystem.
 
@@ -3875,8 +3955,8 @@ Example:
 
 ```warble
 let parse_int = (text) {
-  if (compiler.can_parse_int(text)) {
-    return pass compiler.parse_int(text);
+  if (can_parse_int(text)) {
+    return pass parse_int(text);
   }
   return fail "not an int";
 };
@@ -4331,7 +4411,7 @@ In addition to module execution, worker threads also execute **async tasks** cre
 Calling an async function:
 
 1. Heap-allocates an **async frame** large enough to hold the function's state (promise union, parameters, locals, and internal bookkeeping).
-2. Initializes the promise tag in the frame to `compiler.unresolved`.
+2. Initializes the promise tag in the frame to `unresolved`.
 3. Returns a `future` handle pointing to the promise union at the beginning of the frame (§4.2.4).
 4. Enqueues an async task entry into the calling worker's async-task queue.
 
@@ -4359,19 +4439,19 @@ Exact ordering between module work and async-task work is implementation-defined
 When an async task reaches completion:
 
 * It writes its result payload into the promise union's value slot in its async frame.
-* It atomically compare-exchanges the promise tag from `compiler.unresolved` to the correct tag representing the completed result arm.
+* It atomically compare-exchanges the promise tag from `unresolved` to the correct tag representing the completed result arm.
 
 If the compare-exchange succeeds, the result is now observable via `await`.
 
-If the compare-exchange fails because the tag is `compiler.detached`, the future was dropped while the task was still unresolved. In this case the task must destroy the async frame (run any required cleanup and free the allocation).
+If the compare-exchange fails because the tag is `detached`, the future was dropped while the task was still unresolved. In this case the task must destroy the async frame (run any required cleanup and free the allocation).
 
 #### 13.4.4 Awaiting
 
-The `await` operator is defined in terms of the **promise union**: it waits until the promise tag transitions away from `compiler.unresolved`.
+The `await` operator is defined in terms of the **promise union**: it waits until the promise tag transitions away from `unresolved`.
 
 A `future` is a transparent handle to a promise union stored at the beginning of an async frame (§4.2.4). Using `await` on a future forwards to `await` on the underlying promise union.
 
-Once complete, `await` destroys the async frame and returns the completed result as a union value with `compiler.unresolved` and `compiler.detached` removed.
+Once complete, `await` destroys the async frame and returns the completed result as a union value with `unresolved` and `detached` removed.
 
 ## 14 Standard Library (overview)
 
@@ -4443,7 +4523,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`do`** — Introduces a scoped block.
 * **`repeat`** — Begins a loop, which can optionally end with a `while (condition)` portion.
 * **`tick`** — Begins a module-context tick loop (only legal outside function bodies). Each iteration ends with an implicit suspension point.
-* **`await`** — Unary prefix operator that suspends the current thread while a promise is `compiler.unresolved`, repeatedly returning to the work queue between checks. Futures transparently forward `await` to their underlying promise.
+* **`await`** — Unary prefix operator that suspends the current thread while a promise is `unresolved`, repeatedly returning to the work queue between checks. Futures transparently forward `await` to their underlying promise.
 * **`expect`** — Unary prefix operator that removes a union's fail arms when passing, or propagates failure via an implicit `return fail`.
 * **`assume`** — Unary prefix operator that removes a union's fail arms when passing, or aborts via `panic` when failing.
 
@@ -4461,15 +4541,16 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`panic`** — Produces an error message and exits the program.
 * **`break`** — Exits the nearest enclosing loop.
 * **`continue`** — Skips to the next iteration of the nearest enclosing loop.
-* **`async`** — May augment `return` and `yield` to define an async function. Async functions execute as scheduled tasks and produce a promise union that includes `compiler.unresolved` and `compiler.detached` as fail arms; calling an async function returns a future handle.
+* **`async`** — May augment `return` and `yield` to define an async function. Async functions execute as scheduled tasks and produce a promise union that includes `unresolved` and `detached` as fail arms; calling an async function returns a future handle.
 * **`pass`** — May augment `return` and `yield` to mark an arm as passing.
 * **`fail`** — May augment `return` and `yield` to mark an arm as failing.
 
 #### Module and Imports
 
 * **`import`** — Imports symbols from external modules.
-* **`register`** — Registers a URL as a package, which serves as the base for imports.
-* **`with`** — Used in conjunction with register statements to specify allowed modules for a package.
+* **`register`** — Registers a URL as a package, creating a local binding of kind `Package` used as the base for imports.
+* **`with`** — Used in conjunction with `register` statements to specify allowed standard library modules for a package.
+* **`in`** — Used in `import` statements to specify the package to import from. Also used in `for` loops.
 
 #### Literals
 
@@ -4483,7 +4564,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 
 * **`this`** — Resolves to the top topic symbol.
 * **`that`** — Resolves to the second-to-top topic symbol.
-* **`compiler`** — Provides access to compiler intrinsics and built-in symbols. This namespace is fundamental and cannot be rebound.
+* **`compiler`** — Pre-bound keyword symbol of kind `Package` that represents the standard library. Implicitly available in every module without needing to be registered. Used with `in compiler` in import statements to access standard library modules.
 * **`auto`** — Serves as a placeholder type, replaced by the compiler with an inferred or specified type during type checking.
 
 ---
