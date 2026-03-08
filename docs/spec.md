@@ -2567,6 +2567,31 @@ Full semantics (including the overload hook `question()`) are defined in §4.3.4
 
 ### 5.3 Operator Overloading via Symbols
 
+Every built-in operator in Warble corresponds to an **intrinsic** of the same name (see §14.1.2). When the compiler resolves an operation, it first checks whether the left-hand side has a child property whose key is that intrinsic's name written as an enum literal. If such a property exists and is callable, the compiler calls it instead of emitting the default instruction. This is Warble's operator overloading mechanism.
+
+For example, defining a method keyed `<add>` on an object overloads the `+` operator for instances of that object:
+
+```warble
+let Vec2(x: float, y: float) => {
+  x,
+  y,
+
+  public <add>(rhs) => Vec2(this.x + rhs.x, this.y + rhs.y),
+  public <sub>(rhs) => Vec2(this.x - rhs.x, this.y - rhs.y),
+  public <mul>(rhs) => Vec2(this.x * rhs.x, this.y * rhs.y), // component-wise
+  public <eq> (rhs) => this.x == rhs.x && this.y == rhs.y,
+};
+
+const a = Vec2(1.0, 2.0);
+const b = Vec2(3.0, 4.0);
+const c = a + b; // calls a.<add>(b) → Vec2(4.0, 6.0)
+const same = a == b; // calls a.<eq>(b)
+```
+
+The method receives the right-hand operand as its argument. The name of the method must exactly match the intrinsic name for the operator being overloaded: `add` for `+`, `sub` for `-`, `mul` for `*`, and so on. The full correspondence is defined by the intrinsics exposed in `"intrinsics"` (§14.1.2).
+
+Only the left-hand side is consulted. There is no implicit symmetry: if `a + b` checks `a` for an `<add>` overload and finds none, the compiler does not fall back to checking `b`. The overload must be present on the LHS, or the operation resolves to the default instruction.
+
 ### 5.4 Call Forms (Pipeline `->` and Callable Literal Shorthand)
 
 The foundation of function calling in Warble is the **pipeline operator** `->`. This binary operator invokes its right-hand side with its left-hand side as the argument:
@@ -4519,7 +4544,132 @@ Once complete, `await` destroys the async frame and returns the completed result
 
 ## 14 Standard Library (overview)
 
-## 15 Tooling & Ecosystem
+The Warble standard library is accessed via `import ... in compiler`, using the pre-bound `compiler` package keyword. It consists of ordinary modules backed by `.wbl` source files, as well as **pseudo-modules** implemented directly by the compiler with no backing source file (see §10.3.3). This section covers the two compiler-defined pseudo-modules available from the outset.
+
+### 14.1 Pseudo-Modules
+
+Pseudo-modules are standard library modules that the compiler implements internally. They expose their exports through the same import interface as any other module, but their behavior is compiler-defined rather than expressed in Warble source code. Two pseudo-modules are currently defined: `"primitives"` and `"intrinsics"`.
+
+#### 14.1.1 `"primitives"`
+
+The `"primitives"` pseudo-module exports one symbol per symbol kind. These are used as **type filters**: each export constrains a value (or function parameter) to a specific compiler-recognized kind of symbol. The available exports one-to-one track the symbol kind table:
+
+| Export | Filters to kind |
+|---|---|
+| `boolean` | `Boolean` |
+| `integer` | `Integer` |
+| `float` | `Float` |
+| `character` | `Character` |
+| `string` | `String` |
+| `object` | `Object` |
+| `tuple` | `Tuple` |
+| `enum` | `Enum` |
+| `function` | `Function` |
+| `union` | `Union` |
+| `intersection` | `Intersection` |
+| `borrow` | `Borrow` |
+| `future` | `Future` |
+| `unique` | `Unique` |
+| `shared` | `Shared` |
+| `weak` | `Weak` |
+| `buffer` | `Buffer` |
+| `view` | `View` |
+| `package` | `Package` |
+| `module` | `Module` |
+| `null` | `Null` |
+| `undefined` | `Undefined` |
+
+> TODO: I have a bit of a contradiction in my naming scheme that I need to resolve. `undefined` and `null` are both keywords, so cannot be used as export names. I am unsure what they should be called in the `primitives` module.
+
+From the user's perspective each of these is presented as a function that takes one parameter and returns it unchanged—an identity filter. However, the compiler recognizes them specially and does not emit a `Call` instruction when one is invoked. Instead, it uses the filter as a kind constraint at the call site.
+
+The most common use is in conditional matching to test the kind of a value:
+
+```warble
+import {integer, string, function} from "primitives" in compiler;
+
+let describe = (value){
+  if (value)
+  is (integer)  { return "it's an integer"; }
+  is (string)   { return "it's a string"; }
+  is (function) { return "it's a function"; }
+
+  return "something else";
+};
+```
+
+Filters also serve as parameter-kind constraints, specializing a function to accept only values of a specific kind:
+
+```warble
+import {integer, float} from "primitives" in compiler;
+
+let double = (x: integer) => x * 2;    // only accepts integer-kind values
+let halve  = (x: float)   => x / 2.0;  // only accepts float-kind values
+```
+
+Note that `null` and `undefined` here are the primitive filter exports, not the keyword literals of the same name (§4.1.2). They test whether the kind of a value is `Null` or `Undefined`, rather than testing for equality with those markers.
+
+#### 14.1.2 `"intrinsics"`
+
+The `"intrinsics"` pseudo-module exposes hardware and compiler operations as named exports. Each export represents a specific instruction in the compiler's three-address code (TAC) intermediate representation. Like `"primitives"` exports, intrinsics are presented as ordinary callable functions—but invoking one does not emit a `Call` instruction. Instead, the compiler directly inserts the TAC instruction it represents.
+
+For example:
+
+```warble
+import {add, log10, sqrt} from "intrinsics" in compiler;
+
+const result = add(lhs, rhs); // identical in execution to: const result = lhs + rhs;
+                              // both lower to a single Add instruction in TAC
+
+const magnitude = sqrt(x * x + y * y); // sqrt instruction; no operator syntax exists for this
+const scale = log10(value);            // log10 instruction; likewise no operator syntax
+```
+
+This is the primary mechanism for exposing math and bit-manipulation operations that do not have a dedicated language operator. Because the compiler understands exactly what each intrinsic maps to, it can always provide the most efficient implementation and reason precisely about intent without guessing from higher-level code.
+
+##### What Is and Is Not Exposed
+
+The set of exposed intrinsics is deliberately restricted to operations that the compiler can reason about fully:
+
+* **Exposed**: all operations that correspond to existing syntax operators (`add`, `sub`, `mul`, `div`, `rem`, `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `neg`, and so on), plus numeric and math operations without operator syntax (`sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `log2`, `log10`, `ln`, `sin`, `cos`, `tan`, and others).
+* **Not exposed**: anything that would hinder optimization, compromise safety, or bypass the language's abstractions. Specifically:
+  * No arbitrary control-flow instructions. Control flow is exclusively the domain of control statements (`if`, `for`, `while`, etc.).
+  * No raw memory addressing. Warble has no raw pointers, and intrinsics do not circumvent this.
+  * No instructions whose side effects are opaque to the compiler.
+
+The set of exposed intrinsics will grow as the language matures. The guiding principle is: if exposing it makes the compiler's job harder or weakens its guarantees, it is not exposed.
+
+##### Operator Overloading
+
+Intrinsic names are also the mechanism Warble uses for operator overloading (§5.3). Each operator resolves to its corresponding intrinsic internally. When the compiler processes an operation, it checks whether the left-hand side has a child property keyed with that intrinsic's name as an enum literal. If so, that method is called instead of the default instruction.
+
+This means there is a direct, unambiguous correspondence between intrinsic names and overloadable operators—the two concepts share the same name table:
+
+```warble
+import {add, mul} from "intrinsics" in compiler;
+
+// Use add and mul as ordinary intrinsic calls:
+const sum     = add(3, 4);   // → 7
+const product = mul(3.0, 4.0); // → 12.0
+```
+
+```warble
+// An object that overloads addition and multiplication:
+let Complex(re: float, im: float) => {
+  re,
+  im,
+
+  public <add>(rhs) => Complex(this.re + rhs.re, this.im + rhs.im),
+  public <mul>(rhs) => Complex(this.re * rhs.re - this.im * rhs.im, this.re * rhs.im + this.im * rhs.re),
+};
+
+const a = Complex(1.0, 2.0);
+const b = Complex(3.0, 4.0);
+const c = a + b; // calls a.<add>(b)
+const d = a * b; // calls a.<mul>(b)
+```
+
+No explicit import of `"intrinsics"` is required to *define* overloads. The enum-key method names (`<add>`, `<mul>`, etc.) are just identifiers—the compiler checks for them during operator resolution regardless of whether `"intrinsics"` has been imported in the module defining the type. Importing intrinsics by name is only needed when you want to call them directly like ordinary functions.
 
 ### 15.1 Compiler Flags
 
