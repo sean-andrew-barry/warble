@@ -2572,6 +2572,8 @@ Every built-in operator in Warble corresponds to an **intrinsic** of the same na
 For example, defining a method keyed `<add>` on an object overloads the `+` operator for instances of that object:
 
 ```warble
+import {add, sub, mul, eq} from "intrinsics" in compiler;
+
 let Vec2(x: float, y: float) => {
   x,
   y,
@@ -3899,8 +3901,8 @@ import deferred {a, b as alias} from "specifier" [in package];
 
 ```warble
 import fs from "filesystem" in compiler;          // Imports from standard library
-import {util, helper as h} from "./local_module"; // Local module imports
-import vector from "vector" in compiler;           // Import a specific standard library module
+import {util, helper as h} from "local_module";   // Local module imports
+import vector from "vector" in compiler;          // Import a specific standard library module
 ```
 
 Imports always produce immutable bindings, regardless of the original export mutability. Modules are shared: multiple imports of the same module access the same instance.
