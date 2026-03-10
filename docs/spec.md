@@ -120,7 +120,7 @@ else { print("Unknown result."); }
 Easily handle optional or uncertain data:
 
 ```warble
-import {integer} from "primitives" in compiler;
+import {integral} from "traits" in compiler;
 
 mut optionalValue = 42 || !null; // Create a union with a `null` absence state
 
@@ -128,7 +128,7 @@ optionalValue = null;   // now represents no value
 optionalValue = 7;      // set to integer
 
 if (optionalValue)
-is (integer) { print("Got an integer: {this}"); }
+is (integral) { print("Got an integer: {this}"); }
 is (null) { print("No value available."); }
 ```
 
@@ -541,6 +541,8 @@ let x: i32 = 42;              // i32 is a built-in callable that produces an int
 let p: Point = { x=1, y=2 }; // Point is a user-defined factory function
 let v: vector<i32> = [];      // vector<i32> is a partially-applied function call
 ```
+
+This also includes conjunction/disjunction/negation expressions built from trait symbols (§4.2.3). Those expressions are compile-time callables too: when used as annotations, they are invoked via the pipeline operator and perform presence checks instead of constructing wrapper values.
 
 Functions used this way are conventionally called **constructors**, but this is purely a naming convention. They are not special to the compiler in any way—they are just factory functions that accept some input and return an initialized value. See §8.5 for the constructor pattern in detail.
 
@@ -1580,7 +1582,7 @@ A **borrow** is a symbol of kind `Borrow` that designates an existing symbol. Th
 
 All three variants share the same kind (`Borrow`) and the same payload encoding: a `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index).
 
-The parser disambiguates these prefix operators from their infix counterparts based on position. For example, `&` between two expressions is the intersection operator (§4.2.3); `*` between two expressions is multiplication; `&` or `*` before a single operand is a borrow.
+The parser disambiguates these prefix operators from their infix counterparts based on position. For example, `&` between two expressions enters conjunction mode only when both sides resolve to functions after transparently following borrows (§4.2.3); otherwise it falls through to ordinary value-level behavior. `*` between two expressions is multiplication; `&` or `*` before a single operand is a borrow.
 
 ##### Immutable Borrow (`&`)
 
@@ -1667,25 +1669,11 @@ Unions are used for optional values, multi-type expression results, and (most im
 
 ##### Creation and Syntax
 
-Unions are created by expressions or by union-returning control flow.
+Unions are created by value-level expressions and by union-returning control flow.
 
-The binary operator `|` is the **symbolic union operator**. It produces a kind `Union` flagged `Symbolic`—a union that describes which arms are valid but holds no value:
+The infix `|` operator no longer directly creates a symbolic union. When `|` is applied to operands that resolve to functions (following borrows transparently), the compiler enters **disjunction mode** and produces a kind `Disjunction` (§4.2.3). When `|` is applied to ordinary values, it falls through to the language's normal value-level semantics.
 
-```warble
-let PetType = Cat | Dog;
-// PetType is kind Union, flagged Symbolic
-// It has no value address — using it as a runtime value is a compile-time error
-```
-
-A symbolic union acquires a concrete value through a constructor annotation (§3.1.5):
-
-```warble
-let pet: Cat | Dog = Dog("Fido", 3);
-// Initialized as: Dog("Fido", 3) -> (Cat | Dog)
-// pet is kind Union, NOT flagged Symbolic — it holds a live Dog value
-```
-
-The `|` operator may be chained. Chained symbolic unions are flattened into a single union with all listed arms.
+Throughout this specification, notation such as `A | B` and `!null | T` is still used to describe the set of runtime union arms. That notation is descriptive. It does **not** imply that the surface expression `A | B` materializes a symbolic `Union` symbol.
 
 The binary operators `||` and `&&` are **value-level union operators**. They always produce a union that holds a value (not flagged `Symbolic`).
 
@@ -1764,136 +1752,144 @@ In an async function, the promise union is produced asynchronously. The call ret
 
 Unions have a hard limit of $2^{16}-1$ total arms (65535). The type tag is one byte when there are 256 or fewer arms; otherwise it is two bytes.
 
-#### 4.2.3 Intersection
+#### 4.2.3 Conjunction, Disjunction, and Negation
 
-An **intersection** in Warble is a compile-time constraint that requires a value to satisfy *all* of the listed arms simultaneously. Where a union says "this value is one of these types", an intersection says "this value must be compatible with every one of these types".
+Warble uses three compile-time-only expression kinds to describe presence checks over trait symbols and other function-valued symbols:
 
-In the compiler's internal representation, an intersection is represented as a symbol of kind `Intersection`.
+* `Conjunction` — produced by infix `&`
+* `Disjunction` — produced by infix `|`
+* `Negation` — produced by prefix `!`
 
-##### Creation and Syntax
+These are not runtime wrapper values. They are compile-time relationships between symbols that are invoked through constructor annotations (§3.1.5) to check whether an argument satisfies a set of required traits.
 
-Intersections are created with the infix `&` operator, applied to symbols or functions:
+##### Mode Selection
 
-```warble
-let I = Cat & Dog;
-```
+The operators `&`, `|`, and `!` are overloaded between two broad modes:
 
-This produces an intersection with two arms: `Cat` and `Dog`. The result is kind `Intersection` flagged `Symbolic`—it describes the constraint but holds no value. Its offset column is unused, and using it as a runtime value is a compile-time error.
+* **Function-resolving mode:** If the operand (for `!`) or both operands (for `&` and `|`) resolve to functions after transparently following borrows, the compiler produces `Negation`, `Conjunction`, or `Disjunction` respectively.
+* **Value mode:** Otherwise the compiler falls through to ordinary value-level behavior, such as bitwise/logical operators or union pass/fail manipulation, and lowers the operation to TAC as usual.
 
-The `&` operator may be chained:
-
-```warble
-let J = Cat & Dog & Animal;
-```
-
-Chained intersections are flattened into a single intersection with all listed arms, analogous to how nested unions are flattened (§4.3.2).
-
-The `&` operator used here is the **infix** (binary) form. It is syntactically distinct from the **prefix** (unary) `&` that creates a borrow (§4.2.1). The parser disambiguates the two based on position: when `&` appears between two expressions it is the intersection operator; when it appears before a single operand it is the borrow operator.
+A `Borrow` operand is not special on its own; it is simply followed transparently. If the borrow designates a `Function`, the operator still enters function-resolving mode.
 
 ##### Internal Representation
 
-An intersection symbol's payload is stored as a `std::pair<uint32_t, uint32_t>` representing (data start index, length) into the module's per-module data buffer.
-
-This is similar to unions, but meaningfully different: a union's payload splits its second `u32` into two `u16` fields in order to encode both a total arm count and a fail count. An intersection has no concept of pass/fail arms, so no such split is needed—the full `u32` is used for the length.
-
-The data slice is a sequence of `u32` symbol indexes. The **first slot** (index 0 of the slice) is always reserved for the **true type** of the intersection—the concrete type of the value currently held. The remaining slots (index 1 onward) are the **constraint arms**.
-
-When an intersection is created via the `&` operator, the true-type slot is set to the symbol index for `Undefined` and the intersection is flagged `Symbolic`:
+`Conjunction` and `Disjunction` store their operands directly in the symbol payload as `std::pair<uint32_t, uint32_t>` of (lhs symbol index, rhs symbol index). This makes them expression trees rather than flattened lists:
 
 ```warble
-let I = Cat & Dog;
-// I is kind Intersection, flagged Symbolic
-// true type = Undefined, arms = [Cat, Dog]
-// No value address — using I as a runtime value is a compile-time error
+let requirement = add & sub & mul;
+// First:  Conjunction(add, sub)
+// Then:   Conjunction(Conjunction(add, sub), mul)
 ```
 
-##### Instantiation
+`Negation` is unary. Its payload stores a single `uint32_t` operand symbol index; the remaining payload bits are unused.
 
-An intersection acquires a concrete value through a constructor annotation (§3.1.5). The annotation uses the pipeline operator to pass the initializer through the intersection:
+Unlike normal expressions, conjunctions, disjunctions, and negations do **not** generate TAC instructions. They are purely compile-time structures made of symbol-to-symbol links, and they may freely point to one another to form trees of arbitrary depth.
+
+##### `auto` as a Universal Conjunction
+
+`auto` is not substituted with the argument's type. Instead, it behaves as a universal conjunction arm that every symbol satisfies by definition.
+
+This means a declaration with no explicit annotation can be understood as having the implicit annotation `: auto`. Since `auto` always passes, the initializer alone determines the resulting type, which is the intended behavior.
+
+`auto` is especially useful because conjunction syntax is binary. A bare annotation like `p: add` invokes `add` with `p`; it does **not** ask whether `p` has the `add` trait. Writing `p: auto & add` forces conjunction mode, with `auto` serving as the inert left-hand side and `add` as the real requirement.
+
+##### Invocation and Presence Checking
+
+When a conjunction or disjunction is used as a constructor annotation, the compiler invokes it through the pipeline operator like any other annotation:
 
 ```warble
-let value: I = Dog("Fido", 3);
-// Initialized as: Dog("Fido", 3) -> I
+let value: auto & add = expr;
+// Initialized as: expr -> (auto & add)
 ```
 
-The compiler evaluates `Dog("Fido", 3)` to produce a concrete `Dog` value, then checks that this value satisfies every constraint arm of `I`. If the check succeeds, the resulting symbol is of kind `Intersection` with its true-type slot set to the resolved type of the `Dog` value. The `Symbolic` flag is not present on the resulting symbol—it has a real value address. At runtime, the memory layout is that of the true type (`Dog`).
+Invocation performs a **presence check**.
 
-If any arm is not satisfied—for example, if `Dog` does not support an operation that `Cat` requires—the compiler emits an error at the point of instantiation.
+For a **conjunction**, every leaf in the tree must pass. For a **disjunction**, at least one top-level arm must pass. A **negation** inverts the result of its operand. The recursive rules are:
 
-##### Constraint Checking (Operation Forwarding)
+* A leaf must be a `Function` or a `Borrow` that resolves to a `Function`.
+* A conjunction succeeds only if both children succeed.
+* A disjunction succeeds if either child succeeds.
+* A negation succeeds if its operand fails, and fails if its operand succeeds.
 
-The defining behavior of an intersection is its static constraint check. Before any operation applied to an intersection value is forwarded to the underlying true type, the compiler verifies that **every** constraint arm of the intersection also supports that operation. Only then is the operation applied to the true type.
+The leaf check itself is identity-based. The compiler does **not** compare string spellings. It asks whether the argument has a child property named by that exact symbol.
 
-For example:
+For **object arguments**, this is a genuine child-property lookup: the compiler searches the object's declarations for an enum-keyed property whose symbol identity matches the trait symbol being checked.
 
-```warble
-let Animal(noise: string, name: string, age: i32) => {
-  noise,
-  name,
-  age,
+For **non-object arguments** (built-in kinds such as integers, floats, strings, and so on), the compiler uses an internal static table that maps each kind to the set of trait symbols it satisfies. This table is likewise defined in terms of symbol identity, not names. From the user's perspective the result is identical: the presence check either passes or fails.
 
-  public speak() => "{this.name} says {this.noise}",
-  public getName() => this.name,
-  public getAge() => this.age,
-};
+Presence checks only test for **presence**. They do not inspect the matched property's value, type, or signature. A property whose value is `null`, or a property whose callable signature is later found to be incompatible, still satisfies the conjunction check. Correctness is enforced later at the actual use site.
 
-let Cat(name: string, age: i32) => {
-  ...Animal("Meow", name, age),
+##### Result of Invocation
 
-  public purr() => "Purr...",
-};
+When a conjunction or disjunction check passes, the result is the argument's true type unchanged. There is no runtime `Intersection` wrapper, no extra tag, and no distinct storage layout.
 
-let Dog(name: string, age: i32) => {
-  ...Animal("Woof", name, age),
+The term *intersection* remains useful informally to describe the idea of satisfying multiple requirements at once, but the compiler does not materialize a dedicated active `Intersection` symbol kind for this process. If conjunction checking fails, the program is ill-typed at compile time.
 
-  public fetch() => "Fetching!",
-};
+##### Traits
 
-let I = Cat & Dog;
-let pet: I = Dog("Fido", 3);
+Traits are exported symbols from the standard-library `"traits"` pseudo-module in the `compiler` package. The module is implemented directly by the compiler and has no backing source file on disk. Each trait is itself a symbol of kind `Function`, and traits are matched by identity rather than by spelling.
 
-pet.speak();  // OK — both Cat and Dog have `speak`
-pet.fetch();  // Error — Cat does not have `fetch`
-pet.purr();   // Error — Dog does not have `purr`
-```
-
-The constraint check is purely static. At runtime there is no tag, no dispatch table, and no overhead—the value is stored exactly as its true type. The intersection's arms serve only as a compile-time contract.
-
-This is the key distinction from a union:
-
-| | Union | Intersection |
-|---|---|---|
-| Meaning | "one of" (the value is *one* of the arms) | "all of" (the value must satisfy *every* arm) |
-| Runtime representation | value slot + type tag | value slot only (true type); no tag |
-| Operation dispatch | jump-table dispatch across arms | forwarded to true type after static arm check |
-| Memory overhead | largest arm + tag | true type only |
-
-##### Common Use Case: Constraining Template Parameters
-
-Intersections are especially useful for constraining generic (template) parameters. A bare parameter declaration or `p: auto` accepts any type. By intersecting `auto` with one or more constraint arms, you narrow what may be passed:
+Implementing a trait on an object means declaring a property whose key is an enum literal containing the exact trait symbol:
 
 ```warble
-let greet = (creature: auto & Animal) {
-  creature.speak();
+import {add} from "traits" in compiler;
+
+let my_type = {
+  public <add>(rhs) { return /* ... */; },
 };
 ```
 
-Here `auto & Animal` is an intersection whose first arm is `auto` (resolved at each call site) and whose second arm is `Animal`. Whatever concrete type `auto` resolves to, the compiler verifies that `Animal`'s interface is also satisfied. This is conceptually similar to bounded generics or trait bounds in other languages, expressed through Warble's uniform intersection mechanism.
-
-Multiple constraints compose naturally:
+This is distinct from declaring a normal property named `add`:
 
 ```warble
-let process = (x: auto & Serializable & Printable) {
-  x.serialize();
-  x.print();
+public add(rhs) { /* ... */ }   // named by the identifier "add"
+public <add>(rhs) { /* ... */ } // named by the trait symbol `add`
+```
+
+Import aliases preserve identity:
+
+```warble
+import {add as my_add} from "traits" in compiler;
+
+let same = {
+  public <my_add>(rhs) { return /* ... */; },
 };
 ```
 
-##### Intersections with `auto`
+Marker traits are traits whose payload is irrelevant. A type implements a marker trait simply by declaring a property keyed by that trait symbol:
 
-When `auto` appears as an arm of an intersection, the `auto` arm is resolved at each call site to the concrete type of the argument. The remaining arms act as static constraints on that resolved type.
+```warble
+import {integral} from "traits" in compiler;
 
-Because `auto` on its own already means "accept anything", writing `auto & C` is the idiomatic way to say "accept anything that also satisfies `C`".
+let my_int_type = {
+  <integral> = true,
+};
+```
+
+The standard library may also export composite requirements built from conjunctions and disjunctions:
+
+```warble
+// conceptually, inside the standard library:
+export const numeric = auto & (integral | floating);
+export const arithmetic = auto & add & sub & mul & div;
+```
+
+##### Nesting, Precedence, and Normalization
+
+Conjunctions and disjunctions nest freely:
+
+```warble
+let fn = (p: auto & add & (floating | integral)) { /* ... */ };
+```
+
+This requires `p` to satisfy `add`, and to satisfy at least one of `floating` or `integral`.
+
+`&` binds tighter than `|`, so parentheses are required when embedding a disjunction inside a conjunction. Without parentheses, `add & floating | integral` parses as `(add & floating) | integral`, which is a different top-level condition.
+
+The compiler may apply De Morgan's laws when reasoning about these trees:
+
+* `!(A & B)` is equivalent to `!A | !B`
+* `!(A | B)` is equivalent to `!A & !B`
 
 #### 4.2.4 Future
 
@@ -2226,7 +2222,7 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - Impure / Used / Inline / Immediate / Internal / Accumulator: Miscellaneous analysis and lowering flags.
 - Comtime / Runtime: Compile-time vs. runtime knowledge.
 - NonZero / NonMax: Optimization hints.
-- Symbolic: Symbol only has a symbol address, no value address. Its offset column is unused. Using it as a runtime value (any operation that requires a value address) is a compile-time error. See §4.2.1 for how borrows use this flag, and §4.2.2/§4.2.3 for how unions and intersections use it.
+- Symbolic: Symbol only has a symbol address, no value address. Its offset column is unused. Using it as a runtime value (any operation that requires a value address) is a compile-time error. See §4.2.1 for how borrows use this flag, and §4.2.3 for compile-time-only conjunction/disjunction/negation expressions.
 - Halts: Indicates a function is proven to halt.
 - Topic: Indicates that this symbol is a topic and is accessible via `this` or `that`.
 
@@ -2239,9 +2235,11 @@ Core kinds:
 - Undefined, Unresolved, Auto, Null, Readonly
 - Raw, Boolean, Character, Integer, Float
 - Borrow, Unique, Shared, Weak, Future, Buffer, View
-- Identifier, String, Enum, Union, Intersection
+- Identifier, String, Enum, Union, Conjunction, Disjunction, Negation
 - Array, Tuple, TemplateString, Object, Range
 - Phi, Function, Module, Label
+
+The term `Intersection` is used informally in this specification for the mathematical idea of satisfying multiple requirements at once, but it is not an active runtime symbol kind.
 
 Statement kinds:
 
@@ -2265,6 +2263,8 @@ Common payload encodings (in terms of C++ types):
 - Borrow: `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index). The flag (`Const`, `Mut`, or `Symbolic`) determines the borrow variant.
 - Identifier / String / Enum: `std::pair<uint32_t, uint32_t>` of (data slice start, slice length).
 - Union: `std::tuple<uint32_t, uint32_t, uint16_t, uint16_t>` containing a data slice plus 16-bit counts (including `fail_count`).
+- Conjunction / Disjunction: `std::pair<uint32_t, uint32_t>` of (lhs symbol index, rhs symbol index).
+- Negation: a single `uint32_t` operand symbol index; remaining payload bits unused.
 - Label: `std::pair<uint32_t, uint32_t>` of (instruction start index, length).
 - Array / Tuple / Object / TemplateString / Function: `std::pair<uint32_t, uint32_t>` of (symbol slice start index, length).
 - Range: `std::pair<uint32_t, uint32_t>` of (start symbol index, end symbol index).
@@ -2274,20 +2274,15 @@ Common payload encodings (in terms of C++ types):
 
 This section provides a detailed explanation of how unions are created, manipulated, and represented in memory. Unions in Warble are conceptually straightforward as tagged unions, and Warble provides several powerful and ergonomic operators for working with them, ensuring both expressive power and performance efficiency.
 
-#### 4.3.1 Creation (`|`, `||`, `&&`, `return`, `yield`)
+#### 4.3.1 Creation (`||`, `&&`, `return`, `yield`)
 
 Unions in Warble are created through expressions or by union-returning control flow. The main ways unions arise are:
 
-**Symbolic Union Operator (`|`):**
+In this section, notation like `A | B` is used descriptively to talk about union arms. It does not mean that the surface `|` operator constructs a symbolic union.
 
-The binary `|` operator produces a kind `Union` flagged `Symbolic`. It describes which arms are valid but holds no runtime value:
+**Function-mode `|` and `!` are separate:**
 
-```warble
-let PetType = Cat | Dog;
-// kind Union, flagged Symbolic — no value address
-```
-
-A symbolic union is used purely as a type descriptor. It can appear in constructor annotations to specify which types a union may hold. When a value is actually initialized into a symbolic union (via a constructor annotation or assignment), the result is a normal (non-symbolic) union with a live value.
+When operands resolve to functions, `|` produces a `Disjunction` and `!` produces a `Negation` (§4.2.3). Those are compile-time presence-check expressions, not runtime unions.
 
 **Value-Level Union Operators (`||`, `&&`):**
 
@@ -2303,6 +2298,8 @@ A non-union value is treated as a union with a single passing arm for the purpos
 **Pass/Fail flip (`!`):**
 
 Warble defines the unary prefix operator `!` as a built-in **union operator** that flips pass vs. fail classification.
+
+This is the value-level meaning of `!`. When the operand resolves to a function, `!` instead produces a kind `Negation` as described in §4.2.3.
 
 * If `x` is a non-union value of type `T` (treated as a single passing arm), then `!x` is a single failing arm of type `T`.
 * If `x` is a union value, then `!x` flips the category of every arm: passing arms become failing arms and failing arms become passing arms.
@@ -2567,12 +2564,24 @@ Full semantics (including the overload hook `question()`) are defined in §4.3.4
 
 ### 5.3 Operator Overloading via Symbols
 
-Every built-in operator in Warble corresponds to an **intrinsic** of the same name (see §14.1.2). When the compiler resolves an operation, it first checks whether the left-hand side has a child property whose key is that intrinsic's name written as an enum literal. If such a property exists and is callable, the compiler calls it instead of emitting the default instruction. This is Warble's operator overloading mechanism.
+Every overloadable built-in operator in Warble corresponds to a **trait symbol** exported by the standard-library `"traits"` module (see §14.1). When the compiler resolves an operation, it first checks whether the left-hand side has a child property whose key is that exact trait symbol written as an enum literal. If such a property exists and is callable, the compiler calls it instead of emitting the default instruction. This is Warble's operator overloading mechanism.
+
+The same trait symbols may also be invoked directly as ordinary-looking function calls. When the callee is one of the compiler-known traits, the compiler recognizes the call specially and emits the corresponding TAC instruction instead of a generic `Call` instruction:
+
+```warble
+import {add, log10, sqrt} from "traits" in compiler;
+
+const result = add(lhs, rhs); // lowers directly to Add
+const scale = log10(value);   // lowers directly to Log10
+const root = sqrt(value);     // lowers directly to Sqrt
+```
+
+This applies whether or not the trait corresponds to surface syntax. `add` has both `a + b` and `add(a, b)` spellings, while traits such as `sqrt`, `sin`, and `log10` are only reachable through call syntax.
 
 For example, defining a method keyed `<add>` on an object overloads the `+` operator for instances of that object:
 
 ```warble
-import {add, sub, mul, eq} from "intrinsics" in compiler;
+import {add, sub, mul, eq} from "traits" in compiler;
 
 let Vec2(x: float, y: float) => {
   x,
@@ -2590,7 +2599,7 @@ const c = a + b; // calls a.<add>(b) → Vec2(4.0, 6.0)
 const same = a == b; // calls a.<eq>(b)
 ```
 
-The method receives the right-hand operand as its argument. The name of the method must exactly match the intrinsic name for the operator being overloaded: `add` for `+`, `sub` for `-`, `mul` for `*`, and so on. The full correspondence is defined by the intrinsics exposed in `"intrinsics"` (§14.1.2).
+The method receives the right-hand operand as its argument. The property key must be the exact trait symbol associated with the operator: `add` for `+`, `sub` for `-`, `mul` for `*`, and so on. A normal method named `add` is unrelated; only the enum-keyed trait form participates in operator lookup. The full correspondence is defined by the exports of `"traits"` (§14.1).
 
 Only the left-hand side is consulted. There is no implicit symmetry: if `a + b` checks `a` for an `<add>` overload and finds none, the compiler does not fall back to checking `b`. The overload must be present on the LHS, or the operation resolves to the default instruction.
 
@@ -3974,11 +3983,16 @@ Only declarations explicitly marked with `export` become visible outside the mod
 
 Not every module in the standard library maps to a real `.wbl` source file. The compiler may define **pseudo-modules** that expose internal compiler concepts through the normal module/import interface, without having a backing file on disk.
 
-For example, the compiler-defined symbols `unresolved`, `detached`, and `exhausted` (used by promises and generators) are exports from pseudo-modules within the standard library. Similarly, primitive type symbols such as `integer`, `float`, `boolean`, and `character` are exports from the `"primitives"` pseudo-module:
+For example, the compiler-defined symbols `unresolved`, `detached`, and `exhausted` (used by promises and generators) may be exposed from pseudo-modules within the standard library. The standard `"traits"` module is also a pseudo-module:
 
 ```warble
-import {integer, float, boolean, character} from "primitives" in compiler;
+import {add, sqrt, integral} from "traits" in compiler;
 ```
+
+The `"traits"` pseudo-module serves two roles at once:
+
+* It exports trait symbols used for conjunction/disjunction presence checks and operator overloading.
+* It exports compiler-known callable concepts such as `add`, `sqrt`, `sin`, and `log10`, which the compiler lowers directly to TAC instructions instead of normal calls.
 
 The access pattern is uniform (normal import syntax), even though the backing implementation is compiler-internal. From the user's perspective, pseudo-modules are indistinguishable from regular modules—they are imported the same way and their exports behave identically.
 
@@ -4546,118 +4560,100 @@ Once complete, `await` destroys the async frame and returns the completed result
 
 ## 14 Standard Library (overview)
 
-The Warble standard library is accessed via `import ... in compiler`, using the pre-bound `compiler` package keyword. It consists of ordinary modules backed by `.wbl` source files, as well as **pseudo-modules** implemented directly by the compiler with no backing source file (see §10.3.3). This section covers the two compiler-defined pseudo-modules available from the outset.
+The Warble standard library is accessed via `import ... in compiler`, using the pre-bound `compiler` package keyword. It consists of ordinary modules backed by `.wbl` source files, as well as **pseudo-modules** implemented directly by the compiler with no backing source file (see §10.3.3). This section covers the compiler-defined `"traits"` pseudo-module available from the outset.
 
-### 14.1 Pseudo-Modules
+### 14.1 `"traits"`
 
-Pseudo-modules are standard library modules that the compiler implements internally. They expose their exports through the same import interface as any other module, but their behavior is compiler-defined rather than expressed in Warble source code. Two pseudo-modules are currently defined: `"primitives"` and `"intrinsics"`.
+The `"traits"` module is a pseudo-module implemented directly by the compiler. It exports trait symbols used for presence checks, operator overloading, and direct compiler-recognized calls. Each trait is itself a symbol of kind `Function`, and traits are matched by **identity**, not by spelling.
 
-#### 14.1.1 `"primitives"`
+The most visible operator traits include names such as `add`, `sub`, `mul`, `div`, `eq`, `lt`, and so on. The module also exports marker traits for broad categories such as `integral`, `floating`, `numeric`, and `arithmetic`, and callable compiler-known concepts without dedicated syntax such as `sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `log2`, `log10`, `ln`, `sin`, `cos`, and `tan`.
 
-The `"primitives"` pseudo-module exports one symbol per symbol kind. These are used as **type filters**: each export constrains a value (or function parameter) to a specific compiler-recognized kind of symbol. The available exports one-to-one track the symbol kind table:
-
-| Export | Filters to kind |
-|---|---|
-| `boolean` | `Boolean` |
-| `integer` | `Integer` |
-| `float` | `Float` |
-| `character` | `Character` |
-| `string` | `String` |
-| `object` | `Object` |
-| `tuple` | `Tuple` |
-| `enum` | `Enum` |
-| `function` | `Function` |
-| `union` | `Union` |
-| `intersection` | `Intersection` |
-| `borrow` | `Borrow` |
-| `future` | `Future` |
-| `unique` | `Unique` |
-| `shared` | `Shared` |
-| `weak` | `Weak` |
-| `buffer` | `Buffer` |
-| `view` | `View` |
-| `package` | `Package` |
-| `module` | `Module` |
-| `null` | `Null` |
-| `undefined` | `Undefined` |
-
-> TODO: I have a bit of a contradiction in my naming scheme that I need to resolve. `undefined` and `null` are both keywords, so cannot be used as export names. I am unsure what they should be called in the `primitives` module.
-
-From the user's perspective each of these is presented as a function that takes one parameter and returns it unchanged—an identity filter. However, the compiler recognizes them specially and does not emit a `Call` instruction when one is invoked. Instead, it uses the filter as a kind constraint at the call site.
-
-The most common use is in conditional matching to test the kind of a value:
+Traits are implemented on user-defined objects by declaring enum-keyed properties:
 
 ```warble
-import {integer, string, function} from "primitives" in compiler;
+import {add, integral} from "traits" in compiler;
 
-let describe = (value){
-  if (value)
-  is (integer)  { return "it's an integer"; }
-  is (string)   { return "it's a string"; }
-  is (function) { return "it's a function"; }
-
-  return "something else";
+let MyNumber = {
+  public <add>(rhs) { return /* ... */; },
+  <integral> = true,
 };
 ```
 
-Filters also serve as parameter-kind constraints, specializing a function to accept only values of a specific kind:
+Import aliases preserve identity:
 
 ```warble
-import {integer, float} from "primitives" in compiler;
+import {add as plus} from "traits" in compiler;
 
-let double = (x: integer) => x * 2;    // only accepts integer-kind values
-let halve  = (x: float)   => x / 2.0;  // only accepts float-kind values
+let aliased = {
+  public <plus>(rhs) { return /* ... */; },
+};
 ```
 
-Note that `null` and `undefined` here are the primitive filter exports, not the keyword literals of the same name (§4.1.2). They test whether the kind of a value is `Null` or `Undefined`, rather than testing for equality with those markers.
-
-#### 14.1.2 `"intrinsics"`
-
-The `"intrinsics"` pseudo-module exposes hardware and compiler operations as named exports. Each export represents a specific instruction in the compiler's three-address code (TAC) intermediate representation. Like `"primitives"` exports, intrinsics are presented as ordinary callable functions—but invoking one does not emit a `Call` instruction. Instead, the compiler directly inserts the TAC instruction it represents.
-
-For example:
+This is distinct from a normal property named `add`, which does not implement the trait:
 
 ```warble
-import {add, log10, sqrt} from "intrinsics" in compiler;
+let plain = {
+  public add(rhs) { return /* ... */; },
+};
+```
+
+For built-in kinds, the compiler maintains a static table mapping each kind to the set of traits it satisfies. This lets literals and other built-in values participate in conjunction checks exactly the same way user-defined objects do.
+
+Traits are also directly callable. When the callee is a compiler-known trait, the compiler emits the corresponding TAC instruction rather than a generic `Call` instruction:
+
+```warble
+import {add, log10, sqrt} from "traits" in compiler;
 
 const result = add(lhs, rhs); // identical in execution to: const result = lhs + rhs;
                               // both lower to a single Add instruction in TAC
 
-const magnitude = sqrt(x * x + y * y); // sqrt instruction; no operator syntax exists for this
-const scale = log10(value);            // log10 instruction; likewise no operator syntax
+const magnitude = sqrt(x * x + y * y); // Sqrt instruction; no operator syntax exists for this
+const scale = log10(value);            // Log10 instruction; likewise no operator syntax
 ```
 
-This is the primary mechanism for exposing math and bit-manipulation operations that do not have a dedicated language operator. Because the compiler understands exactly what each intrinsic maps to, it can always provide the most efficient implementation and reason precisely about intent without guessing from higher-level code.
+This keeps the language surface uniform: traits are just compiler-known functions. Some of them also participate in operator syntax; others are available only by call syntax.
+
+The standard library may also export composite requirements as conjunctions or disjunctions:
+
+```warble
+// conceptually, inside the standard library:
+export const numeric = auto & (integral | floating);
+export const arithmetic = auto & add & sub & mul & div;
+```
+
+These are still invoked through normal annotation syntax, because conjunctions and disjunctions are compile-time callables.
 
 ##### What Is and Is Not Exposed
 
-The set of exposed intrinsics is deliberately restricted to operations that the compiler can reason about fully:
+The set of exported compiler-known traits is deliberately restricted to operations that the compiler can reason about fully:
 
 * **Exposed**: all operations that correspond to existing syntax operators (`add`, `sub`, `mul`, `div`, `rem`, `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `neg`, and so on), plus numeric and math operations without operator syntax (`sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `log2`, `log10`, `ln`, `sin`, `cos`, `tan`, and others).
 * **Not exposed**: anything that would hinder optimization, compromise safety, or bypass the language's abstractions. Specifically:
   * No arbitrary control-flow instructions. Control flow is exclusively the domain of control statements (`if`, `for`, `while`, etc.).
-  * No raw memory addressing. Warble has no raw pointers, and intrinsics do not circumvent this.
-  * No instructions whose side effects are opaque to the compiler.
+  * No raw memory addressing. Warble has no raw pointers, and traits do not circumvent this.
+  * No operations whose side effects are opaque to the compiler.
 
-The set of exposed intrinsics will grow as the language matures. The guiding principle is: if exposing it makes the compiler's job harder or weakens its guarantees, it is not exposed.
+The set of exported traits will grow as the language matures. The guiding principle is: if exposing it makes the compiler's job harder or weakens its guarantees, it is not exposed.
 
 ##### Operator Overloading
 
-Intrinsic names are also the mechanism Warble uses for operator overloading (§5.3). Each operator resolves to its corresponding intrinsic internally. When the compiler processes an operation, it checks whether the left-hand side has a child property keyed with that intrinsic's name as an enum literal. If so, that method is called instead of the default instruction.
-
-This means there is a direct, unambiguous correspondence between intrinsic names and overloadable operators—the two concepts share the same name table:
+Operator overloading works by importing from `"traits"` (§5.3, §14.1). Then the imported traits can be implemented on user-defined objects to define operator behavior, and they can also be called directly to invoke the corresponding compiler-known operation.
 
 ```warble
-import {add, mul} from "intrinsics" in compiler;
+import {add, mul} from "traits" in compiler;
 
 // Use add and mul as ordinary intrinsic calls:
 const sum     = add(3, 4);   // → 7
 const product = mul(3.0, 4.0); // → 12.0
 ```
 
+To define operator overloads, simply implement the corresponding traits on an object. For example, to define addition and multiplication for a `Complex` type:
+
 ```warble
-// An object that overloads addition and multiplication:
-let Complex(re: float, im: float) => {
+import {add, mul} from "traits" in compiler;
+import {f64} from "f64" in compiler;
+
+let Complex(re: f64, im: f64) => {
   re,
   im,
 
@@ -4665,13 +4661,11 @@ let Complex(re: float, im: float) => {
   public <mul>(rhs) => Complex(this.re * rhs.re - this.im * rhs.im, this.re * rhs.im + this.im * rhs.re),
 };
 
-const a = Complex(1.0, 2.0);
-const b = Complex(3.0, 4.0);
-const c = a + b; // calls a.<add>(b)
-const d = a * b; // calls a.<mul>(b)
+let a = Complex(1.0, 2.0);
+let b = Complex(3.0, 4.0);
+const sum     = a + b; // → Complex(4.0, 6.0)
+const product = a * b; // → Complex(-5.0, 10.0)
 ```
-
-No explicit import of `"intrinsics"` is required to *define* overloads. The enum-key method names (`<add>`, `<mul>`, etc.) are just identifiers—the compiler checks for them during operator resolution regardless of whether `"intrinsics"` has been imported in the module defining the type. Importing intrinsics by name is only needed when you want to call them directly like ordinary functions.
 
 ### 15.1 Compiler Flags
 
@@ -4702,7 +4696,7 @@ For detailed semantics and behavior of specific constructs, see relevant chapter
 * **Statements & Control Flow**: §7
 * **Objects & Composition**: §8
 * **Unions**: §4.2.2
-* **Intersections**: §4.2.3
+* **Conjunctions / Disjunctions / Negations**: §4.2.3
 * **Conditional Matching**: §7.3.2
 * **Lifetime & Memory Model**: §9
 * **Modules & Packages**: §10
