@@ -470,7 +470,7 @@ This distinction ensures clear and intuitive syntax, simplifies parsing, and mai
 
 ##### Callable Literal Initializer Shorthand
 
-When a declaration has no constructor annotation (i.e., the annotation is implicitly `: auto`) and the initializer is a **callable literal**, the `=` operator may be omitted. The callable literal is placed directly after the name and any modifiers:
+When a declaration has no constructor annotation and the initializer is a **callable literal**, the `=` operator may be omitted. The callable literal is placed directly after the name and any modifiers:
 
 ```warble
 let double(x) => x * 2;                        // equivalent to: let double = (x) => x * 2;
@@ -520,6 +520,14 @@ The annotation expression (`Ctor`) is evaluated at compile time to produce a cal
 
 ```warble
 value -> Ctor
+```
+
+If a declaration has **no** annotation, this pipeline step is simply absent. The initializer value becomes the declaration's value directly:
+
+```warble
+let n = 42;         // direct initialization
+let i: i32 = 42;    // equivalent to: let i = 42 -> i32;
+let a: auto = 42;   // equivalent to: let a = 42 -> auto;
 ```
 
 This is the formal definition. The compiler does **not** wrap the initializer in a container to call it via the shorthand form, as that would subtly change the meaning. Concretely:
@@ -1421,20 +1429,22 @@ let printX = [x] { print(x); };
 
 If both captures and parameters are present, captures must come first. If neither are specified, the function literal would be indistinguishable from an object literal, thus one of them must always be present.
 
-##### Generic Functions and `auto`
+##### Generic Functions
 
 Warble does not have a distinct "template list" syntax for function literals.
 
-All functions are inherently capable of being specialized based on how they are called. The most common way to express this is by using `auto` for parameter types. Each call-site determines a specialization.
+All functions are generic by default. A plain parameter list such as `(x, y)` is already enough to define a function that can be specialized based on how it is called. Each call-site determines a specialization.
 
 ```warble
-let multiply = (x: auto, y: auto) {
+let multiply = (x, y) {
   return x * y;
 };
 
 let a = multiply(3i32, 4i32); // specialization: multiply(i32, i32)
 let b = multiply(1.5, 2.0);   // specialization: multiply(f64, f64)
 ```
+
+This means there is no extra syntax required to opt into generic behavior. An annotation may still be written when you want to constrain a parameter, but unannotated parameters are already open-ended and specialize from the arguments they receive.
 
 ##### Template-like Patterns via Enum Destructuring
 
@@ -1898,7 +1908,7 @@ Unlike normal expressions, conjunctions, disjunctions, and negations do **not** 
 
 `auto` is not substituted with the argument's type. Instead, it behaves as a universal conjunction arm that every symbol satisfies by definition.
 
-This means a declaration with no explicit annotation can be understood as having the implicit annotation `: auto`. Since `auto` always passes, the initializer alone determines the resulting type, which is the intended behavior.
+Because `auto` now behaves like an ordinary conjunction operand, it is no longer treated as the implicit annotation for unannotated declarations. A declaration that omits its annotation simply skips the constructor-annotation pipeline step entirely (§3.1.5). Writing `: auto` remains valid, but it is now an explicit choice to invoke the `auto` annotation function rather than a hidden default.
 
 `auto` is especially useful because conjunction syntax is binary. A bare annotation like `p: add` invokes `add` with `p`; it does **not** ask whether `p` has the `add` trait. Writing `p: auto & add` forces conjunction mode, with `auto` serving as the inert left-hand side and `add` as the real requirement.
 
