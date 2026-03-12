@@ -20,7 +20,10 @@ namespace compiler::ir::symbol {
     String, // Payload is a `std::pair<uint32_t, uint32_t>` of the data start index and length
     Enum, // Payload is a `std::pair<uint32_t, uint32_t>` of the data start index and length
     Union, // Payload is a `std::tuple<uint32_t, uint32_t, uint16_t, uint16_t>` of the data start index, length, and fail count
-    Intersection, // Payload is a `std::pair<uint32_t, uint32_t>` of the data start index and length
+    Intersection, // Payload is a `std::pair<uint32_t, uint32_t>` of the true type and source conjunction
+    Conjunction, // Payload is a `std::pair<uint32_t, uint32_t>` of the LHS and RHS of the conjunction
+    Disjunction, // Payload is a `std::pair<uint32_t, uint32_t>` of the LHS and RHS of the disjunction
+    Negation, // Payload is a `uint32_t` of the type being negated
     Array, // Payload is a `std::pair<uint32_t, uint32_t>` of the symbol start index and length
     Tuple,
     TemplateString,
@@ -65,6 +68,9 @@ namespace compiler::ir::symbol {
       case Kind::Symbol: return "Symbol";
       case Kind::Reference: return "Reference";
       case Kind::Intersection: return "Intersection";
+      case Kind::Conjunction: return "Conjunction";
+      case Kind::Disjunction: return "Disjunction";
+      case Kind::Negation: return "Negation";
       case Kind::Array: return "Array";
       case Kind::String: return "String";
       case Kind::Enum: return "Enum";
