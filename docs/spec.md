@@ -29,7 +29,7 @@ Warble keeps it simple, readable, and intuitive.
 Warble automatically infers types based on context:
 
 ```warble
-let number = 42;                       // type defaults to `auto`
+let number = 42;                       // type inferred from initializer
 let mut message = "Warble is cool";        // explicitly mutable
 message = "Still cool!";
 ```
@@ -525,9 +525,11 @@ value -> Ctor
 If a declaration has **no** annotation, this pipeline step is simply absent. The initializer value becomes the declaration's value directly:
 
 ```warble
+import {any} from "traits" in compiler;
+
 let n = 42;         // direct initialization
 let i: i32 = 42;    // equivalent to: let i = 42 -> i32;
-let a: auto = 42;   // equivalent to: let a = 42 -> auto;
+let a: any = 42;    // equivalent to: let a = 42 -> any;
 ```
 
 This is the formal definition. The compiler does **not** wrap the initializer in a container to call it via the shorthand form, as that would subtly change the meaning. Concretely:
@@ -1543,12 +1545,10 @@ Symbols generated from parameters are flagged as `Parameter`.
 
 Every function has an invisible **context reference** parameter that the function uses to access its captured state. Conceptually, every function signature begins with one of these invisible parameters:
 
-* `(ctx: borrow & auto)` — immutable context
-* `(mut ctx: borrow & auto)` — mutable context
+* `(ctx: borrow & any)` — immutable context
+* `(mut ctx: borrow & any)` — mutable context
 
 This parameter is always part of the function's logical calling convention, even when the function captures nothing. In the captureless case the compiler may optimize away its storage entirely, but semantically it still exists.
-
-The key point is that the invisible parameter is still an ordinary declaration. Its borrow-ness is expressed through the `borrow` trait, and its mutability is expressed through the ordinary `mut` modifier. It is **not** written as `&auto` or `*auto`, because those forms would mean borrowing the constructor function `auto` itself rather than constraining the received argument.
 
 All access to captures is performed through this context reference. The function body therefore cannot derive a mutable borrow from captured state unless the context itself is mutable.
 
@@ -1904,21 +1904,23 @@ let requirement = add & sub & mul;
 
 Unlike normal expressions, conjunctions, disjunctions, and negations do **not** generate TAC instructions. They are purely compile-time structures made of symbol-to-symbol links, and they may freely point to one another to form trees of arbitrary depth.
 
-##### `auto` as a Universal Conjunction
+##### `any` as a Universal Conjunction Trait
 
-`auto` is not substituted with the argument's type. Instead, it behaves as a universal conjunction arm that every symbol satisfies by definition.
+The `any` trait is exported from the compiler-defined `"traits"` module. It is special in exactly one way: every symbol is considered to implement `any` by definition.
 
-Because `auto` now behaves like an ordinary conjunction operand, it is no longer treated as the implicit annotation for unannotated declarations. A declaration that omits its annotation simply skips the constructor-annotation pipeline step entirely (§3.1.5). Writing `: auto` remains valid, but it is now an explicit choice to invoke the `auto` annotation function rather than a hidden default.
+Because `any` is an ordinary imported trait rather than a keyword, an unannotated declaration does **not** imply `: any`. A declaration that omits its annotation simply skips the constructor-annotation pipeline step entirely (§3.1.5). Writing `: any` remains valid, but it is an explicit choice to invoke the imported `any` trait rather than a hidden default.
 
-`auto` is especially useful because conjunction syntax is binary. A bare annotation like `p: add` invokes `add` with `p`; it does **not** ask whether `p` has the `add` trait. Writing `p: auto & add` forces conjunction mode, with `auto` serving as the inert left-hand side and `add` as the real requirement.
+`any` exists mainly because conjunction syntax is binary. A bare annotation like `p: add` invokes `add` with `p`; it does **not** ask whether `p` has the `add` trait. Writing `p: any & add` forces conjunction mode, with `any` serving as the inert left-hand side and `add` as the real requirement.
 
 ##### Invocation and Presence Checking
 
 When a conjunction or disjunction is used as a constructor annotation, the compiler invokes it through the pipeline operator like any other annotation:
 
 ```warble
-let value: auto & add = expr;
-// Initialized as: expr -> (auto & add)
+import {any, add} from "traits" in compiler;
+
+let value: any & add = expr;
+// Initialized as: expr -> (any & add)
 ```
 
 Invocation performs a **presence check**.
@@ -1989,8 +1991,8 @@ The standard library may also export composite requirements built from conjuncti
 
 ```warble
 // conceptually, inside the standard library:
-export const numeric = auto & (integral | floating);
-export const arithmetic = auto & add & sub & mul & div;
+export const numeric = any & (integral | floating);
+export const arithmetic = any & add & sub & mul & div;
 ```
 
 ##### Nesting, Precedence, and Normalization
@@ -1998,17 +2000,14 @@ export const arithmetic = auto & add & sub & mul & div;
 Conjunctions and disjunctions nest freely:
 
 ```warble
-let fn = (p: auto & add & (floating | integral)) { /* ... */ };
+import {any, add, floating, integral} from "traits" in compiler;
+
+let fn = (p: any & add & (floating | integral)) { /* ... */ };
 ```
 
 This requires `p` to satisfy `add`, and to satisfy at least one of `floating` or `integral`.
 
 `&` binds tighter than `|`, so parentheses are required when embedding a disjunction inside a conjunction. Without parentheses, `add & floating | integral` parses as `(add & floating) | integral`, which is a different top-level condition.
-
-The compiler may apply De Morgan's laws when reasoning about these trees:
-
-* `!(A & B)` is equivalent to `!A | !B`
-* `!(A | B)` is equivalent to `!A & !B`
 
 #### 4.2.4 Future
 
@@ -2351,7 +2350,7 @@ Every symbol has a standalone 8-bit `kinds` column storing its **kind**. Kind na
 
 Core kinds:
 
-- Undefined, Unresolved, Auto, Null, Readonly
+- Undefined, Unresolved, Null, Readonly
 - Raw, Boolean, Character, Integer, Float
 - Borrow, Unique, Shared, Weak, Future, Buffer, View
 - Identifier, String, Enum, Union, Conjunction, Disjunction, Negation
@@ -2782,7 +2781,7 @@ Most literals in Warble are classified as **callable literals**. A callable lite
 
 ```warble
 print("Hello, World!");        // tuple literal
-func{ y = 2, x = 1 };         // object literal
+func{ y = 2, x = 1 };          // object literal
 vector<i32>;                   // enum literal
 process[data];                 // array literal
 func'c';                       // character literal
@@ -3046,7 +3045,7 @@ Destructuring-typed overloads (§6.2) are only eligible in phase 2. Phase 1 does
 
 ### 6.5 Compile-Time Specialization
 
-Functions in Warble are inherently specializable. Parameters typed as `auto` create a new specialization for each distinct set of argument types encountered at call sites (see §4.1.11). Enum destructuring in parameter lists enables template-like patterns for passing type symbols explicitly:
+Functions in Warble are inherently specializable. Ordinary unannotated parameters create a new specialization for each distinct set of argument types encountered at call sites (see §4.1.11). Enum destructuring in parameter lists enables template-like patterns for passing type symbols explicitly:
 
 ```warble
 let make = (<T>) => { element_type = T, data = [] };
@@ -4813,7 +4812,21 @@ The Warble standard library is accessed via `import ... in compiler`, using the 
 
 The `"traits"` module is a pseudo-module implemented directly by the compiler. It exports trait symbols used for presence checks, operator overloading, and direct compiler-recognized calls. Each trait is itself a symbol of kind `Function`, and traits are matched by **identity**, not by spelling.
 
-The most visible operator traits include names such as `add`, `sub`, `mul`, `div`, `eq`, `lt`, and so on. The module also exports marker traits for broad categories such as `integral`, `floating`, `numeric`, and `arithmetic`, and callable compiler-known concepts without dedicated syntax such as `sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `log2`, `log10`, `ln`, `sin`, `cos`, and `tan`.
+The most visible operator traits include names such as `add`, `sub`, `mul`, `div`, `eq`, `lt`, and so on. The module also exports the special universal trait `any`, marker traits for broad categories such as `integral`, `floating`, `numeric`, and `arithmetic`, and callable compiler-known concepts without dedicated syntax such as `sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `log2`, `log10`, `ln`, `sin`, `cos`, and `tan`.
+
+##### The `any` trait
+
+`any` is special in exactly one way: every symbol implements it by definition.
+
+Its main role is to provide the inert left-hand side needed by binary conjunction syntax. A bare annotation like `p: add` invokes the function `add` with `p`; it does not form a conjunction. If you want a conjunction with only one substantive requirement, write `any & add` instead:
+
+```warble
+import {any, add} from "traits" in compiler;
+
+let value: any & add = expr;
+```
+
+This lets the language keep conjunction syntax uniformly binary without treating `any` as a keyword or as a hidden default annotation.
 
 Traits are implemented on user-defined objects by declaring enum-keyed properties:
 
@@ -4864,8 +4877,8 @@ The standard library may also export composite requirements as conjunctions or d
 
 ```warble
 // conceptually, inside the standard library:
-export const numeric = auto & (integral | floating);
-export const arithmetic = auto & add & sub & mul & div;
+export const numeric = any & (integral | floating);
+export const arithmetic = any & add & sub & mul & div;
 ```
 
 These are still invoked through normal annotation syntax, because conjunctions and disjunctions are compile-time callables.
@@ -5018,7 +5031,6 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`this`** — Resolves to the top topic symbol.
 * **`that`** — Resolves to the second-to-top topic symbol.
 * **`compiler`** — Pre-bound keyword symbol of kind `Package` that represents the standard library. Implicitly available in every module without needing to be registered. Used with `in compiler` in import statements to access standard library modules.
-* **`auto`** — Serves as a placeholder type, replaced by the compiler with an inferred or specified type during type checking.
 
 ---
 
