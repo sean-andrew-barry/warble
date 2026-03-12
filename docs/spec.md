@@ -86,9 +86,9 @@ Warble's function calls are built on the pipeline operator `->`, which invokes i
 Most literals can be placed directly adjacent to a callable value as shorthand:
 
 ```warble
-print("Hello, World!");                  // tuple shorthand
+print("Hello, World!");                 // tuple shorthand
 process{ x = 10, y = 20 };              // object shorthand
-vector<i32>;                             // enum shorthand
+vector<i32>;                            // enum shorthand
 ```
 
 The shorthand form always destructures the literal into parameters. The pipeline form first tries to pass the argument as a whole value:
@@ -502,7 +502,7 @@ Property declaration mode forbids destructuring. Using `let` inside an object li
 
 Property declarations support shorthand, plus shorthand-prefix operators:
 
-* `@`, `&`, `*`, `$`, `...`
+* `@`, `&`, `*`, `:`, `$`, `...`
 
 #### 3.1.4 Capture Declaration Mode
 
@@ -544,9 +544,47 @@ let v: vector<i32> = [];      // vector<i32> is a partially-applied function cal
 
 This also includes conjunction/disjunction/negation expressions built from trait symbols (§4.2.3). Those expressions are compile-time callables too: when used as annotations, they are invoked via the pipeline operator and perform presence checks instead of constructing wrapper values.
 
+This declaration-time colon syntax is distinct from the mutable-borrow operator `:` described in §5.2.3. In a declaration, `name: Ctor = value` is parsed as an annotation because the grammar is already in declaration mode. In expression position, prefix `:name` and member access `obj:name` produce mutable borrows instead.
+
 Functions used this way are conventionally called **constructors**, but this is purely a naming convention. They are not special to the compiler in any way—they are just factory functions that accept some input and return an initialized value. See §8.5 for the constructor pattern in detail.
 
-#### 3.1.6 Shadowing
+#### 3.1.6 Mutability Tiers
+
+Warble declarations have three mutability tiers. The distinction matters both for direct writes and for whether mutable borrows may pass through a binding.
+
+##### `const` — strong immutability
+
+A `const` binding cannot be reassigned, and it forms a **transitive immutability wall**. No mutable borrow may be produced of the binding itself or of anything reached through it. In other words, once an access path passes through a `const` binding, `*` and `:` are both rejected on that path.
+
+```warble
+const obj = { mut value = 1 };
+obj:value += 1;   // error — cannot form a mutable borrow through `obj`
+```
+
+##### `mut` — explicit mutability
+
+A `mut` binding may be reassigned, and mutable borrows to it are permitted. Mutating operators such as `=`, `+=`, and `-=` are legal when they target a `mut` binding (or a `mut` property reached through a permitted mutable borrow path).
+
+##### Default (neither `const` nor `mut`) — weak immutability
+
+A default binding cannot itself be reassigned and cannot be the direct target of mutating operators. However, unlike `const`, it does **not** block mutable borrows from passing through it to reach mutable interior state.
+
+```warble
+let obj = { mut value = 1 };
+obj:value += 1;   // legal — `obj` permits the mutable borrow to pass through
+obj = other;      // error — the binding `obj` itself is not `mut`
+```
+
+##### Access-rule summary
+
+The mutability checks are applied by operation kind:
+
+* `:` and mutable-borrow formation (`*`) check the access path they cross. `const` rejects them; default and `mut` allow them to continue.
+* Mutating operators (`=`, `+=`, etc.) check the final target. The target must be `mut`.
+
+This is why `const` behaves as a deep wall while the default tier behaves as permeable-but-not-writable: you may traverse through it to reach deeper mutable state, but you may not directly overwrite the default binding itself.
+
+#### 3.1.7 Shadowing
 
 Shadowing occurs whenever a new declaration uses the same name as a previous declaration. This is permitted not only across nested scopes but also within the same scope:
 
@@ -596,6 +634,8 @@ print(x);       // prints 10
 ```
 
 **Name lookup** in Warble follows a straightforward rule: when you reference an identifier, Warble searches for the most recent declaration of that identifier, starting from the current scope and moving outward through parent scopes. This lookup proceeds in reverse declaration order, meaning the latest matching declaration shadows any previous declarations with the same name.
+
+If lookup finds a matching declaration whose value is explicitly `undefined`, the search stops there. The `undefined` declaration still counts as the winning shadowing declaration; it acts as an explicit "not defined here" barrier and prevents lookup from continuing to earlier declarations of the same name.
 
 Shadowing also applies within the same scope:
 
@@ -668,6 +708,8 @@ Unlike `true` and `false`, which are ordinary boolean values, these three litera
 
 These are **marker symbols**. Their primary job is to act as flags and state labels for other constructs (especially unions), not to provide meaningful value bits.
 
+For the purposes of conjunction/disjunction/negation expressions (§4.2.3), the marker symbols `null` and `undefined` are also treated as valid function-like operands. This means forms such as `!null`, `null | add`, and `undefined & readable` are parsed in conjunction mode rather than value mode when the surrounding operands otherwise qualify.
+
 This distinction matters because the same raw value bits can represent many different concepts depending on the active symbol/tag. For example, the integer `0` and the marker `null` may both be all-zero in memory, but they are different concepts and are never treated as interchangeable.
 
 ##### Union-Tag Semantics
@@ -683,13 +725,6 @@ When a union is in a marker state, the union's value slot is not meaningful and 
 ##### `null`
 
 The keyword literal `null` evaluates to the compiler-defined marker symbol of kind `Null`.
-
-Functions that do not explicitly return a value implicitly return `null`. The following forms are equivalent:
-
-```warble
-return;
-return null;
-```
 
 ##### Optional Values
 
@@ -1178,6 +1213,19 @@ let obj = {
 obj.a; // resolves to the second declaration (value: 2)
 ```
 
+If the most recent matching property is explicitly `undefined`, lookup stops immediately and does **not** continue searching for earlier matches. This provides an explicit way to disable an inherited or previously spread property without removing the earlier source object:
+
+```warble
+let numeric = { <integral> = true };
+
+let composite = {
+  ...numeric,
+  <integral> = undefined,
+};
+```
+
+Here `composite` does not satisfy `integral`: lookup hits the later `<integral> = undefined` first and stops there, so the earlier spread-in definition is shadowed and never consulted.
+
 This mechanism also supports function overloads, allowing multiple functions with identical names but differing signatures to coexist:
 
 ```warble
@@ -1187,7 +1235,7 @@ let mathOps = {
 };
 ```
 
-During lookup, Warble initially hits the most recent definition (the last listed). If the immediate match is not compatible (such as due to differing function parameters), the compiler continues searching backward for a suitable overload.
+During lookup, Warble initially hits the most recent definition (the last listed). If the immediate match is explicitly `undefined`, lookup terminates immediately. Otherwise, if the immediate match is not compatible (such as due to differing function parameters), the compiler continues searching backward for a suitable overload.
 
 ##### Topic Binding (`this` / `that`)
 
@@ -1354,7 +1402,9 @@ Function literals have three main parts, closely mirroring C++ lambdas:
 
 * **Capture list**: Defined with square brackets (`[ ]`). *(Optional)*
 * **Parameter list**: Defined with parentheses (`( )`). *(Optional, but at least one of captures or parameters is required)*
-* **Function body**: Defined with curly braces (`{ }`). *(Required, except in shorthand arrow syntax)*
+* **Context qualifier and body**: A block-bodied function may optionally place `mut` or `const` immediately before its curly-braced body (`mut { ... }`, `const { ... }`, or just `{ ... }`). *(The body is required, except in shorthand arrow syntax.)*
+
+TODO: Arrow functions can have a header as well.
 
 Examples:
 
@@ -1479,6 +1529,37 @@ All parameters are inherently templates (traditional template concept, not to be
 
 Symbols generated from parameters are flagged as `Parameter`.
 
+##### Context Reference
+
+Every function has an invisible **context reference** parameter that the function uses to access its captured state. Conceptually, every function signature begins with one of these invisible parameters:
+
+* `(ctx: borrow & auto)` — immutable context
+* `(mut ctx: borrow & auto)` — mutable context
+
+This parameter is always part of the function's logical calling convention, even when the function captures nothing. In the captureless case the compiler may optimize away its storage entirely, but semantically it still exists.
+
+The key point is that the invisible parameter is still an ordinary declaration. Its borrow-ness is expressed through the `borrow` trait, and its mutability is expressed through the ordinary `mut` modifier. It is **not** written as `&auto` or `*auto`, because those forms would mean borrowing the constructor function `auto` itself rather than constraining the received argument.
+
+All access to captures is performed through this context reference. The function body therefore cannot derive a mutable borrow from captured state unless the context itself is mutable.
+
+For block-bodied functions, the context mutability may be spelled explicitly by placing `mut` or `const` immediately before the body:
+
+```warble
+let fn1 = []() mut { /* mutable context */ };
+let fn2 = []() const { /* immutable context */ };
+let fn3 = []() { /* inferred by the compiler */ };
+```
+
+If no explicit qualifier is written, the compiler infers the context capability from the body:
+
+* If the function mutates captured state, its context reference is mutable.
+* If the function performs a mutable call through captured state, its context reference is mutable.
+* Otherwise, its context reference is immutable.
+
+An explicit `const` qualifier forbids mutable context use inside the body. An explicit `mut` qualifier permits it even if no mutation happens along some specialization path.
+
+This requirement is transitive. Because the compiler never derives a mutable borrow from an immutable one, any function that performs a mutable operation through captured state must itself have mutable context. If that function is called mutably through another function's captured state, the caller must also have mutable context, and so on up the chain.
+
 ##### Function Body and Return Values
 
 The function body (`{ }`) is essentially a standard scope, allowing normal scope-level declarations, control-flow constructs, and expressions.
@@ -1487,7 +1568,7 @@ Functions do not explicitly declare return types; instead, the return type is in
 
 * Multiple `return` statements are allowed, but they must all return exactly the same type.
 * The return type is represented by a singular symbol flagged as `Returned`.
-* If a function lacks a return statement or returns explicitly without a value (`return;`), its inferred return symbol is `null` (equivalent to `return null;`).
+* If a function lacks a return statement or returns explicitly without a value (`return;`), its inferred return symbol is `undefined` (equivalent to `return undefined;`).
 
 Example:
 
@@ -1498,19 +1579,20 @@ let getValue = () {
   return 20;
 };
 
-// Inferred return: null
+// Inferred return: undefined
 let logSomething = (msg) {
   print(msg);
-  return; // equivalent to `return null;`
+  return; // equivalent to `return undefined;`
 };
 ```
 
 Function symbol structure in the compiler's internal representation (child slice):
 
 1. Return symbol (flagged as `Returned`)
-2. Parameter symbols (flagged as `Parameter`, with `ParameterPack` for packs)
-3. Captures (flagged as `Captured`)
-4. Locals
+2. Context reference parameter (logical first parameter; may be storage-elided when irrelevant)
+3. Parameter symbols (flagged as `Parameter`, with `ParameterPack` for packs)
+4. Captures (flagged as `Captured`)
+5. Locals
 
 ##### Shorthand (Arrow) Syntax
 
@@ -1552,6 +1634,7 @@ This avoids ambiguity when distinguishing between implicit object literals and e
 * Captures are optional; omitted captures imply implicit capturing.
 * Parameters are optional; either captures or parameters must be present.
 * Supports explicit capture modes (`&` by borrow, `@` by copy).
+* Every function has an invisible context reference used to access captures; block-bodied functions may explicitly declare that context as `mut` or `const`.
 * Parameters inherently templated, may initially have type `undefined`.
 * Return type inferred automatically, must be consistent across returns.
 * Concise arrow syntax available for single-expression functions.
@@ -1574,15 +1657,15 @@ Among owning references, `unique<T>`, `shared<T>`, `weak<T>`, and `future<F>` ha
 
 A **borrow** is a symbol of kind `Borrow` that designates an existing symbol. There are three borrow variants, distinguished by their flag:
 
-| Prefix operator | Flag | Meaning |
+| Syntax | Flag | Meaning |
 |---|---|---|
 | `&x` | `Const` | Immutable borrow — designates the **value address** of `x`. Cannot be used to mutate the target. |
-| `*x` | `Mut` | Mutable borrow — designates the **value address** of `x`. Permits mutation of the target. |
+| `*x`, `:x`, `lhs:name` | `Mut` | Mutable borrow — designates the **value address** of the selected binding/property. Permits mutation through the borrow. |
 | `$x` | `Symbolic` | Symbolic borrow — designates the **symbol address** of `x`. Has no value address; accessing it as a runtime value is a compile-time error. |
 
 All three variants share the same kind (`Borrow`) and the same payload encoding: a `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index).
 
-The parser disambiguates these prefix operators from their infix counterparts based on position. For example, `&` between two expressions enters conjunction mode only when both sides resolve to functions after transparently following borrows (§4.2.3); otherwise it falls through to ordinary value-level behavior. `*` between two expressions is multiplication; `&` or `*` before a single operand is a borrow.
+The parser disambiguates these operators from their other roles based on position and grammar context. For example, `&` between two expressions enters conjunction mode only when both sides resolve to functions after transparently following borrows (§4.2.3); otherwise it falls through to ordinary value-level behavior. `*` between two expressions is multiplication; `&` or `*` before a single operand is a borrow. Likewise, `name: Ctor = value` in declaration grammar is a constructor annotation (§3.1.5), while prefix `:name` and member access `lhs:name` in expression grammar produce mutable borrows.
 
 ##### Immutable Borrow (`&`)
 
@@ -1594,9 +1677,33 @@ Warble does not have raw pointers. Address-like values exist only in the form of
 
 ##### Mutable Borrow (`*`)
 
-A mutable borrow (`*x`) produces a kind `Borrow` flagged `Mut`. It designates the value address of an existing object and permits mutation through the borrow.
+A mutable borrow (`*x`) produces a kind `Borrow` flagged `Mut`. The `:` operator (§5.2.3) produces the same borrow kind in two additional spellings: prefix `:x` for standalone bindings and member form `lhs:name` for properties. All three forms designate the value address of an existing object and permit mutation through the borrow.
 
 Mutable borrows follow the same lifetime and non-escaping rules as immutable borrows. The additional constraint is that while a mutable borrow to a value is live, no other borrow (mutable or immutable) to the same value may be live.
+
+Mutable-borrow formation is still subject to declaration mutability (§3.1.6). Forming a mutable borrow through a `const` binding is a compile-time error, whether the spelling is `*binding`, `:binding`, or `obj:name`.
+
+Warble does **not** implicitly convert plain values into borrow arguments at call sites. If a parameter expects `*T`, the caller must explicitly produce a mutable borrow:
+
+```warble
+import {string} from "core" in compiler;
+import {borrow} from "traits" in compiler;
+
+let fn = (mut text: borrow & string) { text += "!"; };
+
+let mut message: string = "Hello";
+fn(*message);   // legal
+fn(message);    // error — no implicit value-to-borrow conversion
+```
+
+The same rule applies to immutable-borrow parameters: the caller must pass an actual borrow value. However, borrow **capability** is covariant in the safe direction: a mutable borrow may be passed where an immutable borrow is expected, because giving the callee less capability is always safe.
+
+```warble
+let view = (text: borrow & string) { print(text); };
+
+view(&message);  // legal
+view(*message);  // also legal — mutable borrow silently converts to immutable borrow
+```
 
 ##### Symbolic Borrow (`$`)
 
@@ -1655,6 +1762,8 @@ In particular, the compiler must always be able to determine exactly which impor
 Therefore, it is a compile-time error to make an external borrow opaque by copying it into constructs that hide its identity, such as unions. For example, storing an external borrow into a union (such as `!null | &T`) is a compile-time error.
 
 This transparency requirement applies specifically to borrows to imports. Borrows internal to a module are not required to remain transparent; they may be treated as opaque runtime borrows if desired (at the cost of optimization opportunities).
+
+Mutable external borrows are subject to an additional cross-module safety check (§13.2.4): if the borrow crosses a module boundary, the compiler must reject any non-atomic mutation through it.
 
 #### 4.2.2 Union
 
@@ -1754,7 +1863,7 @@ Unions have a hard limit of $2^{16}-1$ total arms (65535). The type tag is one b
 
 #### 4.2.3 Conjunction, Disjunction, and Negation
 
-Warble uses three compile-time-only expression kinds to describe presence checks over trait symbols and other function-valued symbols:
+Warble uses three compile-time-only expression kinds to describe presence checks over trait symbols, function-valued symbols, and the marker symbols `null` and `undefined`:
 
 * `Conjunction` — produced by infix `&`
 * `Disjunction` — produced by infix `|`
@@ -1766,10 +1875,10 @@ These are not runtime wrapper values. They are compile-time relationships betwee
 
 The operators `&`, `|`, and `!` are overloaded between two broad modes:
 
-* **Function-resolving mode:** If the operand (for `!`) or both operands (for `&` and `|`) resolve to functions after transparently following borrows, the compiler produces `Negation`, `Conjunction`, or `Disjunction` respectively.
+* **Function-resolving mode:** If the operand (for `!`) or both operands (for `&` and `|`) resolve to functions after transparently following borrows, or are the marker symbols `null` / `undefined`, the compiler produces `Negation`, `Conjunction`, or `Disjunction` respectively.
 * **Value mode:** Otherwise the compiler falls through to ordinary value-level behavior, such as bitwise/logical operators or union pass/fail manipulation, and lowers the operation to TAC as usual.
 
-A `Borrow` operand is not special on its own; it is simply followed transparently. If the borrow designates a `Function`, the operator still enters function-resolving mode.
+A `Borrow` operand is not special on its own; it is simply followed transparently. If the borrow designates a `Function`, the operator still enters function-resolving mode. Likewise, `null` and `undefined` participate directly without requiring a borrow, so `!null` produces a `Negation` whose operand points to the `null` symbol, and `undefined | add` produces a `Disjunction`.
 
 ##### Internal Representation
 
@@ -1806,18 +1915,18 @@ Invocation performs a **presence check**.
 
 For a **conjunction**, every leaf in the tree must pass. For a **disjunction**, at least one top-level arm must pass. A **negation** inverts the result of its operand. The recursive rules are:
 
-* A leaf must be a `Function` or a `Borrow` that resolves to a `Function`.
+* A leaf must be a `Function`, a `Borrow` that resolves to a `Function`, or the marker symbol `null` or `undefined`.
 * A conjunction succeeds only if both children succeed.
 * A disjunction succeeds if either child succeeds.
 * A negation succeeds if its operand fails, and fails if its operand succeeds.
 
 The leaf check itself is identity-based. The compiler does **not** compare string spellings. It asks whether the argument has a child property named by that exact symbol.
 
-For **object arguments**, this is a genuine child-property lookup: the compiler searches the object's declarations for an enum-keyed property whose symbol identity matches the trait symbol being checked.
+For **object arguments**, this is a genuine child-property lookup: the compiler searches the object's declarations for an enum-keyed property whose symbol identity matches the trait symbol being checked. If the first such match is explicitly `undefined`, the lookup stops there and the trait is treated as not implemented.
 
-For **non-object arguments** (built-in kinds such as integers, floats, strings, and so on), the compiler uses an internal static table that maps each kind to the set of trait symbols it satisfies. This table is likewise defined in terms of symbol identity, not names. From the user's perspective the result is identical: the presence check either passes or fails.
+For **non-object arguments** (built-in kinds such as integers, floats, strings, and so on), the compiler uses an internal static table that maps each kind to the set of symbols it satisfies. This table includes ordinary traits as well as marker-symbol requirements such as `null` and `undefined`, and it is likewise defined in terms of symbol identity rather than names. From the user's perspective the result is identical: the presence check either passes or fails.
 
-Presence checks only test for **presence**. They do not inspect the matched property's value, type, or signature. A property whose value is `null`, or a property whose callable signature is later found to be incompatible, still satisfies the conjunction check. Correctness is enforced later at the actual use site.
+Presence checks only test for **defined presence**. They do not inspect the matched property's truthiness, type, or signature. Any matching property whose value is defined counts as implemented, whether that value is `true`, `null`, a function, or something else entirely. A matching property whose value is explicitly `undefined` counts as an explicit "not implemented here" barrier and stops the search. Correctness is enforced later at the actual use site.
 
 ##### Result of Invocation
 
@@ -2562,6 +2671,37 @@ After these steps, evaluation continues normally at the join point. Any subseque
 
 Full semantics (including the overload hook `question()`) are defined in §4.3.4.
 
+#### 5.2.3 Mutable Borrow Operator `:`
+
+Warble provides `:` as an additional way to produce a mutable borrow.
+
+##### Binary member form: `lhs:name`
+
+The binary form behaves like `.` member access, but instead of producing the ordinary member access result it produces a mutable borrow to the selected property.
+
+```warble
+obj:value += 1;
+obj:method();
+```
+
+This form has the same high precedence as `.` and composes the same way with postfix operators. In particular, `obj:method()` parses as `(obj:method)()`.
+
+##### Unary prefix form: `:name`
+
+The unary prefix form produces a mutable borrow to a standalone binding in the current lexical scope:
+
+```warble
+:fn();
+```
+
+This form is conceptually similar to borrowing a property from an implicit object representing the current lexical scope, but no such object exists in the language.
+
+Unlike the other prefix borrow operators, unary `:` binds tighter than the call operator. Therefore `:fn()` is always parsed as `(:fn)()`: the mutable borrow is formed first, and the resulting function value is then called. This is intentionally different from `*fn()`, which parses as `*(fn())` under the ordinary prefix/call precedence rules.
+
+##### Mutability checks
+
+Both forms obey the same rules as any other mutable borrow. They may pass through default bindings and `mut` bindings, but they are rejected when the access path crosses a `const` binding (§3.1.6). Producing the mutable borrow does not itself make a write legal; the eventual target of a mutating operator must still be `mut`.
+
 ### 5.3 Operator Overloading via Symbols
 
 Every overloadable built-in operator in Warble corresponds to a **trait symbol** exported by the standard-library `"traits"` module (see §14.1). When the compiler resolves an operation, it first checks whether the left-hand side has a child property whose key is that exact trait symbol written as an enum literal. If such a property exists and is callable, the compiler calls it instead of emitting the default instruction. This is Warble's operator overloading mechanism.
@@ -2697,6 +2837,14 @@ let greet = (name) => "Hello, {name}!";
 
 Functions are called using the pipeline operator `->` or callable literal shorthand (see §5.4).
 
+Every call also passes the function's invisible context reference (§4.1.11). The capability of that implicit argument is determined by how the callee is accessed:
+
+* Calling a function directly by name passes context immutably.
+* Calling through an immutable borrow also passes context immutably.
+* Calling through a mutable borrow (`*fn`, `:fn`, `obj:method`) passes context mutably.
+
+If a function requires mutable context, an immutable call is a compile-time error. The caller must explicitly acknowledge the side effect by calling through a mutable borrow.
+
 ### 6.2 Parameters, Default Values, Packs
 
 Function parameters are declared in the parameter list and are immutable by default (use `mut` for mutable parameters). See §4.1.11 for full parameter syntax.
@@ -2763,6 +2911,8 @@ The key semantic difference: the shorthand form **always destructures** callable
 
 For non-destructurable kinds (characters, strings, numerics), both forms are identical in behavior. See §5.4 for syntax details and §6.4 for the full resolution algorithm.
 
+For function values, the access path to the callee also determines the capability of the invisible context reference. `fn()` and `(&fn)()` call with immutable context, while `:fn()` and `(*fn)()` call with mutable context. This affects only the hidden context argument; explicit parameters still follow the ordinary argument-matching rules below.
+
 ### 6.4 Overload Resolution
 
 When a function is called via the pipeline operator `arg -> func`, the compiler resolves the call in two phases:
@@ -2779,6 +2929,36 @@ let process = (a, b, c) { /* handles three separate integers */ };
 ```
 
 If a matching overload is found, the call is resolved and phase 2 is skipped.
+
+#### Borrow-Constrained Parameter Matching
+
+Parameters that require a borrow are expressed through the `borrow` trait rather than by writing `&T` or `*T` as an annotation. The parameter remains an ordinary declaration:
+
+* `text: borrow & string` requires a borrow whose borrowed value implements `string`.
+* `mut text: borrow & string` requires the same, but additionally requires the incoming borrow capability to be mutable.
+
+Such parameters never cause the compiler to manufacture a borrow automatically. The argument must already be a borrow value:
+
+* A `mut` borrow-constrained parameter requires a mutable borrow argument.
+* A non-`mut` borrow-constrained parameter accepts either an immutable borrow argument or a mutable borrow argument.
+* A plain value that merely implements `string` does not match, because it does not implement `borrow`.
+
+This rule applies in both phases of overload resolution. In phase 1 it applies to the whole argument value; in phase 2 it applies to each destructured element/property that is matched against a parameter.
+
+```warble
+import {string} from "core" in compiler;
+import {borrow} from "traits" in compiler;
+
+let mutate = (mut text: borrow & string) { text += "!"; };
+let print_it = (text: borrow & string) { print(text); };
+
+mutate(*message);   // legal
+print_it(&message); // legal
+print_it(*message); // legal
+
+mutate(message);    // error
+print_it(message);  // error
+```
 
 #### Phase 2: Automatic Destructuring
 
@@ -3305,7 +3485,7 @@ let add(a, b) {
 };
 ```
 
-* A function without an explicit `return` statement implicitly returns `null`. This behavior matches a function explicitly written as `return null;`.
+* A function without an explicit `return` statement implicitly returns `undefined`. This behavior matches a function explicitly written as `return undefined;`.
 
 **Multiple Returns (Structured Literals):**
 
@@ -3914,7 +4094,9 @@ import {util, helper as h} from "local_module";   // Local module imports
 import vector from "vector" in compiler;          // Import a specific standard library module
 ```
 
-Imports always produce immutable bindings, regardless of the original export mutability. Modules are shared: multiple imports of the same module access the same instance.
+Imports produce **default** bindings rather than `const` bindings. This means the imported binding itself is not directly writable, but it also does not act as a deep immutability wall. Mutable access to imported state is modeled explicitly through mutable borrows (`*` / `:`), and any such cross-module mutation is then checked for thread safety separately (§13.2.4).
+
+Modules are shared: multiple imports of the same module access the same instance.
 
 ##### Exported imports (`import export`)
 
@@ -4105,7 +4287,7 @@ Under normal operation, the main thread sleeps while the worker threads execute 
 
 On each monitoring wakeup, the main thread reads the pool's shared metadata to verify that progress is still being made. Workers publish lightweight diagnostics—their current worker cycle counter and a recent timestamp—that the main thread can inspect without acquiring locks. Using these values alongside the cycle history buffer (§13.2.9), the main thread checks whether the pool is advancing at a reasonable rate. Under normal operation this check is cheap and the main thread returns to sleep immediately.
 
-#### 13.1.3 Stall Recovery
+#### 13.1.3 Stall Detection
 
 A **stall** occurs when workers are failing to make progress but have not detected this themselves. The no-progress backoff mechanism (§13.2.6) handles most stalls internally: when workers detect they are stuck, they stop and wake the main thread. If a stall goes undetected by the workers, the main thread's periodic monitoring wakeup provides the fallback.
 
@@ -4281,6 +4463,61 @@ If a dependent reads a binding only through `import deferred`, the compiler may 
 These barriers rely on the compiler being able to observe and reason about every read of an imported binding.
 
 Warble therefore requires that external borrows remain transparent and must not be made opaque to the compiler (§4.2.1).
+
+##### Cross-module mutable borrows
+
+A foundational rule of Warble's scheduler model is that a dependent module must not perform a **non-atomic mutation** of state owned by one of its dependency modules. This is what allows multiple dependents of the same completed dependency to run safely in parallel.
+
+The rule is enforced on mutable borrows rather than by pretending imports are `const`. When a mutable borrow crosses a module boundary, the compiler checks whether the requested mutation is thread-safe:
+
+* If the target operation is atomic, the mutation is permitted.
+* Otherwise, the mutation is a compile-time error.
+
+Because external borrows must remain transparent (§4.2.1), this check cannot be bypassed by storing the borrow in an opaque wrapper or by routing it through a union.
+
+```warble
+// In module A:
+export mut value = 1;
+
+// In module B:
+import A from "A";
+A:value += 1;    // error — non-atomic mutation across module boundary
+```
+
+Atomic exported state is the intended escape hatch for deliberate shared mutation:
+
+```warble
+// In module A:
+export mut count: atomic_i32 = 0;
+
+// In module B:
+import A from "A";
+A:count += 1;    // legal — atomic mutation across module boundary
+```
+
+The caller must still explicitly acknowledge the side effect by forming a mutable borrow (`A:value`, `*A.value`, and so on). The cross-module check only decides whether that already-explicit mutation is safe.
+
+##### Exported functions with mutable context
+
+The same safety rule applies to exported functions that capture state. A mutable call into another module is only legal when the callee's mutable context is **thread-safe**.
+
+A function is thread-safe for cross-module mutable calls when every mutation reachable through its mutable context is atomic. This property is inferred transitively:
+
+* If the function performs a non-atomic mutation through captured state, it is not thread-safe.
+* If it calls another function through mutable context and that callee is not thread-safe, it is not thread-safe.
+* Only when the entire reachable mutable-context call graph is atomic may the exported function be called mutably from another module.
+
+```warble
+// In module A:
+mut count: atomic_i32 = 0;
+export const increment = [*count]() { count += 1; };
+
+// In module B:
+import A from "A";
+A:increment();   // legal — every mutation through increment's context is atomic
+```
+
+This inference is separate from ordinary context mutability. A function may require mutable context within its own module yet still be illegal to call mutably across a module boundary if any reachable mutation is non-atomic.
 
 #### 13.2.5 Claiming a Module
 
@@ -4643,7 +4880,7 @@ Operator overloading works by importing from `"traits"` (§5.3, §14.1). Then th
 import {add, mul} from "traits" in compiler;
 
 // Use add and mul as ordinary intrinsic calls:
-const sum     = add(3, 4);   // → 7
+const sum     = add(3, 4);     // → 7
 const product = mul(3.0, 4.0); // → 12.0
 ```
 
@@ -4651,7 +4888,7 @@ To define operator overloads, simply implement the corresponding traits on an ob
 
 ```warble
 import {add, mul} from "traits" in compiler;
-import {f64} from "f64" in compiler;
+import {f64} from "core" in compiler;
 
 let Complex(re: f64, im: f64) => {
   re,
@@ -4680,10 +4917,6 @@ const product = a * b; // → Complex(-5.0, 10.0)
 ## 18 Appendices
 
 ### 18.1 Operator Precedence
-
-> TODO: Include a small table or paragraph cross-referencing the earlier operator precedence definition.
-
-See §5.2 for operator descriptions; a dedicated precedence table is TODO.
 
 ### 18.2 Semantics Cross-References
 
