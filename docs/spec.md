@@ -262,7 +262,7 @@ Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct ident
 Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
 
 ```
-let, mut, const, private, protected, public, export, do, tick, null, undefined, readonly, true, false, return, yield, panic, await, async, pass, fail, try, if, else, is, from, has, as, this, that
+let, mut, const, private, protected, public, do, tick, null, undefined, readonly, true, false, return, yield, panic, await, async, pass, fail, try, if, else, is, from, has, as, this, that
 ```
 
 A full list of reserved keywords is available in Appendix 18.2.
@@ -324,7 +324,7 @@ Warble uses **explicit semicolons** to mark the end of most statements, but the 
 
 | construct                                                                                                             | last syntactic token     | semicolon required?                   | rationale                                                                                                                 |
 | --------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Declaration statements** (`let`, `import`, `register`, `export`, etc.)                                              | *initializer/expression* | **yes**                               | Needed to separate consecutive declarations and to disambiguate from an expression that might follow.                     |
+| **Declaration statements** (`let`, `import`, `register`, etc.)                                                        | *initializer/expression* | **yes**                               | Needed to separate consecutive declarations and to disambiguate from an expression that might follow.                     |
 | **Scope-level expression statements** (assignment, function literal, object literal, call, etc.)                      | *expression*             | **yes**                               | The parser cannot know whether another operator or statement will follow; the semicolon closes the expression.            |
 | **Compound control-flow statements whose body ends with `}`**<br>(`if…`, `for…`, `while…`, bare `repeat`, `do { } …`) | `}`                      | *optional* (allowed but not required) | The closing brace is an unambiguous terminator; adding a semicolon is accepted for stylistic consistency.                 |
 | **`repeat { … } while (condition)` loop**                                                                             | `)`                      | *optional*                            | The closing parenthesis after the condition is the unambiguous terminator; a trailing semicolon is legal but unnecessary. |
@@ -364,9 +364,14 @@ Warble supports a small set of **modifier keywords** that may appear before a de
 
 * `mut`, `const`
 * `private`, `protected`, `public`
-* `export`
 
 The keyword `let` is **not** a modifier keyword. It is a statement keyword that begins a declaration statement.
+
+Declarations default to `private`. At module scope, this means a binding is visible only within the current module unless the declaration explicitly uses `protected` or `public`:
+
+* `private`: visible only within the current module.
+* `protected`: visible to other modules in the same package, but invisible outside that package.
+* `public`: visible to any module that imports the current module.
 
 Warble classifies declarations into four **declaration modes** depending on context: statement mode, parameter mode, property mode, and capture mode. These modes share a common core syntax but have slightly different rules.
 
@@ -387,7 +392,7 @@ Legal:
 let const i = 42;
 const i = 42;
 mut i = 42;
-let export public mut i = 42;
+let public mut i = 42;
 ```
 
 Illegal:
@@ -1906,7 +1911,7 @@ Unlike normal expressions, conjunctions, disjunctions, and negations do **not** 
 
 ##### `any` as a Universal Conjunction Trait
 
-The `any` trait is exported from the compiler-defined `"traits"` module. It is special in exactly one way: every symbol is considered to implement `any` by definition.
+The `any` trait is publicly exposed from the compiler-defined `"traits"` module. It is special in exactly one way: every symbol is considered to implement `any` by definition.
 
 Because `any` is an ordinary imported trait rather than a keyword, an unannotated declaration does **not** imply `: any`. A declaration that omits its annotation simply skips the constructor-annotation pipeline step entirely (§3.1.5). Writing `: any` remains valid, but it is an explicit choice to invoke the imported `any` trait rather than a hidden default.
 
@@ -1959,7 +1964,7 @@ If a conjunction or disjunction check fails, the program is ill-typed at compile
 
 ##### Traits
 
-Traits are exported symbols from the standard-library `"traits"` pseudo-module in the `compiler` package. The module is implemented directly by the compiler and has no backing source file on disk. Each trait is itself a symbol of kind `Function`, and traits are matched by identity rather than by spelling.
+Traits are public symbols from the standard-library `"traits"` pseudo-module in the `compiler` package. The module is implemented directly by the compiler and has no backing source file on disk. Each trait is itself a symbol of kind `Function`, and traits are matched by identity rather than by spelling.
 
 Implementing a trait on an object means declaring a property whose key is an enum literal containing the exact trait symbol:
 
@@ -1998,12 +2003,12 @@ let my_int_type = {
 };
 ```
 
-The standard library may also export composite requirements built from conjunctions and disjunctions:
+The standard library may also publicly expose composite requirements built from conjunctions and disjunctions:
 
 ```warble
 // conceptually, inside the standard library:
-export const numeric = any & (integral | floating);
-export const arithmetic = any & add & sub & mul & div;
+public const numeric = any & (integral | floating);
+public const arithmetic = any & add & sub & mul & div;
 ```
 
 ##### Nesting, Precedence, and Normalization
@@ -2323,7 +2328,7 @@ Warble's object-oriented system is fully symbol-based:
 
 * Constructor functions define object structures.
 * Spread (`...`) syntax supports composition by marking child symbols with the `Spread` flag.
-* Visibility modifiers (`Export`, `Protected`, `Private`) enforce encapsulation at compile-time.
+* Visibility modifiers (`Private`, `Protected`, `Public`) enforce encapsulation at compile-time.
 * Overriding methods rely on symbol shadowing. To call an overridden implementation, reference the parent symbol directly.
 
 ##### Performance and Memory Considerations
@@ -2345,7 +2350,7 @@ One of the symbol columns is a 64 bit bitset of flags. Every flag has a specific
 - Spread: Marks a symbol spread into another using the `...` operator.
 - Repeat: Marks an array as being created via the repeat syntax, such as `[0; 10]`.
 - Import: References a symbol from another module.
-- Export / Private / Protected / Public / Static / Mut / Const / Let: Common visibility and declaration modifiers.
+- Private / Protected / Public / Static / Mut / Const / Let: Common visibility and declaration modifiers.
 - Async / Generator / Varied: Function behavior flags.
 - Returned / Captured / Parameter / ParameterPack: Function-structure flags.
 - Impure / Used / Inline / Immediate / Internal / Accumulator: Miscellaneous analysis and lowering flags.
@@ -2723,7 +2728,7 @@ Both forms obey the same rules as any other mutable borrow. They may pass throug
 
 ### 5.3 Operator Overloading via Symbols
 
-Every overloadable built-in operator in Warble corresponds to a **trait symbol** exported by the standard-library `"traits"` module (see §14.1). When the compiler resolves an operation, it first checks whether the left-hand side has a child property whose key is that exact trait symbol written as an enum literal. If such a property exists and is callable, the compiler calls it instead of emitting the default instruction. This is Warble's operator overloading mechanism.
+Every overloadable built-in operator in Warble corresponds to a **public trait symbol** from the standard-library `"traits"` module (see §14.1). When the compiler resolves an operation, it first checks whether the left-hand side has a child property whose key is that exact trait symbol written as an enum literal. If such a property exists and is callable, the compiler calls it instead of emitting the default instruction. This is Warble's operator overloading mechanism.
 
 The same trait symbols may also be invoked directly as ordinary-looking function calls. When the callee is one of the compiler-known traits, the compiler recognizes the call specially and emits the corresponding TAC instruction instead of a generic `Call` instruction:
 
@@ -2758,7 +2763,7 @@ const c = a + b; // calls a.<add>(b) → Vec2(4.0, 6.0)
 const same = a == b; // calls a.<eq>(b)
 ```
 
-The method receives the right-hand operand as its argument. The property key must be the exact trait symbol associated with the operator: `add` for `+`, `sub` for `-`, `mul` for `*`, and so on. A normal method named `add` is unrelated; only the enum-keyed trait form participates in operator lookup. The full correspondence is defined by the exports of `"traits"` (§14.1).
+The method receives the right-hand operand as its argument. The property key must be the exact trait symbol associated with the operator: `add` for `+`, `sub` for `-`, `mul` for `*`, and so on. A normal method named `add` is unrelated; only the enum-keyed trait form participates in operator lookup. The full correspondence is defined by the public interface of `"traits"` (§14.1).
 
 Only the left-hand side is consulted. There is no implicit symmetry: if `a + b` checks `a` for an `<add>` overload and finds none, the compiler does not fall back to checking `b`. The overload must be present on the LHS, or the operation resolves to the default instruction.
 
@@ -3442,8 +3447,8 @@ Rules:
   * **Module context** means code that executes as part of the module's top-level evaluation, including nested statement arms (`if`, `while`, `for`, `do`, etc.). Function bodies (including function literals) are not module context.
 * A module may contain multiple `tick` loops. Control flows forward: after a `tick` loop terminates, execution continues with the statements that follow it.
 * A `tick` loop runs until it terminates via `break` or until the program is shutting down (in which case it terminates as if `break` had executed).
-* A module must not contain any `export` declaration after the compiler has encountered any `tick` loop while scanning the module from top to bottom. In other words: all exported declarations must appear (textually) before the first `tick` loop in the file, even if that `tick` loop is nested inside other module-context statements.
-  * This restriction ensures that once a module **successfully suspends** at a `tick` boundary (advancing its cycle counter), its exported state is fully initialized and will never be partially initialized due to later module-context code.
+* A module must not contain any `public` or `protected` declaration after the compiler has encountered any `tick` loop while scanning the module from top to bottom. In other words: all non-private declarations must appear (textually) before the first `tick` loop in the file, even if that `tick` loop is nested inside other module-context statements.
+  * This restriction ensures that once a module **successfully suspends** at a `tick` boundary (advancing its cycle counter), its externally visible state is fully initialized and will never be partially initialized due to later module-context code.
 
 Scheduling semantics:
 
@@ -3952,7 +3957,7 @@ Warble organizes code through a carefully designed system of **packages** and **
 ### 10.1 Overview
 
 * A **package** represents the root directory of a Warble project. External packages are explicitly registered via a `register` statement.
-* A **module** corresponds to a single source file (`.wbl`) within a package, imported and exported explicitly to manage code reuse and visibility.
+* A **module** corresponds to a single source file (`.wbl`) within a package. Modules are imported explicitly, and their outward visibility is controlled by top-level `private`, `protected`, and `public` declarations.
 * The **standard library** is represented by the pre-bound keyword `compiler`, which is a symbol of kind `Package` implicitly available in every module without needing to be registered.
 
 Both packages and modules prioritize security through clear permissions and explicit declarations of dependencies.
@@ -3962,10 +3967,10 @@ Both packages and modules prioritize security through clear permissions and expl
 A **package** is explicitly registered through the `register` statement. The structure of a `register` statement is:
 
 ```
-register name from "package_url" [with <symbols>];
+register [protected|public] name from "package_url" [with <symbols>];
 ```
 
-The `register` statement creates a local binding of kind `Package` with the given identifier name. This identifier is then used in `import` statements to reference the package.
+The `register` statement creates a local binding of kind `Package` with the given identifier name. This identifier is then used in `import` statements to reference the package. If `public` or `protected` is omitted, the package binding defaults to `private` visibility and remains local to the current module.
 
 #### 10.2.1 Registering Packages
 
@@ -3993,9 +3998,12 @@ register extended_package from "https://github.com/user/extended_package" with <
 
 If the same package is registered multiple times, it is shared, not duplicated.
 
-##### Exported registrations (`register export`)
+##### Visible registrations (`register public` / `register protected`)
 
-A `register` statement may be followed by the `export` keyword. This makes the resulting `Package` binding available both as a local name within the current module and as an export visible to any module that imports the current module.
+A `register` statement may be followed by `public` or `protected`. This makes the resulting `Package` binding available locally within the current module and also visible outside the module according to the chosen visibility:
+
+* `register public` exposes the package binding to any importing module.
+* `register protected` exposes the package binding only to importing modules in the same package.
 
 This is useful when a module acts as a central place to declare and expose third-party dependencies, so that importers of that aggregating module gain access to the registered package identifiers without having to register them again themselves.
 
@@ -4005,20 +4013,20 @@ import {string, vector, math} from "permissions/safe" in compiler;
 import fs from "filesystem" in compiler;
 import http from "http" in compiler;
 
-register export serializer from "https://github.com/example/serializer" with <string, vector>;
-register export data_store from "https://github.com/example/data_store" with <string, fs>;
-register export web_client from "https://github.com/example/web_client" with <string, http>;
+register public serializer from "https://github.com/example/serializer" with <string, vector>;
+register public data_store from "https://github.com/example/data_store" with <string, fs>;
+register public web_client from "https://github.com/example/web_client" with <string, http>;
 ```
 
 ```warble
-// app.wbl — imports deps.wbl and uses the re-exported package bindings directly
+// app.wbl — imports deps.wbl and uses the publicly exposed package bindings directly
 import {serializer, data_store, web_client} from "./deps";
 
 import {serialize} from "encoding" in serializer;
 import {connect} from "client" in web_client;
 ```
 
-Only the package binding itself is re-exported, not the contents of the package. Any module that receives the exported binding must still issue its own `import` statements to access modules within that package.
+Only the package binding itself becomes visible through the aggregating module, not the contents of the package. Any module that receives the visible binding must still issue its own `import` statements to access modules within that package.
 
 #### 10.2.2 Permissions & Security Model
 
@@ -4029,7 +4037,7 @@ The `with` clause on a `register` statement specifies which standard library mod
 ```warble
 import safe from "permissions/safe" in compiler;
 register pkg from "file:///path" with <safe>;
-// pkg can import anything that safe re-exports
+// pkg can import anything that safe publicly exposes
 ```
 
 ```warble
@@ -4040,10 +4048,10 @@ register pkg from "file:///path" with <vector>;
 
 The permission grant follows a hierarchy:
 
-* **Giving a `Module` symbol** (a whole-module import) grants the registered package access to all of that module's exports.
-* **Giving a `Borrow` symbol** (a specific named export from a module) grants access to only that export and whatever *it* exports—not the entire module it came from.
+* **Giving a `Module` symbol** (a whole-module import) grants the registered package access to all bindings visible from that module in the relevant package context.
+* **Giving a `Borrow` symbol** (a specific named visible binding from a module) grants access only to that binding and whatever *it* makes visible—not the entire module it came from.
 
-The compiler always resolves symbols to their canonical module identity, regardless of how many times they have been imported or re-exported. Granting `vector` obtained through the `safe` permission aggregate is identical to granting `vector` obtained any other way—it always resolves to the same canonical module.
+The compiler always resolves symbols to their canonical module identity, regardless of how many times they have been imported or re-exposed. Granting `vector` obtained through the `safe` permission aggregate is identical to granting `vector` obtained any other way—it always resolves to the same canonical module.
 
 ##### Scope of Permissions
 
@@ -4055,10 +4063,10 @@ Inter-package access is still implicitly constrained by the propagation rule: a 
 
 ##### Permission Aggregates
 
-The standard library provides permission aggregate modules that re-export groups of standard library modules. These are ordinary modules within the standard library:
+The standard library provides permission aggregate modules that publicly expose groups of standard library modules. These are ordinary modules within the standard library:
 
-* `"permissions/safe"`: A standard library module that re-exports all standard library modules considered safe (no filesystem, network, or other sensitive capabilities).
-* `"permissions/all"`: A standard library module that re-exports the entire standard library.
+* `"permissions/safe"`: A standard library module that publicly exposes all standard library modules considered safe (no filesystem, network, or other sensitive capabilities).
+* `"permissions/all"`: A standard library module that publicly exposes the entire standard library.
 
 These aggregate modules are accessed through normal imports:
 
@@ -4087,23 +4095,24 @@ Package authors clearly document required permissions. Users review and manually
 
 ### 10.3 Modules
 
-A **module** corresponds to a single Warble source file (`.wbl`) and is accessed via explicit `import` and `export` statements.
+A **module** corresponds to a single Warble source file (`.wbl`) and is accessed via explicit `import` statements plus top-level visibility modifiers.
 
 #### 10.3.1 Imports
 
 Modules import code explicitly. The syntax for importing is:
 
 ```warble
-import identifier from "specifier" [in package];
-import {a, b as alias} from "specifier" [in package];
+import [protected|public] identifier from "specifier" [in package];
+import [protected|public] {a, b as alias} from "specifier" [in package];
 
-import deferred identifier from "specifier" [in package];
-import deferred {a, b as alias} from "specifier" [in package];
+import deferred [protected|public] identifier from "specifier" [in package];
+import deferred [protected|public] {a, b as alias} from "specifier" [in package];
 ```
 
 * The **specifier** is a string literal resolved as a relative path from the package root directory.
 * If no file extension is specified, `.wbl` is implicitly assumed.
 * The optional `in` clause takes a package identifier (a binding of kind `Package`). If omitted, imports resolve within the current package context.
+* If `public` or `protected` is omitted, the imported binding defaults to `private` visibility and remains local to the current module.
 
 **Examples**:
 
@@ -4117,42 +4126,42 @@ Imports produce **default** bindings rather than `const` bindings. This means th
 
 Modules are shared: multiple imports of the same module access the same instance.
 
-##### Exported imports (`import export`)
+##### Visible imports (`import public` / `import protected`)
 
-An `import` statement may be followed by the `export` keyword. This makes the imported binding both locally available within the current module and visible as an export to any module that imports the current module. In other words, `import export` is a single-statement way to simultaneously import and re-export.
+An `import` statement may be followed by `public` or `protected`. This makes the imported binding locally available within the current module and also visible to other modules according to the chosen visibility. In other words, `import public` or `import protected` is a single-statement way to both import a binding and expose it onward.
 
-This works with both whole-module imports and destructured imports:
+This works with both whole-module imports and destructured imports. Use `public` when the imported binding should be visible to every importer of the current module, and `protected` when it should only be visible to importers in the same package.
 
 ```warble
-// io.wbl — assembles a focused public I/O API by re-exporting from the standard library
-import export fs from "filesystem" in compiler;
-import export net from "network" in compiler;
+// io.wbl — assembles a focused public I/O API by exposing bindings from the standard library
+import public fs from "filesystem" in compiler;
+import public net from "network" in compiler;
 // Consumers of io.wbl receive fs and net as Module bindings, exactly as if they had
 // imported those modules from the standard library themselves.
 ```
 
 ```warble
-// math.wbl — selectively re-exports individual symbols from the standard library math module
-import export {sin, cos, tan, sqrt, floor, ceil} from "math" in compiler;
-// Only the six named exports are made available. Other exports of the "math" module
-// (e.g. log, exp) are not re-exported and remain inaccessible through this module.
+// math.wbl — selectively exposes individual symbols from the standard library math module
+import public {sin, cos, tan, sqrt, floor, ceil} from "math" in compiler;
+// Only the six named bindings are made available. Other public bindings of the "math" module
+// (e.g. log, exp) are not re-exposed and remain inaccessible through this module.
 ```
 
 ```warble
-// geometry.wbl — uses re-exported symbols locally and exposes results
-import export {sin, cos, pi} from "math" in compiler;
+// geometry.wbl — uses publicly exposed imports locally and exposes results
+import public {sin, cos, pi} from "math" in compiler;
 
-export to_cartesian = (r: float, theta: float) {
+public to_cartesian = (r: float, theta: float) {
   return {
     x = r * cos(theta),
     y = r * sin(theta),
   };
 };
 
-export tau = 2.0 * pi; // pi is also available locally for use within this module
+public tau = 2.0 * pi; // pi is also available locally for use within this module
 ```
 
-With destructuring, only the specifically named bindings are exported — not the module they came from, and not any of its other exports. This makes `import export {a, b} from ...` a precise tool for building minimal, deliberate public APIs.
+With destructuring, only the specifically named bindings become visible through the current module — not the module they came from, and not any of its other public bindings. This makes `import public {a, b} from ...` a precise tool for building minimal, deliberate public APIs.
 
 ##### Deferred imports (`import deferred`)
 
@@ -4161,7 +4170,7 @@ With destructuring, only the specifically named bindings are exported — not th
 Semantics:
 
 * Deferred imports may participate in cycles.
-* Reads through a deferred import observe the dependency module's exported state from the **previous successful suspension point** (the previous committed module cycle), not necessarily the state produced in the current scheduling pass.
+* Reads through a deferred import observe the dependency module's visible state from the **previous successful suspension point** (the previous committed module cycle), not necessarily the state produced in the current scheduling pass.
 * Because this can observe "stale" values by design, deferred imports are intended for cyclic dataflow and feedback loops where a one-cycle delay is acceptable (or desired).
 
 Initialization restriction:
@@ -4169,16 +4178,22 @@ Initialization restriction:
 * It is a compile-time error for a module to read any binding imported via `import deferred` before that module has successfully suspended at least once (i.e. before its first `tick` boundary that advances the module cycle counter).
 * In practice, this means deferred imports are only used inside `tick` loops. The compiler must be able to prove the restriction.
 
-#### 10.3.2 Exports
+#### 10.3.2 Module Visibility
 
-To expose functionality from a module, Warble uses explicit `export` declarations at the module's top-level scope:
+Top-level declarations in a module default to `private` visibility. To make a binding visible outside the current module, use `protected` or `public` on the declaration itself:
 
 ```warble
-export fn = (){};
-export mut mutableValue = 42; // Only mutable internally, dependency modules cannot mutate
+public fn = (){};
+protected mut packageCounter = 42;
 ```
 
-Only declarations explicitly marked with `export` become visible outside the module. The `export` keyword may also follow `import` and `register` statements to simultaneously create a local binding and export it (see §10.3.1 and §10.2.1).
+The visibility meanings are:
+
+* `private`: visible only within the current module. This is the default.
+* `protected`: visible to modules in the same package. To modules outside that package, the binding behaves as if it were `private`.
+* `public`: visible to any module that imports the current module.
+
+The same model applies to `import` and `register`: `import public`, `import protected`, `register public`, and `register protected` create a local binding and simultaneously make that binding visible with the chosen reach (see §10.3.1 and §10.2.1).
 
 #### 10.3.3 Pseudo-Modules
 
@@ -4192,10 +4207,10 @@ import {add, sqrt, integral} from "traits" in compiler;
 
 The `"traits"` pseudo-module serves two roles at once:
 
-* It exports trait symbols used for conjunction/disjunction presence checks and operator overloading.
-* It exports compiler-known callable concepts such as `add`, `sqrt`, `sin`, and `log10`, which the compiler lowers directly to TAC instructions instead of normal calls.
+* It publicly exposes trait symbols used for conjunction/disjunction presence checks and operator overloading.
+* It publicly exposes compiler-known callable concepts such as `add`, `sqrt`, `sin`, and `log10`, which the compiler lowers directly to TAC instructions instead of normal calls.
 
-The access pattern is uniform (normal import syntax), even though the backing implementation is compiler-internal. From the user's perspective, pseudo-modules are indistinguishable from regular modules—they are imported the same way and their exports behave identically.
+The access pattern is uniform (normal import syntax), even though the backing implementation is compiler-internal. From the user's perspective, pseudo-modules are indistinguishable from regular modules—they are imported the same way and their visible bindings behave identically.
 
 ### 10.4 Dependency Graph & Build Process
 
@@ -4367,7 +4382,7 @@ Additionally, the runtime and compiler conceptually also operate on the reverse 
 
 * A module has a **dependent** when that other module imports it.
 
-Dependents are used by the compiler to build write barriers for exported state (§13.2.4).
+Dependents are used by the compiler to build write barriers for non-private state (§13.2.4).
 
 #### 13.2.3 Module Cycle Counters (Half-Cycles)
 
@@ -4447,7 +4462,7 @@ In practice, the compiler can check this trivially at compile time: for each imp
 
 Reads through `import deferred` do not require the dependency to be ahead of the current module's `target_cycle`.
 
-Instead, a deferred import reads the dependency's exports from the **previous committed cycle** (the previous successful suspension point). This makes cyclic dataflow possible without deadlocking on same-pass ordering.
+Instead, a deferred import reads the dependency's visible state from the **previous committed cycle** (the previous successful suspension point). This makes cyclic dataflow possible without deadlocking on same-pass ordering.
 
 Barrier requirements for deferred reads:
 
@@ -4457,15 +4472,15 @@ Barrier requirements for deferred reads:
     * This is equivalent to checking `A.cycle > target_cycle - 2` ("completed at least the previous scheduling pass"), but expressed without unsigned underflow.
   * If the barrier blocks and `A.cycle` is even, the importing module may attempt to run `A` once for the same `target_cycle` before returning (as with strict imports).
 
-The exact implementation strategy is runtime-defined. One common strategy is to publish exported state at suspension points and retain at least one previous published version so deferred reads can always observe the prior committed state.
+The exact implementation strategy is runtime-defined. One common strategy is to publish visible state at suspension points and retain at least one previous published version so deferred reads can always observe the prior committed state.
 
 After the barrier succeeds, the read may proceed.
 
 The compiler may avoid repeating checks along a single control path once the dependency has already been observed safe to read.
 
-##### Write barriers (mutable exports)
+##### Write barriers (mutable non-private bindings)
 
-For each write to a mutable exported binding in module `A`, the compiler inserts a barrier that suspends the current module run attempt if any dependent module that may read that binding is currently in progress.
+For each write to a mutable `public` or `protected` binding in module `A`, the compiler inserts a barrier that suspends the current module run attempt if any dependent module that may read that binding is currently in progress.
 
 If module `B` contains a read of `A.value`, then before a write to `value` inside `A`, the compiler emits logic equivalent to:
 
@@ -4496,18 +4511,18 @@ Because external borrows must remain transparent (§4.2.1), this check cannot be
 
 ```warble
 // In module A:
-export mut value = 1;
+public mut value = 1;
 
 // In module B:
 import A from "A";
 A:value += 1;    // error — non-atomic mutation across module boundary
 ```
 
-Atomic exported state is the intended escape hatch for deliberate shared mutation:
+Atomic non-private state is the intended escape hatch for deliberate shared mutation:
 
 ```warble
 // In module A:
-export mut count: atomic_i32 = 0;
+public mut count: atomic_i32 = 0;
 
 // In module B:
 import A from "A";
@@ -4516,20 +4531,20 @@ A:count += 1;    // legal — atomic mutation across module boundary
 
 The caller must still explicitly acknowledge the side effect by forming a mutable borrow (`A:value`, `*A.value`, and so on). The cross-module check only decides whether that already-explicit mutation is safe.
 
-##### Exported functions with mutable context
+##### Visible functions with mutable context
 
-The same safety rule applies to exported functions that capture state. A mutable call into another module is only legal when the callee's mutable context is **thread-safe**.
+The same safety rule applies to non-private functions that capture state. A mutable call into another module is only legal when the callee's mutable context is **thread-safe**.
 
 A function is thread-safe for cross-module mutable calls when every mutation reachable through its mutable context is atomic. This property is inferred transitively:
 
 * If the function performs a non-atomic mutation through captured state, it is not thread-safe.
 * If it calls another function through mutable context and that callee is not thread-safe, it is not thread-safe.
-* Only when the entire reachable mutable-context call graph is atomic may the exported function be called mutably from another module.
+* Only when the entire reachable mutable-context call graph is atomic may the visible function be called mutably from another module.
 
 ```warble
 // In module A:
 mut count: atomic_i32 = 0;
-export const increment = [*count]() { count += 1; };
+public const increment = [*count]() { count += 1; };
 
 // In module B:
 import A from "A";
@@ -4820,9 +4835,9 @@ The Warble standard library is accessed via `import ... in compiler`, using the 
 
 ### 14.1 `"traits"`
 
-The `"traits"` module is a pseudo-module implemented directly by the compiler. It exports trait symbols used for presence checks, operator overloading, and direct compiler-recognized calls. Each trait is itself a symbol of kind `Function`, and traits are matched by **identity**, not by spelling.
+The `"traits"` module is a pseudo-module implemented directly by the compiler. It publicly exposes trait symbols used for presence checks, operator overloading, and direct compiler-recognized calls. Each trait is itself a symbol of kind `Function`, and traits are matched by **identity**, not by spelling.
 
-The most visible operator traits include names such as `add`, `sub`, `mul`, `div`, `eq`, `lt`, and so on. The module also exports the special universal trait `any`, marker traits for broad categories such as `integral`, `floating`, `numeric`, and `arithmetic`, and callable compiler-known concepts without dedicated syntax such as `sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `log2`, `log10`, `ln`, `sin`, `cos`, and `tan`.
+The most visible operator traits include names such as `add`, `sub`, `mul`, `div`, `eq`, `lt`, and so on. The module also publicly exposes the special universal trait `any`, marker traits for broad categories such as `integral`, `floating`, `numeric`, and `arithmetic`, and callable compiler-known concepts without dedicated syntax such as `sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `log2`, `log10`, `ln`, `sin`, `cos`, and `tan`.
 
 ##### The `any` trait
 
@@ -4883,19 +4898,19 @@ const scale = log10(value);            // Log10 instruction; likewise no operato
 
 This keeps the language surface uniform: traits are just compiler-known functions. Some of them also participate in operator syntax; others are available only by call syntax.
 
-The standard library may also export composite requirements as conjunctions or disjunctions:
+The standard library may also publicly expose composite requirements as conjunctions or disjunctions:
 
 ```warble
 // conceptually, inside the standard library:
-export const numeric = any & (integral | floating);
-export const arithmetic = any & add & sub & mul & div;
+public const numeric = any & (integral | floating);
+public const arithmetic = any & add & sub & mul & div;
 ```
 
 These are still invoked through normal annotation syntax, because conjunctions and disjunctions are compile-time callables.
 
 ##### What Is and Is Not Exposed
 
-The set of exported compiler-known traits is deliberately restricted to operations that the compiler can reason about fully:
+The set of publicly exposed compiler-known traits is deliberately restricted to operations that the compiler can reason about fully:
 
 * **Exposed**: all operations that correspond to existing syntax operators (`add`, `sub`, `mul`, `div`, `rem`, `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `neg`, and so on), plus numeric and math operations without operator syntax (`sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `log2`, `log10`, `ln`, `sin`, `cos`, `tan`, and others).
 * **Not exposed**: anything that would hinder optimization, compromise safety, or bypass the language's abstractions. Specifically:
@@ -4903,7 +4918,7 @@ The set of exported compiler-known traits is deliberately restricted to operatio
   * No raw memory addressing. Warble has no raw pointers, and traits do not circumvent this.
   * No operations whose side effects are opaque to the compiler.
 
-The set of exported traits will grow as the language matures. The guiding principle is: if exposing it makes the compiler's job harder or weakens its guarantees, it is not exposed.
+The set of publicly exposed traits will grow as the language matures. The guiding principle is: if exposing it makes the compiler's job harder or weakens its guarantees, it is not exposed.
 
 ##### Operator Overloading
 
@@ -4936,6 +4951,32 @@ let b = Complex(3.0, 4.0);
 const sum     = a + b; // → Complex(4.0, 6.0)
 const product = a * b; // → Complex(-5.0, 10.0)
 ```
+
+##### Defined Traits
+
+Here is an incomplete list of the traits currently defined in the `"traits"` pseudo-module, and what symbol kinds are considered to have each trait by default. This list is expected to grow over time.
+
+Object literals may not have a trait by default, but they can implement traits by declaring enum-keyed properties as shown above. So an object literal could theoretically implement any trait, this is just about what the compiler considers to be default.
+
+- `any`: Implemented by every symbol kind. This is the universal trait that all symbols satisfy by definition.
+
+- `literal`: Implemented for every literal kind. The full list is `Undefined`, `Null`, `Readonly`, `Boolean`, `Integer`, `Float`, `Character`, `String`, `TemplateString`, `Array`, `Tuple`, `Object`, `Enum`, and `Function`.
+
+- `keyword`: All literals that come from keywords. The full list is `Undefined`, `Null`, `Readonly`, and `Boolean`.
+
+- `structured`: All literals that can be used in destructuring syntax. The full list is `Object`, `Tuple`, `Enum`, and `Array`.
+
+- `shorthand_callable`: All literals that can be used in the shorthand call syntax. This is everything in `literal`, except for everything in `keyword`.
+
+- `callable`: All symbols that can be invoked as functions. The full list is `Function`, `Conjunction`, `Disjunction`, and `Negation`.
+
+- `integral`: Implemented by kind `Integer`.
+
+- `floating`: Implemented by kind `Float`.
+
+- `numeric`: Implemented by kinds `Integer` and `Float`.
+
+- `borrow`: Implemented by kind `Borrow`.
 
 ### 15.1 Compiler Flags
 
@@ -4984,10 +5025,9 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 
 * **`mut`** — Declares a binding as mutable.
 * **`const`** — Declares a binding as constant.
-* **`private`** — Declares a binding or property as private.
-* **`protected`** — Declares a binding or property as protected.
-* **`public`** — Declares a binding or property as public.
-* **`export`** — Declares a binding as exported from its module. May also follow `import` and `register` statements to simultaneously create a local binding and re-export it.
+* **`private`** — Declares a binding or property as private. At module scope, private bindings are visible only within the current module.
+* **`protected`** — Declares a binding or property as protected. At module scope, protected bindings are visible only to modules in the same package.
+* **`public`** — Declares a binding or property as public. At module scope, public bindings are visible to any importing module.
 
 #### Control Flow
 
@@ -5023,8 +5063,8 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 
 #### Module and Imports
 
-* **`import`** — Imports symbols from external modules. May be followed by `export` to simultaneously import and re-export the binding.
-* **`register`** — Registers a URL as a package, creating a local binding of kind `Package` used as the base for imports. May be followed by `export` to simultaneously register and re-export the package binding.
+* **`import`** — Imports symbols from external modules. May be followed by `protected` or `public` to simultaneously import and make the binding visible beyond the current module.
+* **`register`** — Registers a URL as a package, creating a local binding of kind `Package` used as the base for imports. May be followed by `protected` or `public` to simultaneously register and make the package binding visible beyond the current module.
 * **`with`** — Used in conjunction with `register` statements to specify allowed standard library modules for a package.
 * **`in`** — Used in `import` statements to specify the package to import from. Also used in `for` loops.
 
@@ -5046,6 +5086,6 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 
 #### Important Notes:
 
-* The modifier keywords (`mut`, `const`, `private`, `protected`, `public`, `export`) are reserved and participate directly in declaration syntax.
+* The modifier keywords (`mut`, `const`, `private`, `protected`, `public`) are reserved and participate directly in declaration syntax.
 
 This reserved keyword set is deliberately minimal and focused on structural, syntactic, and foundational compiler-level operations, preserving maximum flexibility for user-defined functionality within Warble.
