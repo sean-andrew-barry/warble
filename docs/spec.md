@@ -548,11 +548,11 @@ Warble has no `class` or `struct` keywords. There are no nominal types, no compi
 
 ```warble
 let x: i32 = 42;              // i32 is a built-in callable that produces an integer
-let p: Point = { x=1, y=2 }; // Point is a user-defined factory function
+let p: Point = { x=1, y=2 };  // Point is a user-defined factory function
 let v: vector<i32> = [];      // vector<i32> is a partially-applied function call
 ```
 
-This also includes conjunction/disjunction/negation expressions built from trait symbols (§4.2.3). Those expressions are compile-time callables too: when used as annotations, they are invoked via the pipeline operator and perform presence checks instead of constructing wrapper values.
+This also includes conjunction/disjunction/negation expressions built from trait symbols (§4.2.3). Those expressions are compile-time callables too: when used as annotations, they are invoked via the pipeline operator and perform presence checks as part of producing their annotated result values.
 
 This declaration-time colon syntax is distinct from the mutable-borrow operator `:` described in §5.2.3. In a declaration, `name: Ctor = value` is parsed as an annotation because the grammar is already in declaration mode. In expression position, prefix `:name` and member access `obj:name` produce mutable borrows instead.
 
@@ -1942,9 +1942,20 @@ Presence checks only test for **defined presence**. They do not inspect the matc
 
 ##### Result of Invocation
 
-When a conjunction or disjunction check passes, the result is the argument's true type unchanged. There is no runtime `Intersection` wrapper, no extra tag, and no distinct storage layout.
+When a **conjunction** check passes, the compiler produces a symbol of kind `Intersection`.
 
-The term *intersection* remains useful informally to describe the idea of satisfying multiple requirements at once, but the compiler does not materialize a dedicated active `Intersection` symbol kind for this process. If conjunction checking fails, the program is ill-typed at compile time.
+An intersection is a simple wrapper around the argument's **true type**. Its payload stores two symbol indexes:
+
+* the symbol index of the true type/value that was passed in, and
+* the symbol index of the `Conjunction` that created it.
+
+This makes metadata-oriented operations straightforward: the compiler can always recover both the underlying value and the exact constraint tree that was applied to it.
+
+An `Intersection` always has the exact same runtime memory layout as its true type. It forwards all operations to that true type transparently. In other words, intersections are guaranteed to have zero runtime overhead: no extra tag, no wrapper allocation, and no distinct storage layout.
+
+When a **disjunction** is invoked, the result is a kind `Union`, preserving the usual union semantics. This gives the language a clean symmetry: invoking a `Conjunction` produces an `Intersection`, and invoking a `Disjunction` produces a `Union`.
+
+If a conjunction or disjunction check fails, the program is ill-typed at compile time.
 
 ##### Traits
 
@@ -2353,11 +2364,9 @@ Core kinds:
 - Undefined, Unresolved, Null, Readonly
 - Raw, Boolean, Character, Integer, Float
 - Borrow, Unique, Shared, Weak, Future, Buffer, View
-- Identifier, String, Enum, Union, Conjunction, Disjunction, Negation
+- Identifier, String, Enum, Union, Intersection, Conjunction, Disjunction, Negation
 - Array, Tuple, TemplateString, Object, Range
 - Phi, Function, Module, Label
-
-The term `Intersection` is used informally in this specification for the mathematical idea of satisfying multiple requirements at once, but it is not an active runtime symbol kind.
 
 Statement kinds:
 
@@ -2381,6 +2390,7 @@ Common payload encodings (in terms of C++ types):
 - Borrow: `std::pair<uint32_t, uint32_t>` of (dependency module index, symbol index). The flag (`Const`, `Mut`, or `Symbolic`) determines the borrow variant.
 - Identifier / String / Enum: `std::pair<uint32_t, uint32_t>` of (data slice start, slice length).
 - Union: `std::tuple<uint32_t, uint32_t, uint16_t, uint16_t>` containing a data slice plus 16-bit counts (including `fail_count`).
+- Intersection: `std::pair<uint32_t, uint32_t>` of (true type symbol index, conjunction symbol index).
 - Conjunction / Disjunction: `std::pair<uint32_t, uint32_t>` of (lhs symbol index, rhs symbol index).
 - Negation: a single `uint32_t` operand symbol index; remaining payload bits unused.
 - Label: `std::pair<uint32_t, uint32_t>` of (instruction start index, length).
