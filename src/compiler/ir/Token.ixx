@@ -237,8 +237,8 @@ namespace compiler::ir {
     Async, // `async` - Marks asynchronous imports and functions (modifier for exits)
     Pass, // `pass` - Decorates a `return/yield` to indicate a passing result
     Fail, // `fail` - Decorates a `return/yield` to indicate a failing result
-    Default, // `default` - Used to specify the default case in `when` statements
-    When, // `when` - Used for pattern matching, sometimes known as `match` in other languages. TODO: Deprecate
+    Default, // `default` - Used to specify the default case in function statements
+    When, // `when` - Used for pattern matching
     Is, // `is` - Used for type checking
     Has, // `has` - Used in `when` statements
     For, // `for` - Used for iterating over collections

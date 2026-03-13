@@ -107,7 +107,7 @@ Warble supports expressive and readable conditional matching:
 ```warble
 let value = something;
 
-if (value)
+when (value)
 is (a) { print("Operation successful!"); }
 is (b) { print("Operation failed."); }
 else { print("Unknown result."); }
@@ -120,15 +120,15 @@ else { print("Unknown result."); }
 Easily handle optional or uncertain data:
 
 ```warble
-import {integral} from "traits" in compiler;
+import {i32} from "core" in compiler;
 
-mut optionalValue = 42 || !null; // Create a union with a `null` absence state
+mut optionalValue: !null | i32 = 42; // Create a union with a `null` absence state
 
 optionalValue = null;   // now represents no value
-optionalValue = 7;      // set to integer
+optionalValue = i32(7); // set to i32
 
-if (optionalValue)
-is (integral) { print("Got an integer: {this}"); }
+when (optionalValue)
+from (i32) { print("Got an i32: {this}"); }
 is (null) { print("No value available."); }
 ```
 
@@ -262,7 +262,7 @@ Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct ident
 Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
 
 ```
-let, mut, const, private, protected, public, do, tick, null, undefined, readonly, true, false, return, yield, panic, await, async, pass, fail, try, if, else, is, from, has, as, this, that
+let, mut, const, private, protected, public, do, tick, null, undefined, readonly, true, false, return, yield, panic, await, async, pass, fail, try, if, when, else, is, from, has, as, this, that
 ```
 
 A full list of reserved keywords is available in Appendix 18.2.
@@ -2307,19 +2307,19 @@ Warble offers powerful type-checking operators leveraging symbols' structural me
 * **`is`**: Verifies structural equivalence between symbols.
 
   ```warble
-  if (dog1) is (dog2) { /* structurally identical */ }
+  when (dog1) is (dog2) { /* structurally identical */ }
   ```
 
 * **`has`**: Verifies that a symbol structurally includes required properties or methods.
 
   ```warble
-  if (socket) has ({ send(){}, recv(){} }) { /* satisfies the interface */ }
+  when (socket) has ({ send(){}, recv(){} }) { /* satisfies the interface */ }
   ```
 
 * **`from`**: Checks provenance, confirming if a value originates from a particular constructor.
 
   ```warble
-  if (cat) from (Cat) { /* cat was created by Cat constructor */ }
+  when (cat) from (Cat) { /* cat was created by Cat constructor */ }
   ```
 
 ##### Object-Oriented Programming via Symbols
@@ -2622,7 +2622,7 @@ if (is_failing(u)) {
 }
 
 // passing: dispatch based on active arm
-if (u)
+when (u)
 is (Cat) { return pass this.speak(); }
 is (Dog) { return pass this.speak(); }
 ```
@@ -3049,11 +3049,11 @@ When a function overload uses a destructuring-typed parameter list (§6.2), the 
 
 ```warble
 let func = ({ x, y }) { /* object only */ };
-let func = ((a, b))  { /* tuple only  */ };
+let func = ((a, b))   { /* tuple only  */ };
 
 { x = 1, y = 2 } -> func;   // matches the object overload
-(1, 2) -> func;              // matches the tuple overload
-[1, 2] -> func;              // no match — no array overload exists
+(1, 2) -> func;             // matches the tuple overload
+[1, 2] -> func;             // no match — no array overload exists
 ```
 
 Destructuring-typed overloads (§6.2) are only eligible in phase 2. Phase 1 does not consider them, so an argument of the matching kind simply falls through to phase 2, where it is destructured normally.
@@ -3252,14 +3252,14 @@ if (a || b) {
 }
 ```
 
-#### 7.3.2 Conditional Matching (`if`, `is`, `has`, `from`)
+#### 7.3.2 Conditional Matching (`when`, `is`, `has`, `from`)
 
-Warble supports **conditional matching** as an extension of the normal `if` statement.
+Warble supports **conditional matching** through the `when` statement.
 
-In this form, the expression inside `if ( ... )` produces a value, and the subsequent `is`, `has`, or `from` clauses test that value. The first clause that passes executes its body. This integrates naturally with `else if` and `else`.
+In this form, the expression inside `when ( ... )` produces the subject value, and the subsequent `is`, `has`, or `from` clauses test that value. The first clause that passes executes its body. This integrates naturally with `else if`, `else when`, and `else`.
 
 ```warble
-if (value)
+when (value)
 is (i32) { print("Is i32"); }
 has (i32) { print("Has i32"); }
 else if (another_value > 0) {
@@ -3269,7 +3269,25 @@ else if (another_value > 0) {
 }
 ```
 
+Unlike `when`, `if` keeps its traditional conditional role. After `if (condition)`, the parser expects a statement body, so forms such as `if (value) is (i32) {}` are syntax errors.
+
 There is no dedicated fallback clause for conditional matching; use `else` when you want a catch-all.
+
+`when` chains freely with the rest of the conditional family:
+
+```warble
+when (subject)
+from (i32) {}
+from (i64) {}
+else if (condition) {}
+else {}
+
+if (condition) {}
+else when (subject)
+from (i32) {}
+from (i64) {}
+else {}
+```
 
 **Matching Clauses**
 
@@ -3320,7 +3338,7 @@ try {
 Because `try` is an alternative spelling of an `if` with a compile-time-known condition, it composes naturally with other conditional arms:
 
 * `else try` chains multiple mutually exclusive type-validity tests.
-* `else if` and `else` work normally.
+* `else if`, `else when`, and `else` work normally.
 
 **What "Validity" Means**
 
@@ -3615,7 +3633,7 @@ Errors:
 Topic expressions specified so far:
 
 * **Object literals**: when the compiler begins building an object literal, it pushes the symbol index of that object literal onto the topic stack.
-* **Statement arms**: each arm with a condition introduces a topic for the duration of that arm's body. This includes `if` / `else if` arms, `while` bodies (condition checked before entry), and conditional-matching clause bodies (`is`, `has`, `from`). Unconditional `else` arms do not introduce a topic.
+* **Statement arms**: each arm with a condition introduces a topic for the duration of that arm's body. This includes `if` / `else if` arms, `while` bodies (condition checked before entry), and conditional-matching clause bodies in `when` statements (`is`, `has`, `from`). Unconditional `else` arms do not introduce a topic.
 
 These rules are what make `this` (and in nested cases, `that`) meaningful inside object literal bodies and inside statement arm bodies.
 
@@ -5032,6 +5050,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 #### Control Flow
 
 * **`if`** — Begins a conditional block.
+* **`when`** — Begins a conditional-matching statement whose subject is tested by subsequent `is`, `has`, or `from` clauses.
 * **`try`** — Begins a type-validity branch (compile-time `true`/`false` conditional).
 * **`else`** — Provides an alternative branch in a conditional statement.
 * **`for`** — Begins a looping construct over an iterable.
