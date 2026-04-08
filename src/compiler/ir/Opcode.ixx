@@ -30,8 +30,7 @@ namespace compiler::ir {
     YieldAsyncFail, // YieldAsyncFail(expression);
     Panic, // Panic(expression);
     Jump, // Jump(label);
-    Branch, // Branch(condition, label);
-    Fork, // Fork(condition, label1, label2);
+    Fork, // Fork(condition, label1, label2); // A label being undefined means it falls through
 
     // Pattern matching branches
     Is, // Is(condition, value, label);
@@ -44,7 +43,9 @@ namespace compiler::ir {
     Load, // result = Load(value); // Read memory to register
     Store, // result = Store(value); // Write register to memory
     Index, // result = Index(base, index);
-    Select, // result = Select(condition, (value1, value2));
+    // Select, // result = Select(condition, (value1, value2));
+    Select1,
+    Select2,
     Spill, // Special register version of Store
     Restore, // Special register version of Load
     Drop, // Marks the end of a lifetime
@@ -186,7 +187,6 @@ namespace compiler::ir {
       case Opcode::YieldAsyncPass: return "YieldAsyncPass";
       case Opcode::YieldAsyncFail: return "YieldAsyncFail";
       case Opcode::Jump: return "Jump";
-      case Opcode::Branch: return "Branch";
       case Opcode::Fork: return "Fork";
       case Opcode::Is: return "Is";
       case Opcode::Has: return "Has";
@@ -196,7 +196,8 @@ namespace compiler::ir {
       case Opcode::Load: return "Load";
       case Opcode::Store: return "Store";
       case Opcode::Index: return "Index";
-      case Opcode::Select: return "Select";
+      case Opcode::Select1: return "Select1";
+      case Opcode::Select2: return "Select2";
       case Opcode::Spill: return "Spill";
       case Opcode::Restore: return "Restore";
       case Opcode::Drop: return "Drop";
