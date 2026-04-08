@@ -454,7 +454,7 @@ namespace compiler::input {
           WhiteSpace(parent);
           ir::Symbol member = Identifier(parent);
           ir::Symbol result = MakeTemporary(parent, lhs, member);
-          Instruct(ir::Opcode::Select, result, lhs, member);
+          // Instruct(ir::Opcode::Select, result, lhs, member);
           SlideDrop(lhs);
           SlideDrop(member);
           SlideDrop(result);
@@ -2036,7 +2036,7 @@ namespace compiler::input {
     ir::Symbol cond = Condition(statement);
     WhiteSpace(statement);
 
-    Instruct(ir::Opcode::Branch, cond, exit);
+    Instruct(ir::Opcode::Fork, cond, undefined, exit); // Fall through to body on true, jump to exit on false
 
     ScopeOrInlineStatement(statement);
 
@@ -2170,7 +2170,7 @@ namespace compiler::input {
       WhiteSpace(statement);
 
       ir::Symbol cond = Condition(statement);
-      Instruct(ir::Opcode::Branch, cond, exit);
+      Instruct(ir::Opcode::Fork, cond, undefined, exit); // Fall through to body on true, jump to exit on false
       WhiteSpace(statement);
     }
 
@@ -2205,7 +2205,7 @@ namespace compiler::input {
     ir::Symbol cond = Condition(statement);
     
     ir::Symbol exit = Create(ir::symbol::Kind::Label, statement);
-    Instruct(ir::Opcode::Branch, cond, exit);
+    Instruct(ir::Opcode::Fork, cond, undefined, exit); // Fall through on true, jump to exit on false
 
     // TODO: Handle patterns
 
