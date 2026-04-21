@@ -2623,8 +2623,8 @@ if (is_failing(u)) {
 
 // passing: dispatch based on active arm
 when (u)
-is (Cat) { return pass this.speak(); }
-is (Dog) { return pass this.speak(); }
+from (Cat) { return pass this.speak(); }
+from (Dog) { return pass this.speak(); }
 ```
 
 This pseudo-code is illustrative only. Real lowering uses jump-table-style dispatch and may avoid materializing intermediate unions.
@@ -3785,7 +3785,7 @@ To allocate `n` bytes:
     * Accounting: `local.size_bytes -= class_size(i)`.
     * If the slot becomes empty, clear `local.present[i]`.
 4. Otherwise, search for a larger available local class `j > i`.
-   * The runtime should use the local `present` bitset to hop directly between candidate slots rather than linearly scanning every slot.
+    * The runtime should use the local `present` bitset to hop directly between candidate slots rather than linearly scanning every slot.
 5. If a larger class `j` is found, pop a block from slot `j` and repeatedly **split it in half** until it reaches size class `i`:
     * Accounting: popping the class `j` block decrements `local.size_bytes` by `class_size(j)`; each half that is pushed back increments `local.size_bytes` by its class size.
     * Each split of a class `k` block produces two class `k-1` blocks.
