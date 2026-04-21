@@ -1,5 +1,9 @@
 import Compiler;
 import compiler.utility.Print;
+import compiler.utility.Hash128;
+import compiler.utility.BLAKE3;
+import compiler.utility.Profiler;
+import compiler.utility.Time;
 import compiler.ir.Token;
 import compiler.fs.File;
 import compiler.input.Lexer;
@@ -7,11 +11,18 @@ import compiler.input.Parser;
 import compiler.text.Builder;
 
 import <vector>;
+import <atomic>;
 import <string>;
 import <thread>;
 import <filesystem>;
 import <string_view>;
 import <chrono>;
+import <array>;
+import <span>;
+import <cstddef>;
+import <cstdint>;
+import <algorithm>;
+import <random>;
 
 // Temporary just for fast experiments without running the whole pipeline
 void Test() {
@@ -52,6 +63,37 @@ void Test() {
 	}
 }
 
+void TestProfiler() {
+	compiler::utility::Profiler profiler{};
+
+	profiler.Add("RDTSC", []() {
+		auto time = compiler::utility::Cycles::Now();
+		compiler::utility::Profiler::DoNotOptimize(time);
+	});
+
+	profiler.Add("System", []() {
+		auto time = compiler::utility::System::Now();
+		compiler::utility::Profiler::DoNotOptimize(time);
+	});
+
+	profiler.Add("Steady", []() {
+		auto time = compiler::utility::Steady::Now();
+		compiler::utility::Profiler::DoNotOptimize(time);
+	});
+
+	profiler.Add("Precise", []() {
+		auto time = compiler::utility::Precise::Now();
+		compiler::utility::Profiler::DoNotOptimize(time);
+	});
+
+	std::atomic<size_t> counter = 0;
+	profiler.Add("Atomic Increment", [&counter]() {
+		counter.fetch_add(1, std::memory_order_relaxed);
+	});
+
+	profiler.Run();
+}
+
 int main(int argc, char* argv[]) {
 	std::vector<std::string> commands{};
 	commands.assign(argv + 1, argv + argc);
@@ -62,12 +104,19 @@ int main(int argc, char* argv[]) {
 		commands.push_back("main.wbl"); // Entry path
 	}
 
-	Test();
+	// Test();
 
 	// // Create the compiler; it owns the engine and manages programs.
 	// Compiler compiler{std::move(commands)};
 
 	// // Enter the engine loop via the compiler; returns on exit.
 	// compiler.Run();
+	// if (!ValidateBLAKE3AgainstOfficialKeyedVectors()) {
+	// 	return 1;
+	// }
+	// CompareBLAKE3AgainstHash128Performance();
+
+	// TestProfiler();
+
 	return 0;
 }
