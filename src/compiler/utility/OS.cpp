@@ -1,5 +1,3 @@
-module;
-
 #if defined(_WIN32) || defined(_WIN64)
 #  include <windows.h>
 #elif defined(__unix__) || defined(__unix) || defined(unix) || defined(__APPLE__) || defined(__MACH__)
@@ -15,22 +13,20 @@ module;
 #  include <setjmp.h>
 #endif
 
-module compiler.utility.OS;
-
-import compiler.utility.Macros;
-import <array>;
-import <cstdint>;
-import <cstring>;
-import <filesystem>;
-import <iostream>;
-import <limits>;
-import <memory>;
-import <stdexcept>;
-import <string>;
-import <thread>;
-import <utility>;
-import <vector>;
-
+#include "compiler/utility/OS.hpp"
+#include "compiler/utility/Macros.hpp"
+#include <array>
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 namespace compiler::utility::OS {
   bool SetThreadPriorityLow(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::LOW); }
   bool SetThreadPriorityNormal(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::NORMAL); }

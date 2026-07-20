@@ -1,7 +1,6 @@
-import compiler.Engine;
-import Compiler;
-import compiler.engine.ThreadPool;
-
+#include "compiler/Engine.hpp"
+#include "Compiler.hpp"
+#include "compiler/engine/ThreadPool.hpp"
 namespace compiler {
   Engine::Engine(Compiler& compiler)
     : thread_pool{compiler}

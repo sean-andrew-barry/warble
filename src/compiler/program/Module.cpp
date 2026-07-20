@@ -1,16 +1,14 @@
-import compiler.program.Module;
-import compiler.Program;
-import compiler.program.Package;
-import compiler.utility.DualBuffer;
-
-import <atomic>;
-import <unordered_map>;
-import <utility>;
-import <vector>;
-import <filesystem>;
-import <cstdint>;
-import <cstddef>;
-
+#include "compiler/program/Module.hpp"
+#include "compiler/Program.hpp"
+#include "compiler/program/Package.hpp"
+#include "compiler/utility/DualBuffer.hpp"
+#include <atomic>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+#include <filesystem>
+#include <cstdint>
+#include <cstddef>
 namespace compiler::program {
 	// ----- Helper mapping from next stage to required dependency stage -----
 	Module::Stage Module::RequiredDependencyStageFor(Stage next) {

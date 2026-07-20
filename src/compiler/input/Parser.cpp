@@ -1,22 +1,23 @@
-import compiler.input.Parser;
-import compiler.ir.Symbols;
-import compiler.ir.Error;
-import compiler.ir.Opcode;
-import compiler.ir.symbol.Kind;
-import compiler.ir.symbol.Flag;
-import compiler.ir.Token;
-import compiler.ir.Symbol;
-import compiler.text.cursor.String;
-import compiler.text.Unicode;
-import compiler.utility.Print;
-import <cstdint>;
-import <algorithm>;
-import <limits>;
-import <vector>;
-import <iterator>;
-import <utility>;
-import <cstddef>;
-import <stdexcept>;
+#include "compiler/input/Parser.hpp"
+#include "compiler/ir/Symbols.hpp"
+#include "compiler/ir/Error.hpp"
+#include "compiler/ir/Opcode.hpp"
+#include "compiler/ir/symbol/Kind.hpp"
+#include "compiler/ir/symbol/Flag.hpp"
+#include "compiler/ir/Token.hpp"
+#include "compiler/ir/Symbol.hpp"
+#include "compiler/text/cursor/String.hpp"
+#include "compiler/text/Unicode.hpp"
+#include "compiler/utility/Print.hpp"
+
+#include <cstdint>
+#include <algorithm>
+#include <limits>
+#include <vector>
+#include <iterator>
+#include <utility>
+#include <cstddef>
+#include <stdexcept>
 
 namespace compiler::input {
   void Parser::PushDeclarationScope(ir::Symbol scope) {

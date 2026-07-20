@@ -1,14 +1,12 @@
-import <iostream>;
-import <vector>;
-import <limits>;
-import <concepts>;
-
-import compiler.output.x64.Encoder;
-import compiler.ir.Symbol;
-import compiler.utility.OS;
-import compiler.utility.Print;
-import compiler.utility.ToString;
-
+#include <iostream>
+#include <vector>
+#include <limits>
+#include <concepts>
+#include "compiler/output/x64/Encoder.hpp"
+#include "compiler/ir/Symbol.hpp"
+#include "compiler/utility/OS.hpp"
+#include "compiler/utility/Print.hpp"
+#include "compiler/utility/ToString.hpp"
 namespace compiler::output::x64 {
   Encoder::Encoder() : compiler::Encoder{std::endian::little} {}
 

@@ -1,14 +1,14 @@
-import compiler.engine.ThreadPool;
-import compiler.engine.Thread;
-import Compiler;
-import compiler.utility.Print;
+#include "compiler/engine/ThreadPool.hpp"
+#include "compiler/engine/Thread.hpp"
+#include "Compiler.hpp"
+#include "compiler/utility/Print.hpp"
 
-import <cassert>;
-import <exception>;
-import <stdexcept>;
-import <thread>;
-import <memory>;
-import <vector>;
+#include <cassert>
+#include <exception>
+#include <stdexcept>
+#include <thread>
+#include <memory>
+#include <vector>
 
 namespace compiler::engine {
   ThreadPool::ThreadPool(Compiler& compiler)

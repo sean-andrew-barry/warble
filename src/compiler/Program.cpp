@@ -1,16 +1,14 @@
-import compiler.Program;
-import Compiler;
-import compiler.fs.File;
-import compiler.fs.ID;
-import compiler.program.Module;
-import compiler.program.Package;
-
-import <filesystem>;
-import <memory>;
-import <shared_mutex>;
-import <stdexcept>;
-import <utility>;
-
+#include "compiler/Program.hpp"
+#include "Compiler.hpp"
+#include "compiler/fs/File.hpp"
+#include "compiler/fs/ID.hpp"
+#include "compiler/program/Module.hpp"
+#include "compiler/program/Package.hpp"
+#include <filesystem>
+#include <memory>
+#include <shared_mutex>
+#include <stdexcept>
+#include <utility>
 namespace compiler {
   Program::Program(Compiler& compiler)
     : compiler{compiler}

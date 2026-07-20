@@ -1,28 +1,28 @@
-import Compiler;
-import compiler.utility.Print;
-import compiler.utility.Hash128;
-import compiler.utility.BLAKE3;
-import compiler.utility.Profiler;
-import compiler.utility.Time;
-import compiler.ir.Token;
-import compiler.fs.File;
-import compiler.input.Lexer;
-import compiler.input.Parser;
-import compiler.text.Builder;
+#include "Compiler.hpp"
+#include "compiler/utility/Print.hpp"
+#include "compiler/utility/Hash128.hpp"
+#include "compiler/utility/BLAKE3.hpp"
+#include "compiler/utility/Profiler.hpp"
+#include "compiler/utility/Time.hpp"
+#include "compiler/ir/Token.hpp"
+#include "compiler/fs/File.hpp"
+#include "compiler/input/Lexer.hpp"
+#include "compiler/input/Parser.hpp"
+#include "compiler/text/Builder.hpp"
 
-import <vector>;
-import <atomic>;
-import <string>;
-import <thread>;
-import <filesystem>;
-import <string_view>;
-import <chrono>;
-import <array>;
-import <span>;
-import <cstddef>;
-import <cstdint>;
-import <algorithm>;
-import <random>;
+#include <vector>
+#include <atomic>
+#include <string>
+#include <thread>
+#include <filesystem>
+#include <string_view>
+#include <chrono>
+#include <array>
+#include <span>
+#include <cstddef>
+#include <cstdint>
+#include <algorithm>
+#include <random>
 
 // Temporary just for fast experiments without running the whole pipeline
 void Test() {

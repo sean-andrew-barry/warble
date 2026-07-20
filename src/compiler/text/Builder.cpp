@@ -1,24 +1,21 @@
-import compiler.text.Builder;
-
-import compiler.ir.Token;
-import compiler.ir.Error;
-import compiler.ir.Opcode;
-import compiler.ir.Symbol;
-import compiler.ir.Instruction;
-import compiler.ir.Symbols;
-import compiler.ir.symbol.Kind;
-import compiler.input.Lexer;
-import compiler.input.Parser;
-import compiler.text.Unicode;
-
-import <string>;
-import <string_view>;
-import <algorithm>;
-import <format>;
-import <optional>;
-import <vector>;
-import <initializer_list>;
-
+#include "compiler/text/Builder.hpp"
+#include "compiler/ir/Token.hpp"
+#include "compiler/ir/Error.hpp"
+#include "compiler/ir/Opcode.hpp"
+#include "compiler/ir/Symbol.hpp"
+#include "compiler/ir/Instruction.hpp"
+#include "compiler/ir/Symbols.hpp"
+#include "compiler/ir/symbol/Kind.hpp"
+#include "compiler/input/Lexer.hpp"
+#include "compiler/input/Parser.hpp"
+#include "compiler/text/Unicode.hpp"
+#include <string>
+#include <string_view>
+#include <algorithm>
+#include <format>
+#include <optional>
+#include <vector>
+#include <initializer_list>
 namespace {
   using compiler::ir::Token;
 

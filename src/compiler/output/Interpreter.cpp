@@ -1,1 +1,1 @@
-import compiler.output.Interpreter;
+#include "compiler/output/Interpreter.hpp"

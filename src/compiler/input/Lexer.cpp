@@ -1,15 +1,15 @@
-import <array>;
-import <limits>;
-import <string>;
-import <vector>;
+#include <array>
+#include <limits>
+#include <string>
+#include <vector>
 
-import compiler.input.Lexer;
-import compiler.ir.Error;
-import compiler.ir.Token;
-import compiler.text.cursor.String;
-import compiler.text.Unicode;
-import compiler.text.Convert;
-import compiler.utility.Print;
+#include "compiler/input/Lexer.hpp"
+#include "compiler/ir/Error.hpp"
+#include "compiler/ir/Token.hpp"
+#include "compiler/text/cursor/String.hpp"
+#include "compiler/text/Unicode.hpp"
+#include "compiler/text/Convert.hpp"
+#include "compiler/utility/Print.hpp"
 
 namespace compiler::input {
   namespace {

@@ -1,13 +1,13 @@
-import compiler.engine.Thread;
-import Compiler;
-import compiler.utility.OS;
-import compiler.utility.Print;
+#include "compiler/engine/Thread.hpp"
+#include "Compiler.hpp"
+#include "compiler/utility/OS.hpp"
+#include "compiler/utility/Print.hpp"
 
-import <cassert>;
-import <exception>;
-import <iostream>;
-import <thread>;
-import <atomic>;
+#include <cassert>
+#include <exception>
+#include <iostream>
+#include <thread>
+#include <atomic>
 
 namespace compiler::engine {
   thread_local compiler::engine::Thread* Thread::current_thread = nullptr;
