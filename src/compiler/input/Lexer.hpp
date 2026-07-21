@@ -13,211 +13,6 @@
 #include "compiler/text/cursor/String.hpp"
 
 namespace compiler::input {
-  consteval std::bitset<256> MakeBitset(auto fn) {
-    std::bitset<256> bs;
-    fn(bs);
-    return bs;
-  }
-
-  // Bitsets for efficiently checking ASCII characters
-  inline constexpr auto DIGIT = MakeBitset([](auto& bs){
-    for (char c = '0'; c <= '9'; ++c) bs.set(c);
-  });
-
-  inline constexpr auto HEX = MakeBitset([](auto& bs){
-    for (char c = '0'; c <= '9'; ++c) bs.set(c);
-    for (char c = 'A'; c <= 'F'; ++c) bs.set(c);
-    for (char c = 'a'; c <= 'f'; ++c) bs.set(c);
-  });
-
-  inline constexpr auto OCTAL = MakeBitset([](auto& bs){
-    for (char c = '0'; c <= '7'; ++c) bs.set(c);
-  });
-
-  inline constexpr auto WHITESPACE = MakeBitset([](auto& bs){
-    bs.set(' ');
-    bs.set('\f'); // Form feed
-    bs.set('\n'); // Line feed
-    bs.set('\r'); // Carriage return
-    bs.set('\t'); // Horizontal tab
-    bs.set('\v'); // Vertical tab
-  });
-
-  inline constexpr auto PUNCT = MakeBitset([](auto& bs){
-    for (char c : "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~") bs.set(c);
-  });
-
-  inline constexpr auto SLASH = MakeBitset([](auto& bs){
-    bs.set('/');
-    bs.set('\\');
-  });
-
-  inline constexpr auto UPPER = MakeBitset([](auto& bs){
-    for (char c = 'A'; c <= 'Z'; ++c) bs.set(c);
-  });
-
-  inline constexpr auto LOWER = MakeBitset([](auto& bs){
-    for (char c = 'a'; c <= 'z'; ++c) bs.set(c);
-  });
-
-  inline constexpr auto ALPHA = UPPER | LOWER;
-  inline constexpr auto ALNUM = ALPHA | DIGIT;
-
-  inline constexpr auto IDENTIFIER_START = MakeBitset([](auto& bs){
-    bs.set('_');
-    bs.set('\\'); // Escape sequences are legal in identifiers
-  }) | ALPHA;
-
-  inline constexpr auto IDENTIFIER = IDENTIFIER_START | DIGIT;
-
-  inline constexpr auto OPERAND_START = MakeBitset([](auto& bs){
-    for (char c : "tfnrua'\"`+-([{<.") bs.set(c);
-    bs.set('0'); // 
-    bs.set('1'); // 
-    bs.set('2'); // 
-    bs.set('3'); // 
-    bs.set('4'); // 
-    bs.set('5'); // 
-    bs.set('6'); // 
-    bs.set('7'); // 
-    bs.set('8'); // 
-    bs.set('9'); // 
-    bs.set('a'); // `auto`
-    bs.set('n'); // `null`
-    bs.set('u'); // `undefined`
-    bs.set('\''); // Character
-    bs.set('"'); // String
-    bs.set('('); // Tuple or parameter
-    bs.set('['); // Array
-    bs.set('<'); // Enum
-    bs.set('{'); // Object
-    bs.set('d'); // `do`
-    bs.set('i'); // `if`
-    bs.set('t'); // `try` or `true` or `this` or `that`
-    bs.set('l'); // `loop`
-    bs.set('w'); // `while`
-    bs.set('r'); // `repeat` or `readonly`
-    bs.set('f'); // `for` or `false`
-  }) | DIGIT;
-
-  inline constexpr auto STATEMENT_START = MakeBitset([](auto& bs){
-    bs.set('b'); // `break`
-    bs.set('c'); // `continue`
-    bs.set('d'); // `do`
-    bs.set('f'); // `for`
-    bs.set('i'); // `if`
-    bs.set('l'); // `loop` or `let`
-    bs.set('p'); // `panic`
-    bs.set('t'); // `try`
-    bs.set('r'); // `repeat`
-    bs.set('w'); // `while`
-    bs.set('y'); // `yield`
-    bs.set(';'); // `;` (empty statement)
-  });
-
-  inline constexpr auto UNARY_PREFIX_START = MakeBitset([](auto& bs){
-    // for (char c : "+-*&$#@!?^=.~aneu") bs.set(c);
-
-    bs.set('+');
-    bs.set('-');
-    bs.set('*');
-    bs.set('&');
-    bs.set('$');
-    bs.set('#');
-    bs.set('@');
-    bs.set('!');
-    bs.set('.');
-    bs.set('~');
-    bs.set('a'); // `await` or `assume`
-    bs.set('e'); // `expect`
-    bs.set('r'); // `runtime`
-    bs.set('c'); // `comtime`
-  });
-
-  inline constexpr auto UNARY_POSTFIX_START = MakeBitset([](auto& bs){
-    for (char c : "?'\"`([{<") bs.set(c);
-  });
-
-  inline constexpr auto BINARY_START = MakeBitset([](auto& bs){
-    for (char c : "!=<>+-*/%^?&|oawut.:") bs.set(c);
-  });
-
-  inline constexpr auto MODIFIER_START = MakeBitset([](auto& bs){
-    // I don't think `let` is actually a modifier anymore
-    // bs.set('l'); // `let`
-    bs.set('c'); // `const`
-    bs.set('m'); // `mut`
-    bs.set('p'); // `private`, `public`, `protected`
-  });
-
-  inline constexpr auto NUMBER_START = DIGIT;
-
-  inline constexpr auto NOT_ASCII = MakeBitset([](auto& bs){
-    // Set bits for lead bytes of UTF-8 encoded non-ASCII characters (128-255) to 1
-    for (int i = 128; i < 256; ++i) {
-      bs.set(i);
-    }
-  });
-
-  inline constexpr auto POSSIBLE_SPACE_START = MakeBitset([](auto& bs){
-    bs.set('/'); // Comments are treated as whitespace for this bitset
-  }) | WHITESPACE | NOT_ASCII;
-
-  inline constexpr auto URL_SCHEME = MakeBitset([](auto& bs){
-    // These cannot be the starting character
-    for (char c : "+.-") bs.set(c);
-  }) | ALNUM;
-
-  inline constexpr auto URL_AUTHORITY = MakeBitset([](auto& bs){
-    // These cannot be the starting character
-    for (char c : ".-_~&") bs.set(c);
-  }) | ALNUM;
-
-  inline constexpr auto URL_HOST = MakeBitset([](auto& bs){
-    // These cannot be the starting character
-    for (char c : ".-") bs.set(c);
-  }) | ALNUM;
-
-  inline constexpr auto URL_SUB_DELIMS = MakeBitset([](auto& bs){
-    for (char c : "!$&'()*+,;=") bs.set(c);
-  });
-
-  inline constexpr auto URL_UNRESERVED = MakeBitset([](auto& bs){
-    for (char c : ".-_~") bs.set(c);
-  }) | ALNUM;
-
-  inline constexpr auto URL_SEGMENT = MakeBitset([](auto& bs){
-    for (char c : ":@") bs.set(c);
-  }) | URL_UNRESERVED | URL_SUB_DELIMS;
-
-  inline constexpr auto URL_SEGMENT_NC = MakeBitset([](auto& bs){
-    for (char c : "@") bs.set(c); // Excludes ':'
-  }) | URL_UNRESERVED | URL_SUB_DELIMS;
-
-  inline constexpr auto URL_PATH = MakeBitset([](auto& bs){
-    // Reserved characters
-    for (char c : ":@&=+$,") bs.set(c);
-
-    // Sub-delimiters
-    for (char c : "!\'()*;%") bs.set(c);
-  }) | URL_UNRESERVED;
-
-  inline constexpr auto URL_SEARCH = MakeBitset([](auto& bs){
-    // Reserved characters
-    for (char c : "!$\'()*,;:@%") bs.set(c);
-  }) | URL_UNRESERVED;
-
-  inline constexpr auto URL_FRAGMENT = MakeBitset([](auto& bs){
-    // Reserved characters
-    for (char c : "!$&\'()*+,;=@/?%") bs.set(c);
-  }) | URL_UNRESERVED;
-
-  inline constexpr auto FILE_PATH = MakeBitset([](auto& bs){
-    for (char c : "-_!#$%&'()[]{}+@~^. ") bs.set(c);
-  }) | ALNUM;
-
-  inline constexpr auto POSSIBLE_IDENTIFIER_START = IDENTIFIER_START | NOT_ASCII;
-
   class Lexer {
   private:
   protected:
@@ -612,158 +407,105 @@ namespace compiler::input {
     bool FromPattern();
     bool Pattern();
 
-    constexpr bool IsBreak() const {
-      switch (cursor.Peek()) {
-        case '\n': return true;
-        case '\r': return true;
-        default: {
-          // Quick test for LS or PS first two bytes: E2 80 xx
-          if (static_cast<unsigned char>(cursor.Peek()) == 0xE2 && static_cast<unsigned char>(cursor.Peek(1)) == 0x80) {
-            switch (static_cast<unsigned char>(cursor.Peek(2))) {
-              case 0xA8: return true; // LS
-              case 0xA9: return true; // PS
-            }
-          }
+    bool IsBreak() const noexcept;
+    bool IsASCII() const noexcept;
+    bool IsSpace() const noexcept;
+    bool IsAlpha() const noexcept;
+    bool IsAlNum() const noexcept;
+    bool IsUpper() const noexcept;
+    bool IsLower() const noexcept;
+    bool IsDigit() const noexcept;
+    bool IsPunct() const noexcept;
+    bool IsSlash() const noexcept;
+    bool IsOctal() const noexcept;
+    bool IsHex  () const noexcept;
+    bool IsIdent() const noexcept;
+    bool IsBinary() const noexcept;
+    bool IsURLScheme() const noexcept;
+    bool IsURLHost() const noexcept;
+    bool IsURLSegment() const noexcept;
+    bool IsURLSegmentNC() const noexcept;
+    bool IsURLPath() const noexcept;
+    bool IsURLSearch() const noexcept;
+    bool IsURLFragment() const noexcept;
+    bool IsURLAuthority() const noexcept;
+    bool IsFilePath() const noexcept;
+    bool IsBinaryStart() const noexcept;
+    bool IsNumberStart() const noexcept;
+    bool IsIdentStart() const noexcept;
+    bool IsOperandStart() const noexcept;
+    bool IsStatementStart() const noexcept;
+    bool IsUnaryPrefixStart() const noexcept;
+    bool IsUnaryPostfixStart() const noexcept;
+    bool IsModifierStart() const noexcept;
+    bool IsPossibleSpaceStart() const noexcept;
+    bool IsPossibleIdentifierStart() const noexcept;
 
-          return false;
-        }
-      }
-    }
+    bool IsBreak(size_t i) const noexcept;
+    bool IsASCII(size_t i) const noexcept;
+    bool IsSpace(size_t i) const noexcept;
+    bool IsAlpha(size_t i) const noexcept;
+    bool IsAlNum(size_t i) const noexcept;
+    bool IsUpper(size_t i) const noexcept;
+    bool IsLower(size_t i) const noexcept;
+    bool IsDigit(size_t i) const noexcept;
+    bool IsPunct(size_t i) const noexcept;
+    bool IsSlash(size_t i) const noexcept;
+    bool IsOctal(size_t i) const noexcept;
+    bool IsHex  (size_t i) const noexcept;
+    bool IsIdent(size_t i) const noexcept;
+    bool IsBinary(size_t i) const noexcept;
+    bool IsBinaryStart(size_t i) const noexcept;
+    bool IsNumberStart(size_t i) const noexcept;
+    bool IsURLScheme(size_t i) const noexcept;
+    bool IsURLHost(size_t i) const noexcept;
+    bool IsURLSegment(size_t i) const noexcept;
+    bool IsURLSegmentNC(size_t i) const noexcept;
+    bool IsURLPath(size_t i) const noexcept;
+    bool IsURLSearch(size_t i) const noexcept;
+    bool IsURLFragment(size_t i) const noexcept;
+    bool IsURLAuthority(size_t i) const noexcept;
+    bool IsFilePath(size_t i) const noexcept;
+    bool IsIdentStart(size_t i) const noexcept;
+    bool IsOperandStart(size_t i) const noexcept;
+    bool IsStatementStart(size_t i) const noexcept;
+    bool IsUnaryPrefixStart(size_t i) const noexcept;
+    bool IsUnaryPostfixStart(size_t i) const noexcept;
+    bool IsModifierStart(size_t i) const noexcept;
+    bool IsPossibleSpaceStart(size_t i) const noexcept;
+    bool IsPossibleIdentifierStart(size_t i) const noexcept;
 
-    constexpr bool IsASCII() const { return IsASCII(cursor.Peek()); }
-    constexpr bool IsSpace() const { return IsSpace(cursor.Peek()); }
-    constexpr bool IsAlpha() const { return IsAlpha(cursor.Peek()); }
-    constexpr bool IsAlNum() const { return IsAlNum(cursor.Peek()); }
-    constexpr bool IsUpper() const { return IsUpper(cursor.Peek()); }
-    constexpr bool IsLower() const { return IsLower(cursor.Peek()); }
-    constexpr bool IsDigit() const { return IsDigit(cursor.Peek()); }
-    constexpr bool IsPunct() const { return IsPunct(cursor.Peek()); }
-    constexpr bool IsSlash() const { return IsSlash(cursor.Peek()); }
-    constexpr bool IsOctal() const { return IsOctal(cursor.Peek()); }
-    constexpr bool IsHex  () const { return IsHex(cursor.Peek()); }
-    constexpr bool IsIdent() const { return IsIdent(cursor.Peek()); }
-    constexpr bool IsBinary() const { return IsBinary(cursor.Peek()); }
-    constexpr bool IsURLScheme() const { return IsURLScheme(cursor.Peek()); }
-    constexpr bool IsURLHost() const { return IsURLHost(cursor.Peek()); }
-    constexpr bool IsURLSegment() const { return IsURLSegment(cursor.Peek()); }
-    constexpr bool IsURLSegmentNC() const { return IsURLSegmentNC(cursor.Peek()); }
-    constexpr bool IsURLPath() const { return IsURLPath(cursor.Peek()); }
-    constexpr bool IsURLSearch() const { return IsURLSearch(cursor.Peek()); }
-    constexpr bool IsURLFragment() const { return IsURLFragment(cursor.Peek()); }
-    constexpr bool IsURLAuthority() const { return IsURLAuthority(cursor.Peek()); }
-    constexpr bool IsFilePath() const { return IsFilePath(cursor.Peek()); }
-    constexpr bool IsBinaryStart() const { return IsBinaryStart(cursor.Peek()); }
-    constexpr bool IsNumberStart() const { return IsNumberStart(cursor.Peek()); }
-    constexpr bool IsIdentStart() const { return IsIdentStart(cursor.Peek()); }
-    constexpr bool IsOperandStart() const { return IsOperandStart(cursor.Peek()); }
-    constexpr bool IsStatementStart() const { return IsStatementStart(cursor.Peek()); }
-    constexpr bool IsUnaryPrefixStart() const { return IsUnaryPrefixStart(cursor.Peek()); }
-    constexpr bool IsUnaryPostfixStart() const { return IsUnaryPostfixStart(cursor.Peek()); }
-    constexpr bool IsModifierStart() const { return IsModifierStart(cursor.Peek()); }
-    constexpr bool IsPossibleSpaceStart() const { return IsPossibleSpaceStart(cursor.Peek()); }
-    constexpr bool IsPossibleIdentifierStart() const { return IsPossibleIdentifierStart(cursor.Peek()); }
-
-    constexpr bool IsBreak(size_t i) const {
-      switch (cursor.Peek(i)) {
-        case '\n': return true;
-        case '\r': return true;
-        default: {
-          // Quick test for LS or PS first two bytes: E2 80 xx
-          if (static_cast<unsigned char>(cursor.Peek(i)) == 0xE2 && static_cast<unsigned char>(cursor.Peek(i + 1)) == 0x80) {
-            switch (static_cast<unsigned char>(cursor.Peek(i + 2))) {
-              case 0xA8: return true; // LS
-              case 0xA9: return true; // PS
-            }
-          }
-
-          return false;
-        }
-      }
-    }
-
-    constexpr bool IsASCII(size_t i) const { return IsASCII(cursor.Peek(i)); }
-    constexpr bool IsSpace(size_t i) const { return IsSpace(cursor.Peek(i)); }
-    constexpr bool IsAlpha(size_t i) const { return IsAlpha(cursor.Peek(i)); }
-    constexpr bool IsAlNum(size_t i) const { return IsAlNum(cursor.Peek(i)); }
-    constexpr bool IsUpper(size_t i) const { return IsUpper(cursor.Peek(i)); }
-    constexpr bool IsLower(size_t i) const { return IsLower(cursor.Peek(i)); }
-    constexpr bool IsDigit(size_t i) const { return IsDigit(cursor.Peek(i)); }
-    constexpr bool IsPunct(size_t i) const { return IsPunct(cursor.Peek(i)); }
-    constexpr bool IsSlash(size_t i) const { return IsSlash(cursor.Peek(i)); }
-    constexpr bool IsOctal(size_t i) const { return IsOctal(cursor.Peek(i)); }
-    constexpr bool IsHex  (size_t i) const { return IsHex(cursor.Peek(i)); }
-    constexpr bool IsIdent(size_t i) const { return IsIdent(cursor.Peek(i)); }
-    constexpr bool IsBinary(size_t i) const { return IsBinary(cursor.Peek(i)); }
-    constexpr bool IsBinaryStart(size_t i) const { return IsBinaryStart(cursor.Peek(i)); }
-    constexpr bool IsNumberStart(size_t i) const { return IsNumberStart(cursor.Peek(i)); }
-    constexpr bool IsURLScheme(size_t i) const { return IsURLScheme(cursor.Peek(i)); }
-    constexpr bool IsURLHost(size_t i) const { return IsURLHost(cursor.Peek(i)); }
-    constexpr bool IsURLSegment(size_t i) const { return IsURLSegment(cursor.Peek(i)); }
-    constexpr bool IsURLSegmentNC(size_t i) const { return IsURLSegmentNC(cursor.Peek(i)); }
-    constexpr bool IsURLPath(size_t i) const { return IsURLPath(cursor.Peek(i)); }
-    constexpr bool IsURLSearch(size_t i) const { return IsURLSearch(cursor.Peek(i)); }
-    constexpr bool IsURLFragment(size_t i) const { return IsURLFragment(cursor.Peek(i)); }
-    constexpr bool IsURLAuthority(size_t i) const { return IsURLAuthority(cursor.Peek(i)); }
-    constexpr bool IsFilePath(size_t i) const { return IsFilePath(cursor.Peek(i)); }
-    constexpr bool IsIdentStart(size_t i) const { return IsIdentStart(cursor.Peek(i)); }
-    constexpr bool IsOperandStart(size_t i) const { return IsOperandStart(cursor.Peek(i)); }
-    constexpr bool IsStatementStart(size_t i) const { return IsStatementStart(cursor.Peek(i)); }
-    constexpr bool IsUnaryPrefixStart(size_t i) const { return IsUnaryPrefixStart(cursor.Peek(i)); }
-    constexpr bool IsUnaryPostfixStart(size_t i) const { return IsUnaryPostfixStart(cursor.Peek(i)); }
-    constexpr bool IsModifierStart(size_t i) const { return IsModifierStart(cursor.Peek(i)); }
-    constexpr bool IsPossibleSpaceStart(size_t i) const { return IsPossibleSpaceStart(cursor.Peek(i)); }
-    constexpr bool IsPossibleIdentifierStart(size_t i) const { return IsPossibleIdentifierStart(cursor.Peek(i)); }
-
-    constexpr bool IsASCII(const char c) const { return static_cast<uint8_t>(c) < 0x80; }
-    constexpr bool IsSpace(const char c) const { return WHITESPACE[static_cast<uint8_t>(c)]; }
-    constexpr bool IsAlpha(const char c) const { return ALPHA[static_cast<uint8_t>(c)]; }
-    constexpr bool IsAlNum(const char c) const { return ALNUM[static_cast<uint8_t>(c)]; }
-    constexpr bool IsUpper(const char c) const { return UPPER[static_cast<uint8_t>(c)]; }
-    constexpr bool IsLower(const char c) const { return LOWER[static_cast<uint8_t>(c)]; }
-    constexpr bool IsDigit(const char c) const { return DIGIT[static_cast<uint8_t>(c)]; }
-    constexpr bool IsPunct(const char c) const { return PUNCT[static_cast<uint8_t>(c)]; }
-    constexpr bool IsSlash(const char c) const { return SLASH[static_cast<uint8_t>(c)]; }
-    constexpr bool IsOctal(const char c) const { return OCTAL[static_cast<uint8_t>(c)]; }
-    constexpr bool IsHex  (const char c) const { return HEX  [static_cast<uint8_t>(c)]; }
-    constexpr bool IsIdent(const char c) const { return IDENTIFIER[static_cast<uint8_t>(c)]; }
-    constexpr bool IsBinary(const char c) const { return c == '0'|| c == '1'; }
-    constexpr bool IsIdentStart(const char c) const { return IDENTIFIER_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsOperandStart(const char c) const { return OPERAND_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsStatementStart(const char c) const { return STATEMENT_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsUnaryPrefixStart(const char c) const { return UNARY_PREFIX_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsUnaryPostfixStart(const char c) const { return UNARY_POSTFIX_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsBinaryStart(const char c) const { return BINARY_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsModifierStart(const char c) const { return MODIFIER_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsNumberStart(const char c) const { return NUMBER_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsPossibleSpaceStart(const char c) const { return POSSIBLE_SPACE_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsPossibleIdentifierStart(const char c) const { return POSSIBLE_IDENTIFIER_START[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLScheme(const char c) const { return URL_SCHEME[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLHost(const char c) const { return URL_HOST[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLSegment(const char c) const { return URL_SEGMENT[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLSegmentNC(const char c) const { return URL_SEGMENT_NC[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLPath(const char c) const { return URL_PATH[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLSearch(const char c) const { return URL_SEARCH[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLFragment(const char c) const { return URL_FRAGMENT[static_cast<uint8_t>(c)]; }
-    constexpr bool IsURLAuthority(const char c) const { return URL_AUTHORITY[static_cast<uint8_t>(c)]; }
-    constexpr bool IsFilePath(const char c) const { return FILE_PATH[static_cast<uint8_t>(c)]; }
-
-    // TODO: Explore these alternatives for performance
-    // TODO: Also explore a byte LUT
-    // constexpr bool IsUpper(const char c) const { return static_cast<unsigned char>(c) - 'A' <= ('Z' - 'A'); }
-    // constexpr bool IsLower(const char c) const { return static_cast<unsigned char>(c) - 'a' <= ('z' - 'a'); }
-    // constexpr bool IsDigit(const char c) const { return static_cast<unsigned char>(c) - '0' <= 9; }
-    // constexpr bool IsAlpha(const char c) const {
-    //   unsigned char uc = static_cast<unsigned char>(c);
-    //   return (uc - 'A' <= ('Z' - 'A')) || (uc - 'a' <= ('z' - 'a'));
-    // }
-    // constexpr bool IsAlNum(const char c) const {
-    //   unsigned char uc = static_cast<unsigned char>(c);
-    //   return (uc - '0' <= 9) || (uc - 'A' <= ('Z' - 'A')) || (uc - 'a' <= ('z' - 'a'));
-    // }
-    // constexpr bool IsOctal(const char c) const { return static_cast<unsigned char>(c) - '0' <= 7; }
-    // constexpr bool IsNumberStart(const char c) const {
-    //   unsigned char uc = static_cast<unsigned char>(c);
-    //   return (uc - '0' <= 9) || uc == '+' || uc == '-';
-    // }
+    static bool IsASCII(const char c) noexcept;
+    static bool IsSpace(const char c) noexcept;
+    static bool IsAlpha(const char c) noexcept;
+    static bool IsAlNum(const char c) noexcept;
+    static bool IsUpper(const char c) noexcept;
+    static bool IsLower(const char c) noexcept;
+    static bool IsDigit(const char c) noexcept;
+    static bool IsPunct(const char c) noexcept;
+    static bool IsSlash(const char c) noexcept;
+    static bool IsOctal(const char c) noexcept;
+    static bool IsHex  (const char c) noexcept;
+    static bool IsIdent(const char c) noexcept;
+    static bool IsBinary(const char c) noexcept;
+    static bool IsIdentStart(const char c) noexcept;
+    static bool IsOperandStart(const char c) noexcept;
+    static bool IsStatementStart(const char c) noexcept;
+    static bool IsUnaryPrefixStart(const char c) noexcept;
+    static bool IsUnaryPostfixStart(const char c) noexcept;
+    static bool IsBinaryStart(const char c) noexcept;
+    static bool IsModifierStart(const char c) noexcept;
+    static bool IsNumberStart(const char c) noexcept;
+    static bool IsPossibleSpaceStart(const char c) noexcept;
+    static bool IsPossibleIdentifierStart(const char c) noexcept;
+    static bool IsURLScheme(const char c) noexcept;
+    static bool IsURLHost(const char c) noexcept;
+    static bool IsURLSegment(const char c) noexcept;
+    static bool IsURLSegmentNC(const char c) noexcept;
+    static bool IsURLPath(const char c) noexcept;
+    static bool IsURLSearch(const char c) noexcept;
+    static bool IsURLFragment(const char c) noexcept;
+    static bool IsURLAuthority(const char c) noexcept;
+    static bool IsFilePath(const char c) noexcept;
   };
 };
