@@ -3,6 +3,7 @@
 #include <ranges>
 #include <span>
 #include <stdexcept>
+
 namespace compiler::text {
   template<typename T, auto END = [](){ return T::value_type{}; }>
   class Cursor {

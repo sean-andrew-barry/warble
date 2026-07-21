@@ -1,4 +1,14 @@
 #include "compiler/input/Parser.hpp"
+
+#include <cstdint>
+#include <algorithm>
+#include <limits>
+#include <vector>
+#include <iterator>
+#include <utility>
+#include <cstddef>
+#include <stdexcept>
+
 #include "compiler/ir/Symbols.hpp"
 #include "compiler/ir/Error.hpp"
 #include "compiler/ir/Opcode.hpp"
@@ -9,15 +19,6 @@
 #include "compiler/text/cursor/String.hpp"
 #include "compiler/text/Unicode.hpp"
 #include "compiler/utility/Print.hpp"
-
-#include <cstdint>
-#include <algorithm>
-#include <limits>
-#include <vector>
-#include <iterator>
-#include <utility>
-#include <cstddef>
-#include <stdexcept>
 
 namespace compiler::input {
   void Parser::PushDeclarationScope(ir::Symbol scope) {

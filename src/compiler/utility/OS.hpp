@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compiler/utility/Macros.hpp"
+
 #include <thread>
 #include <string>
 #include <memory>
@@ -9,6 +10,7 @@
 #include <filesystem>
 #include <array>
 #include <cstddef>
+
 namespace compiler::utility::OS {
   void Setup();
 

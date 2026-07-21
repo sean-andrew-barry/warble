@@ -1,7 +1,4 @@
 #include "compiler/engine/ThreadPool.hpp"
-#include "compiler/engine/Thread.hpp"
-#include "compiler/utility/Print.hpp"
-#include "Compiler.hpp"
 
 #include <cassert>
 #include <exception>
@@ -9,6 +6,10 @@
 #include <thread>
 #include <memory>
 #include <vector>
+
+#include "compiler/engine/Thread.hpp"
+#include "compiler/utility/Print.hpp"
+#include "Compiler.hpp"
 
 namespace compiler::engine {
   ThreadPool::ThreadPool(Compiler& compiler)

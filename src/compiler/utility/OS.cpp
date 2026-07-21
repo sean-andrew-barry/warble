@@ -1,4 +1,6 @@
 #if defined(_WIN32) || defined(_WIN64)
+#  define WIN32_LEAN_AND_MEAN
+// #  define NOMINMAX // Already defined somewhere?
 #  include <windows.h>
 #elif defined(__unix__) || defined(__unix) || defined(unix) || defined(__APPLE__) || defined(__MACH__)
 #  include <pthread.h>
@@ -15,6 +17,7 @@
 
 #include "compiler/utility/OS.hpp"
 #include "compiler/utility/Macros.hpp"
+
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -27,6 +30,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+
 namespace compiler::utility::OS {
   bool SetThreadPriorityLow(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::LOW); }
   bool SetThreadPriorityNormal(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::NORMAL); }
