@@ -10,8 +10,10 @@
 #include <string_view>
 #include <unordered_map>
 #include <filesystem>
+
 #include "compiler/fs/File.hpp"
 #include "compiler/fs/ID.hpp"
+
 namespace compiler {
   class Program;
 };

@@ -4,6 +4,8 @@
 #include <compare>
 #include <iostream>
 #include <chrono>
+#include <cstdint>
+
 namespace compiler::utility {
   constexpr uint64_t NANOSECONDS = 1;
   constexpr uint64_t MICROSECONDS = 1'000;
@@ -96,26 +98,4 @@ namespace compiler::utility {
   constexpr Nano operator""_d  (long double v) { return Nano{v * DAYS}; }
   constexpr Nano operator""_w  (long double v) { return Nano{v * WEEKS}; }
   constexpr Nano operator""_y  (long double v) { return Nano{v * YEARS}; }
-
-  // constexpr Nano operator""_ns (uint64_t v) { return Nano{v}; }
-  // constexpr Nano operator""_us (uint64_t v) { return Nano{v / 1000}; }
-  // constexpr Nano operator""_ns (long double v){ return Nano{v * 0.000000001}; } // Nanoseconds
-  // constexpr Nano operator""_us (long double v){ return Nano{v * 0.000001}; } // Microseconds
-  // constexpr Nano operator""_ms (long double v){ return Nano{v * 0.001}; } // Milliseconds
-  // constexpr Nano operator""_s	(long double v){ return Nano{v}; } // Nano, the base unit
-  // constexpr Nano operator""_min(long double v){ return Nano{v * 60.0}; } // Minutes
-  // constexpr Nano operator""_h	(long double v){ return Nano{v * 3600.0}; } // Hours
-  // constexpr Nano operator""_d	(long double v){ return Nano{v * 86400.0}; } // Days
-  // constexpr Nano operator""_w	(long double v){ return Nano{v * 604800.0}; } // Weeks
-  // constexpr Nano operator""_y	(long double v){ return Nano{v * 218937600.0}; } // Years
-
-  // constexpr Nano operator""_ns (size_t v){ return Nano{static_cast<long double>(v) * 0.000000001}; } // Nanoseconds
-  // constexpr Nano operator""_us (size_t v){ return Nano{static_cast<long double>(v) * 0.000001}; } // Microseconds
-  // constexpr Nano operator""_ms (size_t v){ return Nano{static_cast<long double>(v) * 0.001}; } // Milliseconds
-  // constexpr Nano operator""_s	(size_t v){ return Nano{static_cast<long double>(v)}; } // Nano, the base unit
-  // constexpr Nano operator""_min(size_t v){ return Nano{static_cast<long double>(v) * 60.0}; } // Minutes
-  // constexpr Nano operator""_h	(size_t v){ return Nano{static_cast<long double>(v) * 3600.0}; } // Hours
-  // constexpr Nano operator""_d	(size_t v){ return Nano{static_cast<long double>(v) * 86400.0}; } // Days
-  // constexpr Nano operator""_w	(size_t v){ return Nano{static_cast<long double>(v) * 604800.0}; } // Weeks
-  // constexpr Nano operator""_y	(size_t v){ return Nano{static_cast<long double>(v) * 218937600.0}; } // Years
 };

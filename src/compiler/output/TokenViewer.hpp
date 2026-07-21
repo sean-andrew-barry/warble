@@ -4,7 +4,9 @@
 #include <bitset>
 #include <vector>
 #include <string>
+
 #include "compiler/ir/Token.hpp"
+
 namespace compiler::output {
   class TokenViewer {
   private:

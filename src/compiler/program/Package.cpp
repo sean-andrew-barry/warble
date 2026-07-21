@@ -3,11 +3,13 @@
 #include "compiler/fs/File.hpp"
 #include "compiler/fs/ID.hpp"
 #include "compiler/program/Module.hpp"
+
 #include <filesystem>
 #include <memory>
 #include <shared_mutex>
 #include <stdexcept>
 #include <utility>
+
 namespace compiler::program {
   Package::Package(compiler::Program& program, compiler::fs::File&& root)
     : program{program}, root{std::move(root)}

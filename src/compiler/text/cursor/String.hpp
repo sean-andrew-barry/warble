@@ -2,6 +2,7 @@
 
 #include "compiler/text/Cursor.hpp"
 #include "compiler/text/Unicode.hpp"
+
 #include <string>
 #include <string_view>
 #include <bitset>

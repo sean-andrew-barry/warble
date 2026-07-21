@@ -2,6 +2,7 @@
 #include "compiler/Program.hpp"
 #include "compiler/program/Package.hpp"
 #include "compiler/utility/DualBuffer.hpp"
+
 #include <atomic>
 #include <unordered_map>
 #include <utility>
@@ -9,6 +10,7 @@
 #include <filesystem>
 #include <cstdint>
 #include <cstddef>
+
 namespace compiler::program {
 	// ----- Helper mapping from next stage to required dependency stage -----
 	Module::Stage Module::RequiredDependencyStageFor(Stage next) {
@@ -209,5 +211,6 @@ namespace compiler::program {
 	}
 
   compiler::program::Package& Module::Register(std::filesystem::path&& specifier) { return program.Register(std::move(specifier)); }
+	
   compiler::program::Module& Module::Import(std::filesystem::path&& specifier) { return package.Import(std::move(specifier)); }
 }

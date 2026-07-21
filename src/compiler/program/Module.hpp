@@ -6,6 +6,7 @@
 #include <string_view>
 #include <atomic>
 #include <filesystem>
+
 #include "compiler/ir/Token.hpp"
 #include "compiler/ir/Symbols.hpp"
 #include "compiler/ir/Instruction.hpp"

@@ -1,7 +1,7 @@
 #include "compiler/engine/ThreadPool.hpp"
 #include "compiler/engine/Thread.hpp"
-#include "Compiler.hpp"
 #include "compiler/utility/Print.hpp"
+#include "Compiler.hpp"
 
 #include <cassert>
 #include <exception>
