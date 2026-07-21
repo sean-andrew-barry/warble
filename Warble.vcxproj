@@ -51,6 +51,7 @@
     <ClInclude Include="src\compiler\engine\Thread.hpp" />
     <ClCompile Include="src\compiler\engine\ThreadPool.cpp" />
     <ClInclude Include="src\compiler\engine\ThreadPool.hpp" />
+    <ClCompile Include="src\compiler\fs\File.cpp" />
     <ClInclude Include="src\compiler\fs\File.hpp" />
     <ClCompile Include="src\compiler\fs\ID.cpp" />
     <ClInclude Include="src\compiler\fs\ID.hpp" />
