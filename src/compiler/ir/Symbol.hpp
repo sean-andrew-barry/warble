@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <functional>
+
 namespace compiler::ir {
   // A row index into the `compiler::ir::Symbols` table.
   // This is intended to eventually replace `compiler::ir::Symbol`.
