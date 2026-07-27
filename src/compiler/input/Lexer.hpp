@@ -176,6 +176,8 @@ namespace compiler::input {
 
     bool Null();
     bool Undefined();
+    bool Maximum();
+    bool Minimum();
     bool Readonly();
     bool True();
     bool False();
@@ -308,6 +310,8 @@ namespace compiler::input {
     bool ThatLiteral();
     bool NullLiteral();
     bool UndefinedLiteral();
+    bool MaximumLiteral();
+    bool MinimumLiteral();
     bool ReadonlyLiteral();
     bool CharacterLiteral();
     bool StringLiteral();

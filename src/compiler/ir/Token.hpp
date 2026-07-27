@@ -140,6 +140,8 @@ namespace compiler::ir {
     Auto, // `auto` - Used for type inference
     Undefined, // `undefined`
     Null, // `null`
+    Maximum, // `maximum`
+    Minimum, // `minimum`
     Readonly, // `readonly`
     True, // `true`
     False, // `false`
@@ -407,6 +409,8 @@ namespace compiler::ir {
       case Token::Auto: return "Auto";
       case Token::Undefined: return "Undefined";
       case Token::Null: return "Null";
+      case Token::Maximum: return "Maximum";
+      case Token::Minimum: return "Minimum";
       case Token::Readonly: return "Readonly";
       case Token::True: return "True";
       case Token::False: return "False";

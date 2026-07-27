@@ -155,6 +155,8 @@ namespace compiler::input {
         case ir::Token::StringOpen:
         case ir::Token::Undefined:
         case ir::Token::Null:
+        case ir::Token::Maximum:
+        case ir::Token::Minimum:
         case ir::Token::Readonly:
         case ir::Token::True:
         case ir::Token::False:
@@ -322,6 +324,8 @@ namespace compiler::input {
     // Literals
     ir::Symbol UndefinedLiteral(ir::Symbol parent);
     ir::Symbol NullLiteral(ir::Symbol parent);
+    ir::Symbol MaximumLiteral(ir::Symbol parent);
+    ir::Symbol MinimumLiteral(ir::Symbol parent);
     ir::Symbol ThisLiteral(ir::Symbol parent);
     ir::Symbol ThatLiteral(ir::Symbol parent);
     ir::Symbol BooleanLiteral(ir::Symbol parent);

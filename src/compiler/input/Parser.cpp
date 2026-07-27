@@ -366,6 +366,8 @@ namespace compiler::input {
     switch (cursor.Peek()) {
       case ir::Token::Undefined: return UndefinedLiteral(parent);
       case ir::Token::Null: return NullLiteral(parent);
+      case ir::Token::Maximum: return MaximumLiteral(parent);
+      case ir::Token::Minimum: return MinimumLiteral(parent);
       case ir::Token::This: return ThisLiteral(parent);
       case ir::Token::That: return ThatLiteral(parent);
       case ir::Token::True:
@@ -879,6 +881,20 @@ namespace compiler::input {
   ir::Symbol Parser::NullLiteral(ir::Symbol parent) {
     ir::Symbol symbol = Create(ir::symbol::Kind::Null, parent);
     Expect(ir::Token::Null, symbol);
+
+    return symbol;
+  }
+
+  ir::Symbol Parser::MaximumLiteral(ir::Symbol parent) {
+    ir::Symbol symbol = Create(ir::symbol::Kind::Maximum, parent);
+    Expect(ir::Token::Maximum, symbol);
+
+    return symbol;
+  }
+
+  ir::Symbol Parser::MinimumLiteral(ir::Symbol parent) {
+    ir::Symbol symbol = Create(ir::symbol::Kind::Minimum, parent);
+    Expect(ir::Token::Minimum, symbol);
 
     return symbol;
   }

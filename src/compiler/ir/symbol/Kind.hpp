@@ -8,6 +8,8 @@ namespace compiler::ir::symbol {
     Unresolved,
     Auto,
     Null,
+    Maximum,
+    Minimum,
     Readonly,
     Boolean, // Payload is a `bool`
     Character, // Payload is a `char32_t`
@@ -59,6 +61,8 @@ namespace compiler::ir::symbol {
       case Kind::Unresolved: return "Unresolved";
       case Kind::Auto: return "Auto";
       case Kind::Null: return "Null";
+      case Kind::Maximum: return "Maximum";
+      case Kind::Minimum: return "Minimum";
       case Kind::Readonly: return "Readonly";
       case Kind::Boolean: return "Boolean";
       case Kind::Character: return "Character";

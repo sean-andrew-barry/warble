@@ -83,6 +83,7 @@ namespace compiler::input {
       bs.set('8'); // 
       bs.set('9'); // 
       bs.set('a'); // `auto`
+      bs.set('m'); // `maximum` or `minimum`
       bs.set('n'); // `null`
       bs.set('u'); // `undefined`
       bs.set('\''); // Character
@@ -557,6 +558,8 @@ namespace compiler::input {
 
   bool Lexer::Null() { return Keyword("null", ir::Token::Null); }
   bool Lexer::Undefined() { return Keyword("undefined", ir::Token::Undefined); }
+  bool Lexer::Maximum() { return Keyword("maximum", ir::Token::Maximum); }
+  bool Lexer::Minimum() { return Keyword("minimum", ir::Token::Minimum); }
   bool Lexer::Readonly() { return Keyword("readonly", ir::Token::Readonly); }
   bool Lexer::True() { return Keyword("true", ir::Token::True); }
   bool Lexer::False() { return Keyword("false", ir::Token::False); }
@@ -716,6 +719,8 @@ namespace compiler::input {
   bool Lexer::NullLiteral() { return Null(); }
   bool Lexer::ReadonlyLiteral() { return Readonly(); }
   bool Lexer::UndefinedLiteral() { return Undefined(); }
+  bool Lexer::MaximumLiteral() { return Maximum(); }
+  bool Lexer::MinimumLiteral() { return Minimum(); }
 
   bool Lexer::Escape() {
     if (cursor.Done() || !cursor.Match('\\')) {
@@ -2132,6 +2137,7 @@ namespace compiler::input {
       case '8':
       case '9': return NumberLiteral();
       case 'a': return Auto();
+      case 'm': return MaximumLiteral() || MinimumLiteral();
       case 'n': return NullLiteral();
       case 'u': return UndefinedLiteral();
       case '\'': return CharacterLiteral();
