@@ -43,6 +43,7 @@ namespace compiler::ir::symbol {
     For,
     Repeat,
     While,
+    Loop,
     RepeatWhile,
     Is,
     Has,
@@ -91,6 +92,7 @@ namespace compiler::ir::symbol {
       case Kind::For: return "For";
       case Kind::Repeat: return "Repeat";
       case Kind::While: return "While";
+      case Kind::Loop: return "Loop";
       case Kind::RepeatWhile: return "RepeatWhile";
       case Kind::Is: return "Is";
       case Kind::Has: return "Has";
