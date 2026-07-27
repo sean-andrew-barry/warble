@@ -2585,7 +2585,10 @@ namespace compiler::input {
   bool Lexer::DoStatement() {
     if (!Do()) return false;
 
-    if (!Block()) return Error(ir::Error::DoExpectedScopeBlock);
+    if (!Block() && !ExpressionStatement()) {
+      // TODO: Rename this error to communicate it can accept an expression statement as well as a block
+      return Error(ir::Error::DoExpectedScopeBlock);
+    }
 
     return true;
   }
@@ -2602,7 +2605,10 @@ namespace compiler::input {
     if (!Else()) return false;
 
     if (!IfStatement() && !TryStatement()) {
-      if (!Block()) return Error(ir::Error::ElseStatementExpectedScopeBlock);
+      if (!Block() && !BodyStatement()) {
+        // TODO: Rename this error
+        return Error(ir::Error::ElseStatementExpectedScopeBlock);
+      }
     }
 
     return true;
@@ -2613,7 +2619,7 @@ namespace compiler::input {
 
     if (!Condition()) return Error(ir::Error::IfStatementExpectedCondition);
 
-    if (!Block()) {
+    if (!BodyStatement()) {
       bool matched = false;
 
       // Match any number of patterns
@@ -2634,7 +2640,7 @@ namespace compiler::input {
 
     Condition(); // Optional
 
-    if (!Block()) return Error(ir::Error::TryStatementExpectedScopeBlock);
+    if (!BodyStatement()) return Error(ir::Error::TryStatementExpectedScopeBlock);
 
     ElseStatement(); // Optional
 
@@ -2645,7 +2651,7 @@ namespace compiler::input {
     if (!Is()) return false;
 
     if (!Condition()) return Error(ir::Error::IsPatternExpectedCondition);
-    if (!Block() && !Pattern()) return Error(ir::Error::IsPatternExpectedScopeBlock);
+    if (!BodyStatement() && !Pattern()) return Error(ir::Error::IsPatternExpectedScopeBlock);
 
     return true;
   }
@@ -2654,7 +2660,7 @@ namespace compiler::input {
     if (!Has()) return false;
 
     if (!Condition()) return Error(ir::Error::HasPatternExpectedCondition);
-    if (!Block() && !Pattern()) return Error(ir::Error::HasPatternExpectedScopeBlock);
+    if (!BodyStatement() && !Pattern()) return Error(ir::Error::HasPatternExpectedScopeBlock);
 
     return true;
   }
@@ -2663,7 +2669,7 @@ namespace compiler::input {
     if (!From()) return false;
 
     if (!Condition()) return Error(ir::Error::FromPatternExpectedCondition);
-    if (!Block() && !Pattern()) return Error(ir::Error::FromPatternExpectedScopeBlock);
+    if (!BodyStatement() && !Pattern()) return Error(ir::Error::FromPatternExpectedScopeBlock);
 
     return true;
   }
@@ -2681,7 +2687,7 @@ namespace compiler::input {
     if (!While()) return false;
 
     if (!Condition()) return Error(ir::Error::WhileExpectedCondition);
-    if (!Block()) return Error(ir::Error::WhileExpectedScopeBlock);
+    if (!BodyStatement()) return Error(ir::Error::WhileExpectedScopeBlock);
 
     return true;
   }
@@ -2707,7 +2713,7 @@ namespace compiler::input {
 
     if (!Condition()) return Error(ir::Error::ForExpectedCondition);
 
-    if (!Block()) return Error(ir::Error::ForExpectedScopeBlock);
+    if (!BodyStatement()) return Error(ir::Error::ForExpectedScopeBlock);
 
     return true;
   }
@@ -2740,6 +2746,18 @@ namespace compiler::input {
     return true;
   }
 
+  bool Lexer::BodyStatement() {
+    switch (cursor.Peek()) {
+      case 'b': return BreakStatement();
+      case 'c': return ContinueStatement();
+      case 'd': return DoStatement();
+      case 'p': return PanicStatement();
+      case 'r': return ReturnStatement();
+      case 'y': return YieldStatement();
+      default: return false;
+    }
+  }
+
   bool Lexer::StatementShortcut() {
     switch (cursor.Peek()) {
       case 'b': return BreakStatement();
@@ -2763,11 +2781,11 @@ namespace compiler::input {
   }
 
   bool Lexer::Condition() {
-    if (!ConditionOpen()) return false;
+    // if (!ConditionOpen()) return false;
 
     if (!Expression()) return Error(ir::Error::ConditionExpectedExpression);
 
-    if (!ConditionClose()) return Error(ir::Error::ConditionExpectedClosingParenthesis);
+    // if (!ConditionClose()) return Error(ir::Error::ConditionExpectedClosingParenthesis);
 
     return true;
   }

@@ -50,6 +50,7 @@ namespace compiler::input {
     void PushDeclarationScope(ir::Symbol scope);
     void PopDeclarationScope(ir::Symbol scope);
     void PushScopeLevelDeclaration(ir::Symbol parent, ir::Symbol declaration);
+    void ConsumeModifiers(ir::Symbol declaration, ir::Symbol parent);
 
     ir::Symbol CanonicalIntegerLiteral(ir::Token start_token,
                      ir::Error expected_start,
@@ -345,7 +346,14 @@ namespace compiler::input {
     ir::Symbol Expression(ir::Symbol parent);
     ir::Symbol ObjectDeclaration(ir::Symbol parent);
     ir::symbol::Flag Modifiers(ir::Symbol parent);
-    ir::Symbol Declaration(ir::Symbol parent);
+    ir::Symbol TypeExpression(ir::Symbol parent);
+    ir::Symbol InitializerExpression(ir::Symbol parent);
+    ir::Symbol PrefixedExpression(ir::Symbol parent);
+    ir::Symbol StatementModeDeclaration(ir::Symbol parent);
+    ir::Symbol ParameterModeDeclaration(ir::Symbol parent);
+    ir::Symbol PropertyModeDeclaration(ir::Symbol parent);
+    ir::Symbol CaptureModeDeclaration(ir::Symbol parent);
+    ir::Symbol LoopModeDeclaration(ir::Symbol parent);
 
     // Statements
     ir::Symbol ImportStatement(ir::Symbol parent);
@@ -369,9 +377,8 @@ namespace compiler::input {
     ir::Symbol WhenStatement(ir::Symbol parent);
     ir::Symbol DeclarationStatement(ir::Symbol parent);
     ir::Symbol ExpressionStatement(ir::Symbol parent);
+    bool BodyStatement(ir::Symbol parent);
     ir::Symbol Statement(ir::Symbol parent);
     ir::Symbol Scope(ir::Symbol parent);
-    ir::Symbol Condition(ir::Symbol parent);
-    ir::Symbol ScopeOrInlineStatement(ir::Symbol parent);
   };
 };

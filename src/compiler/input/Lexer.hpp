@@ -399,6 +399,7 @@ namespace compiler::input {
     bool TryStatement();
     bool ElseStatement();
     bool ForStatement();
+    bool BodyStatement();
     bool LoopStatement();
     bool RepeatStatement();
     bool WhileStatement();
