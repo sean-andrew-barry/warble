@@ -55,6 +55,7 @@ namespace compiler::ir {
 			case ir::symbol::Kind::For:
 			case ir::symbol::Kind::While:
 			case ir::symbol::Kind::Repeat:
+			case ir::symbol::Kind::Loop:
 				return true;
 			default:
 				return false;
@@ -89,6 +90,7 @@ namespace compiler::ir {
 			case ir::symbol::Kind::Repeat:
 			case ir::symbol::Kind::While:
 			case ir::symbol::Kind::Do:
+			case ir::symbol::Kind::Loop:
 				return true;
 			default:
 				return false;
