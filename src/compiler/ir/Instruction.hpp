@@ -3,9 +3,11 @@
 #include "compiler/ir/Opcode.hpp"
 #include "compiler/ir/Symbol.hpp"
 #include "compiler/ir/Register.hpp"
+
 #include <array>
 #include <cstdint>
 #include <cstddef>
+
 // ──────────────────────────────────────────────────────────────
 //  Warble Compiler – TAC Instruction
 //  -------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string_view>
+
 namespace compiler::ir {
   enum class Opcode : uint8_t {
     Extension, // A pseudo-instruction, whose operands apply to the **previous** instruction as a way to have more than 3 operands. Currently unused, but reserved just in case.
