@@ -262,7 +262,7 @@ Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct ident
 Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
 
 ```
-let, mut, const, private, protected, public, do, tick, null, undefined, readonly, true, false, return, yield, panic, await, async, pass, fail, try, if, when, else, is, from, has, as, this, that
+let, mut, const, private, protected, public, do, tick, null, undefined, maximum, minimum, readonly, true, false, return, yield, panic, assert, await, async, pass, fail, try, if, when, else, is, from, has, as, this, that
 ```
 
 A full list of reserved keywords is available in Appendix 18.2.
@@ -279,7 +279,7 @@ Literals represent fixed values directly embedded in Warble source code. They fo
     * Integer: `42`, `0x2A`, `0b101010`
     * Float: `3.14`, `1.0e3`
   * String literals: `"Hello, Warble!"`
-  * Marker symbol literals: `undefined`, `null`, `readonly`
+  * Marker symbol literals: `undefined`, `null`, `maximum`, `minimum`, `readonly`
 
 * **Structured Literals**: Represent complex data structures.
 
@@ -711,15 +711,17 @@ let isReady = true;
 let hasFailed = false;
 ```
 
-#### 4.1.2 Marker Symbols (`undefined`, `null`, `readonly`)
+#### 4.1.2 Marker Symbols (`undefined`, `null`, `maximum`, `minimum`, `readonly`)
 
-Warble has three keyword literals that evaluate to compiler-defined **symbols** rather than normal runtime values:
+Warble has five keyword literals that evaluate to compiler-defined **symbols** rather than normal runtime values:
 
 * `undefined`
 * `null`
+* `maximum`
+* `minimum`
 * `readonly`
 
-Unlike `true` and `false`, which are ordinary boolean values, these three literals evaluate to symbols and are primarily used as markers.
+Unlike `true` and `false`, which are ordinary boolean values, these literals evaluate to symbols and are primarily used as markers.
 
 These are **marker symbols**. Their primary job is to act as flags and state labels for other constructs (especially unions), not to provide meaningful value bits.
 
@@ -762,6 +764,10 @@ Common uses include:
 
 * A symbol with no name may have its `name` slot set to `undefined`.
 * A declaration that defaults its initializer uses `undefined` to mean "not provided / not set / not present".
+
+##### `maximum` and `minimum`
+
+The keyword literals `maximum` and `minimum` evaluate to compiler-defined marker symbols of kinds `Maximum` and `Minimum`, respectively.
 
 ##### `readonly`
 
@@ -2366,7 +2372,7 @@ Every symbol has a standalone 8-bit `kinds` column storing its **kind**. Kind na
 
 Core kinds:
 
-- Undefined, Unresolved, Null, Readonly
+- Undefined, Unresolved, Null, Maximum, Minimum, Readonly
 - Raw, Boolean, Character, Integer, Float
 - Borrow, Unique, Shared, Weak, Future, Buffer, View
 - Identifier, String, Enum, Union, Intersection, Conjunction, Disjunction, Negation
@@ -2812,7 +2818,7 @@ Numeric literals are also callable literals, but because digits can appear in id
 
 Writing `func42` would be parsed as the single identifier `func42`, so the reversed direction is required.
 
-**Keyword literals** (`true`, `false`, `null`, `undefined`, `readonly`) do **not** have a shorthand form. To call a function with a keyword literal, either wrap it in a destructurable container or use the pipeline operator:
+**Keyword literals** (`true`, `false`, `null`, `undefined`, `maximum`, `minimum`, `readonly`) do **not** have a shorthand form. To call a function with a keyword literal, either wrap it in a destructurable container or use the pipeline operator:
 
 ```warble
 func(null);         // tuple is destructured — passes null as parameter
@@ -4277,6 +4283,8 @@ Warble's approach ensures no hidden surprises, fostering a safer and more respon
 
 ### 12.3 Assertion Facilities
 
+The `assert` keyword is a unary prefix operator. It evaluates its operand and requires the result to be true; otherwise compilation reports an assertion failure. The operator evaluates to its operand value when the assertion succeeds.
+
 ### 12.4 Union-based Error Propagation (`expect`, `assume`)
 
 Warble's primary structured error flow is an extension of the existing union system.
@@ -5058,6 +5066,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`do`** — Introduces a scoped block.
 * **`repeat`** — Begins a loop, which can optionally end with a `while (condition)` portion.
 * **`tick`** — Begins a module-context tick loop (only legal outside function bodies). Each iteration ends with an implicit suspension point.
+* **`assert`** — Unary prefix operator that requires its operand to be true and reports an assertion failure otherwise.
 * **`await`** — Unary prefix operator that suspends the current thread while a promise is `unresolved`, repeatedly returning to the work queue between checks. Futures transparently forward `await` to their underlying promise.
 * **`expect`** — Unary prefix operator that removes a union's fail arms when passing, or propagates failure via an implicit `return fail`.
 * **`assume`** — Unary prefix operator that removes a union's fail arms when passing, or aborts via `panic` when failing.

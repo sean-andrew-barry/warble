@@ -1,18 +1,224 @@
-import <array>;
-import <limits>;
-import <string>;
-import <vector>;
+#include <array>
+#include <limits>
+#include <string>
+#include <vector>
 
-import compiler.input.Lexer;
-import compiler.ir.Error;
-import compiler.ir.Token;
-import compiler.text.cursor.String;
-import compiler.text.Unicode;
-import compiler.text.Convert;
-import compiler.utility.Print;
+#include "compiler/input/Lexer.hpp"
+#include "compiler/ir/Error.hpp"
+#include "compiler/ir/Token.hpp"
+#include "compiler/text/cursor/String.hpp"
+#include "compiler/text/Unicode.hpp"
+#include "compiler/text/Convert.hpp"
+#include "compiler/utility/Print.hpp"
 
 namespace compiler::input {
   namespace {
+    consteval std::bitset<256> MakeBitset(auto fn) {
+      std::bitset<256> bs;
+      fn(bs);
+      return bs;
+    }
+
+    // Bitsets for efficiently checking ASCII characters
+    constexpr auto DIGIT = MakeBitset([](auto& bs){
+      for (char c = '0'; c <= '9'; ++c) bs.set(c);
+    });
+
+    constexpr auto HEX = MakeBitset([](auto& bs){
+      for (char c = '0'; c <= '9'; ++c) bs.set(c);
+      for (char c = 'A'; c <= 'F'; ++c) bs.set(c);
+      for (char c = 'a'; c <= 'f'; ++c) bs.set(c);
+    });
+
+    constexpr auto OCTAL = MakeBitset([](auto& bs){
+      for (char c = '0'; c <= '7'; ++c) bs.set(c);
+    });
+
+    constexpr auto WHITESPACE = MakeBitset([](auto& bs){
+      bs.set(' ');
+      bs.set('\f'); // Form feed
+      bs.set('\n'); // Line feed
+      bs.set('\r'); // Carriage return
+      bs.set('\t'); // Horizontal tab
+      bs.set('\v'); // Vertical tab
+    });
+
+    constexpr auto PUNCT = MakeBitset([](auto& bs){
+      for (char c : "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~") bs.set(c);
+    });
+
+    constexpr auto SLASH = MakeBitset([](auto& bs){
+      bs.set('/');
+      bs.set('\\');
+    });
+
+    constexpr auto UPPER = MakeBitset([](auto& bs){
+      for (char c = 'A'; c <= 'Z'; ++c) bs.set(c);
+    });
+
+    constexpr auto LOWER = MakeBitset([](auto& bs){
+      for (char c = 'a'; c <= 'z'; ++c) bs.set(c);
+    });
+
+    constexpr auto ALPHA = UPPER | LOWER;
+    constexpr auto ALNUM = ALPHA | DIGIT;
+
+    constexpr auto IDENTIFIER_START = MakeBitset([](auto& bs){
+      bs.set('_');
+      bs.set('\\'); // Escape sequences are legal in identifiers
+    }) | ALPHA;
+
+    constexpr auto IDENTIFIER = IDENTIFIER_START | DIGIT;
+
+    constexpr auto OPERAND_START = MakeBitset([](auto& bs){
+      for (char c : "tfnrua'\"`+-([{<.") bs.set(c);
+      bs.set('0'); // 
+      bs.set('1'); // 
+      bs.set('2'); // 
+      bs.set('3'); // 
+      bs.set('4'); // 
+      bs.set('5'); // 
+      bs.set('6'); // 
+      bs.set('7'); // 
+      bs.set('8'); // 
+      bs.set('9'); // 
+      bs.set('a'); // `auto`
+      bs.set('m'); // `maximum` or `minimum`
+      bs.set('n'); // `null`
+      bs.set('u'); // `undefined`
+      bs.set('\''); // Character
+      bs.set('"'); // String
+      bs.set('('); // Tuple or parameter
+      bs.set('['); // Array
+      bs.set('<'); // Enum
+      bs.set('{'); // Object
+      bs.set('d'); // `do`
+      bs.set('i'); // `if`
+      bs.set('t'); // `try` or `true` or `this` or `that`
+      bs.set('l'); // `loop`
+      bs.set('w'); // `while`
+      bs.set('r'); // `repeat` or `readonly`
+      bs.set('f'); // `for` or `false`
+    }) | DIGIT;
+
+    constexpr auto STATEMENT_START = MakeBitset([](auto& bs){
+      bs.set('b'); // `break`
+      bs.set('c'); // `continue`
+      bs.set('d'); // `do`
+      bs.set('f'); // `for`
+      bs.set('i'); // `if`
+      bs.set('l'); // `loop` or `let`
+      bs.set('p'); // `panic`
+      bs.set('t'); // `try`
+      bs.set('r'); // `repeat`
+      bs.set('w'); // `while`
+      bs.set('y'); // `yield`
+      bs.set(';'); // `;` (empty statement)
+    });
+
+    constexpr auto UNARY_PREFIX_START = MakeBitset([](auto& bs){
+      // for (char c : "+-*&$#@!?^=.~aneu") bs.set(c);
+
+      bs.set('+');
+      bs.set('-');
+      bs.set('*');
+      bs.set('&');
+      bs.set('$');
+      bs.set('#');
+      bs.set('@');
+      bs.set('!');
+      bs.set('.');
+      bs.set('~');
+      bs.set('a'); // `assert`, `await`, or `assume`
+      bs.set('e'); // `expect`
+      bs.set('r'); // `runtime`
+      bs.set('c'); // `comtime`
+    });
+
+    constexpr auto UNARY_POSTFIX_START = MakeBitset([](auto& bs){
+      for (char c : "?'\"`([{<") bs.set(c);
+    });
+
+    constexpr auto BINARY_START = MakeBitset([](auto& bs){
+      for (char c : "!=<>+-*/%^?&|oawut.:") bs.set(c);
+    });
+
+    constexpr auto MODIFIER_START = MakeBitset([](auto& bs){
+      // I don't think `let` is actually a modifier anymore
+      // bs.set('l'); // `let`
+      bs.set('c'); // `const`
+      bs.set('m'); // `mut`
+      bs.set('p'); // `private`, `public`, `protected`
+    });
+
+    constexpr auto NUMBER_START = DIGIT;
+
+    constexpr auto NOT_ASCII = MakeBitset([](auto& bs){
+      // Set bits for lead bytes of UTF-8 encoded non-ASCII characters (128-255) to 1
+      for (int i = 128; i < 256; ++i) {
+        bs.set(i);
+      }
+    });
+
+    constexpr auto POSSIBLE_SPACE_START = MakeBitset([](auto& bs){
+      bs.set('/'); // Comments are treated as whitespace for this bitset
+    }) | WHITESPACE | NOT_ASCII;
+
+    constexpr auto URL_SCHEME = MakeBitset([](auto& bs){
+      // These cannot be the starting character
+      for (char c : "+.-") bs.set(c);
+    }) | ALNUM;
+
+    constexpr auto URL_AUTHORITY = MakeBitset([](auto& bs){
+      // These cannot be the starting character
+      for (char c : ".-_~&") bs.set(c);
+    }) | ALNUM;
+
+    constexpr auto URL_HOST = MakeBitset([](auto& bs){
+      // These cannot be the starting character
+      for (char c : ".-") bs.set(c);
+    }) | ALNUM;
+
+    constexpr auto URL_SUB_DELIMS = MakeBitset([](auto& bs){
+      for (char c : "!$&'()*+,;=") bs.set(c);
+    });
+
+    constexpr auto URL_UNRESERVED = MakeBitset([](auto& bs){
+      for (char c : ".-_~") bs.set(c);
+    }) | ALNUM;
+
+    constexpr auto URL_SEGMENT = MakeBitset([](auto& bs){
+      for (char c : ":@") bs.set(c);
+    }) | URL_UNRESERVED | URL_SUB_DELIMS;
+
+    constexpr auto URL_SEGMENT_NC = MakeBitset([](auto& bs){
+      for (char c : "@") bs.set(c); // Excludes ':'
+    }) | URL_UNRESERVED | URL_SUB_DELIMS;
+
+    constexpr auto URL_PATH = MakeBitset([](auto& bs){
+      // Reserved characters
+      for (char c : ":@&=+$,") bs.set(c);
+
+      // Sub-delimiters
+      for (char c : "!\'()*;%") bs.set(c);
+    }) | URL_UNRESERVED;
+
+    constexpr auto URL_SEARCH = MakeBitset([](auto& bs){
+      // Reserved characters
+      for (char c : "!$\'()*,;:@%") bs.set(c);
+    }) | URL_UNRESERVED;
+
+    constexpr auto URL_FRAGMENT = MakeBitset([](auto& bs){
+      // Reserved characters
+      for (char c : "!$&\'()*+,;=@/?%") bs.set(c);
+    }) | URL_UNRESERVED;
+
+    constexpr auto FILE_PATH = MakeBitset([](auto& bs){
+      for (char c : "-_!#$%&'()[]{}+@~^. ") bs.set(c);
+    }) | ALNUM;
+
+    constexpr auto POSSIBLE_IDENTIFIER_START = IDENTIFIER_START | NOT_ASCII;
+
     constexpr std::array<ir::Token, 16> DIGIT_TOKENS{
       ir::Token::Digits0, ir::Token::Digits1, ir::Token::Digits2, ir::Token::Digits3,
       ir::Token::Digits4, ir::Token::Digits5, ir::Token::Digits6, ir::Token::Digits7,
@@ -352,6 +558,8 @@ namespace compiler::input {
 
   bool Lexer::Null() { return Keyword("null", ir::Token::Null); }
   bool Lexer::Undefined() { return Keyword("undefined", ir::Token::Undefined); }
+  bool Lexer::Maximum() { return Keyword("maximum", ir::Token::Maximum); }
+  bool Lexer::Minimum() { return Keyword("minimum", ir::Token::Minimum); }
   bool Lexer::Readonly() { return Keyword("readonly", ir::Token::Readonly); }
   bool Lexer::True() { return Keyword("true", ir::Token::True); }
   bool Lexer::False() { return Keyword("false", ir::Token::False); }
@@ -381,6 +589,7 @@ namespace compiler::input {
   bool Lexer::Runtime() { return Keyword("runtime", ir::Token::Runtime); }
   bool Lexer::Await() { return Keyword("await", ir::Token::Await); }
   bool Lexer::Assume() { return Keyword("assume", ir::Token::Assume); }
+  bool Lexer::Assert() { return Keyword("assert", ir::Token::Assert); }
   bool Lexer::Expect() { return Keyword("expect", ir::Token::Expect); }
   bool Lexer::Async() { return Keyword("async", ir::Token::Async); }
   bool Lexer::Compiler() { return Keyword("compiler", ir::Token::Compiler); }
@@ -465,7 +674,7 @@ namespace compiler::input {
       case '!': return Not();
       case '.': return Spread();
       case '~': return BitwiseNot();
-      case 'a': return Await() || Assume();
+      case 'a': return Assert() || Await() || Assume();
       case 'e': return Expect();
       case 'r': return Runtime();
       case 'c': return Comtime();
@@ -511,6 +720,8 @@ namespace compiler::input {
   bool Lexer::NullLiteral() { return Null(); }
   bool Lexer::ReadonlyLiteral() { return Readonly(); }
   bool Lexer::UndefinedLiteral() { return Undefined(); }
+  bool Lexer::MaximumLiteral() { return Maximum(); }
+  bool Lexer::MinimumLiteral() { return Minimum(); }
 
   bool Lexer::Escape() {
     if (cursor.Done() || !cursor.Match('\\')) {
@@ -1927,6 +2138,7 @@ namespace compiler::input {
       case '8':
       case '9': return NumberLiteral();
       case 'a': return Auto();
+      case 'm': return MaximumLiteral() || MinimumLiteral();
       case 'n': return NullLiteral();
       case 'u': return UndefinedLiteral();
       case '\'': return CharacterLiteral();
@@ -2380,7 +2592,10 @@ namespace compiler::input {
   bool Lexer::DoStatement() {
     if (!Do()) return false;
 
-    if (!Block()) return Error(ir::Error::DoExpectedScopeBlock);
+    if (!Block() && !ExpressionStatement()) {
+      // TODO: Rename this error to communicate it can accept an expression statement as well as a block
+      return Error(ir::Error::DoExpectedScopeBlock);
+    }
 
     return true;
   }
@@ -2397,7 +2612,10 @@ namespace compiler::input {
     if (!Else()) return false;
 
     if (!IfStatement() && !TryStatement()) {
-      if (!Block()) return Error(ir::Error::ElseStatementExpectedScopeBlock);
+      if (!Block() && !BodyStatement()) {
+        // TODO: Rename this error
+        return Error(ir::Error::ElseStatementExpectedScopeBlock);
+      }
     }
 
     return true;
@@ -2408,7 +2626,7 @@ namespace compiler::input {
 
     if (!Condition()) return Error(ir::Error::IfStatementExpectedCondition);
 
-    if (!Block()) {
+    if (!BodyStatement()) {
       bool matched = false;
 
       // Match any number of patterns
@@ -2429,7 +2647,7 @@ namespace compiler::input {
 
     Condition(); // Optional
 
-    if (!Block()) return Error(ir::Error::TryStatementExpectedScopeBlock);
+    if (!BodyStatement()) return Error(ir::Error::TryStatementExpectedScopeBlock);
 
     ElseStatement(); // Optional
 
@@ -2440,7 +2658,7 @@ namespace compiler::input {
     if (!Is()) return false;
 
     if (!Condition()) return Error(ir::Error::IsPatternExpectedCondition);
-    if (!Block() && !Pattern()) return Error(ir::Error::IsPatternExpectedScopeBlock);
+    if (!BodyStatement() && !Pattern()) return Error(ir::Error::IsPatternExpectedScopeBlock);
 
     return true;
   }
@@ -2449,7 +2667,7 @@ namespace compiler::input {
     if (!Has()) return false;
 
     if (!Condition()) return Error(ir::Error::HasPatternExpectedCondition);
-    if (!Block() && !Pattern()) return Error(ir::Error::HasPatternExpectedScopeBlock);
+    if (!BodyStatement() && !Pattern()) return Error(ir::Error::HasPatternExpectedScopeBlock);
 
     return true;
   }
@@ -2458,7 +2676,7 @@ namespace compiler::input {
     if (!From()) return false;
 
     if (!Condition()) return Error(ir::Error::FromPatternExpectedCondition);
-    if (!Block() && !Pattern()) return Error(ir::Error::FromPatternExpectedScopeBlock);
+    if (!BodyStatement() && !Pattern()) return Error(ir::Error::FromPatternExpectedScopeBlock);
 
     return true;
   }
@@ -2476,7 +2694,7 @@ namespace compiler::input {
     if (!While()) return false;
 
     if (!Condition()) return Error(ir::Error::WhileExpectedCondition);
-    if (!Block()) return Error(ir::Error::WhileExpectedScopeBlock);
+    if (!BodyStatement()) return Error(ir::Error::WhileExpectedScopeBlock);
 
     return true;
   }
@@ -2502,7 +2720,7 @@ namespace compiler::input {
 
     if (!Condition()) return Error(ir::Error::ForExpectedCondition);
 
-    if (!Block()) return Error(ir::Error::ForExpectedScopeBlock);
+    if (!BodyStatement()) return Error(ir::Error::ForExpectedScopeBlock);
 
     return true;
   }
@@ -2535,6 +2753,18 @@ namespace compiler::input {
     return true;
   }
 
+  bool Lexer::BodyStatement() {
+    switch (cursor.Peek()) {
+      case 'b': return BreakStatement();
+      case 'c': return ContinueStatement();
+      case 'd': return DoStatement();
+      case 'p': return PanicStatement();
+      case 'r': return ReturnStatement();
+      case 'y': return YieldStatement();
+      default: return false;
+    }
+  }
+
   bool Lexer::StatementShortcut() {
     switch (cursor.Peek()) {
       case 'b': return BreakStatement();
@@ -2558,11 +2788,11 @@ namespace compiler::input {
   }
 
   bool Lexer::Condition() {
-    if (!ConditionOpen()) return false;
+    // if (!ConditionOpen()) return false;
 
     if (!Expression()) return Error(ir::Error::ConditionExpectedExpression);
 
-    if (!ConditionClose()) return Error(ir::Error::ConditionExpectedClosingParenthesis);
+    // if (!ConditionClose()) return Error(ir::Error::ConditionExpectedClosingParenthesis);
 
     return true;
   }
@@ -2630,4 +2860,158 @@ namespace compiler::input {
 
     return true;
   }
+
+  bool Lexer::IsBreak() const noexcept {
+    switch (cursor.Peek()) {
+      case '\n': return true;
+      case '\r': return true;
+      default: {
+        // Quick test for LS or PS first two bytes: E2 80 xx
+        if (static_cast<unsigned char>(cursor.Peek()) == 0xE2 && static_cast<unsigned char>(cursor.Peek(1)) == 0x80) {
+          switch (static_cast<unsigned char>(cursor.Peek(2))) {
+            case 0xA8: return true; // LS
+            case 0xA9: return true; // PS
+          }
+        }
+
+        return false;
+      }
+    }
+  }
+
+  bool Lexer::IsASCII() const noexcept { return IsASCII(cursor.Peek()); }
+  bool Lexer::IsSpace() const noexcept { return IsSpace(cursor.Peek()); }
+  bool Lexer::IsAlpha() const noexcept { return IsAlpha(cursor.Peek()); }
+  bool Lexer::IsAlNum() const noexcept { return IsAlNum(cursor.Peek()); }
+  bool Lexer::IsUpper() const noexcept { return IsUpper(cursor.Peek()); }
+  bool Lexer::IsLower() const noexcept { return IsLower(cursor.Peek()); }
+  bool Lexer::IsDigit() const noexcept { return IsDigit(cursor.Peek()); }
+  bool Lexer::IsPunct() const noexcept { return IsPunct(cursor.Peek()); }
+  bool Lexer::IsSlash() const noexcept { return IsSlash(cursor.Peek()); }
+  bool Lexer::IsOctal() const noexcept { return IsOctal(cursor.Peek()); }
+  bool Lexer::IsHex  () const noexcept { return IsHex(cursor.Peek()); }
+  bool Lexer::IsIdent() const noexcept { return IsIdent(cursor.Peek()); }
+  bool Lexer::IsBinary() const noexcept { return IsBinary(cursor.Peek()); }
+  bool Lexer::IsURLScheme() const noexcept { return IsURLScheme(cursor.Peek()); }
+  bool Lexer::IsURLHost() const noexcept { return IsURLHost(cursor.Peek()); }
+  bool Lexer::IsURLSegment() const noexcept { return IsURLSegment(cursor.Peek()); }
+  bool Lexer::IsURLSegmentNC() const noexcept { return IsURLSegmentNC(cursor.Peek()); }
+  bool Lexer::IsURLPath() const noexcept { return IsURLPath(cursor.Peek()); }
+  bool Lexer::IsURLSearch() const noexcept { return IsURLSearch(cursor.Peek()); }
+  bool Lexer::IsURLFragment() const noexcept { return IsURLFragment(cursor.Peek()); }
+  bool Lexer::IsURLAuthority() const noexcept { return IsURLAuthority(cursor.Peek()); }
+  bool Lexer::IsFilePath() const noexcept { return IsFilePath(cursor.Peek()); }
+  bool Lexer::IsBinaryStart() const noexcept { return IsBinaryStart(cursor.Peek()); }
+  bool Lexer::IsNumberStart() const noexcept { return IsNumberStart(cursor.Peek()); }
+  bool Lexer::IsIdentStart() const noexcept { return IsIdentStart(cursor.Peek()); }
+  bool Lexer::IsOperandStart() const noexcept { return IsOperandStart(cursor.Peek()); }
+  bool Lexer::IsStatementStart() const noexcept { return IsStatementStart(cursor.Peek()); }
+  bool Lexer::IsUnaryPrefixStart() const noexcept { return IsUnaryPrefixStart(cursor.Peek()); }
+  bool Lexer::IsUnaryPostfixStart() const noexcept { return IsUnaryPostfixStart(cursor.Peek()); }
+  bool Lexer::IsModifierStart() const noexcept { return IsModifierStart(cursor.Peek()); }
+  bool Lexer::IsPossibleSpaceStart() const noexcept { return IsPossibleSpaceStart(cursor.Peek()); }
+  bool Lexer::IsPossibleIdentifierStart() const noexcept { return IsPossibleIdentifierStart(cursor.Peek()); }
+
+  bool Lexer::IsBreak(size_t i) const noexcept {
+    switch (cursor.Peek(i)) {
+      case '\n': return true;
+      case '\r': return true;
+      default: {
+        // Quick test for LS or PS first two bytes: E2 80 xx
+        if (static_cast<unsigned char>(cursor.Peek(i)) == 0xE2 && static_cast<unsigned char>(cursor.Peek(i + 1)) == 0x80) {
+          switch (static_cast<unsigned char>(cursor.Peek(i + 2))) {
+            case 0xA8: return true; // LS
+            case 0xA9: return true; // PS
+          }
+        }
+
+        return false;
+      }
+    }
+  }
+
+  bool Lexer::IsASCII(size_t i) const noexcept { return IsASCII(cursor.Peek(i)); }
+  bool Lexer::IsSpace(size_t i) const noexcept { return IsSpace(cursor.Peek(i)); }
+  bool Lexer::IsAlpha(size_t i) const noexcept { return IsAlpha(cursor.Peek(i)); }
+  bool Lexer::IsAlNum(size_t i) const noexcept { return IsAlNum(cursor.Peek(i)); }
+  bool Lexer::IsUpper(size_t i) const noexcept { return IsUpper(cursor.Peek(i)); }
+  bool Lexer::IsLower(size_t i) const noexcept { return IsLower(cursor.Peek(i)); }
+  bool Lexer::IsDigit(size_t i) const noexcept { return IsDigit(cursor.Peek(i)); }
+  bool Lexer::IsPunct(size_t i) const noexcept { return IsPunct(cursor.Peek(i)); }
+  bool Lexer::IsSlash(size_t i) const noexcept { return IsSlash(cursor.Peek(i)); }
+  bool Lexer::IsOctal(size_t i) const noexcept { return IsOctal(cursor.Peek(i)); }
+  bool Lexer::IsHex  (size_t i) const noexcept { return IsHex(cursor.Peek(i)); }
+  bool Lexer::IsIdent(size_t i) const noexcept { return IsIdent(cursor.Peek(i)); }
+  bool Lexer::IsBinary(size_t i) const noexcept { return IsBinary(cursor.Peek(i)); }
+  bool Lexer::IsBinaryStart(size_t i) const noexcept { return IsBinaryStart(cursor.Peek(i)); }
+  bool Lexer::IsNumberStart(size_t i) const noexcept { return IsNumberStart(cursor.Peek(i)); }
+  bool Lexer::IsURLScheme(size_t i) const noexcept { return IsURLScheme(cursor.Peek(i)); }
+  bool Lexer::IsURLHost(size_t i) const noexcept { return IsURLHost(cursor.Peek(i)); }
+  bool Lexer::IsURLSegment(size_t i) const noexcept { return IsURLSegment(cursor.Peek(i)); }
+  bool Lexer::IsURLSegmentNC(size_t i) const noexcept { return IsURLSegmentNC(cursor.Peek(i)); }
+  bool Lexer::IsURLPath(size_t i) const noexcept { return IsURLPath(cursor.Peek(i)); }
+  bool Lexer::IsURLSearch(size_t i) const noexcept { return IsURLSearch(cursor.Peek(i)); }
+  bool Lexer::IsURLFragment(size_t i) const noexcept { return IsURLFragment(cursor.Peek(i)); }
+  bool Lexer::IsURLAuthority(size_t i) const noexcept { return IsURLAuthority(cursor.Peek(i)); }
+  bool Lexer::IsFilePath(size_t i) const noexcept { return IsFilePath(cursor.Peek(i)); }
+  bool Lexer::IsIdentStart(size_t i) const noexcept { return IsIdentStart(cursor.Peek(i)); }
+  bool Lexer::IsOperandStart(size_t i) const noexcept { return IsOperandStart(cursor.Peek(i)); }
+  bool Lexer::IsStatementStart(size_t i) const noexcept { return IsStatementStart(cursor.Peek(i)); }
+  bool Lexer::IsUnaryPrefixStart(size_t i) const noexcept { return IsUnaryPrefixStart(cursor.Peek(i)); }
+  bool Lexer::IsUnaryPostfixStart(size_t i) const noexcept { return IsUnaryPostfixStart(cursor.Peek(i)); }
+  bool Lexer::IsModifierStart(size_t i) const noexcept { return IsModifierStart(cursor.Peek(i)); }
+  bool Lexer::IsPossibleSpaceStart(size_t i) const noexcept { return IsPossibleSpaceStart(cursor.Peek(i)); }
+  bool Lexer::IsPossibleIdentifierStart(size_t i) const noexcept { return IsPossibleIdentifierStart(cursor.Peek(i)); }
+
+  bool Lexer::IsASCII(const char c) noexcept { return static_cast<uint8_t>(c) < 0x80; }
+  bool Lexer::IsSpace(const char c) noexcept { return WHITESPACE[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsAlpha(const char c) noexcept { return ALPHA[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsAlNum(const char c) noexcept { return ALNUM[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsUpper(const char c) noexcept { return UPPER[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsLower(const char c) noexcept { return LOWER[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsDigit(const char c) noexcept { return DIGIT[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsPunct(const char c) noexcept { return PUNCT[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsSlash(const char c) noexcept { return SLASH[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsOctal(const char c) noexcept { return OCTAL[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsHex  (const char c) noexcept { return HEX  [static_cast<uint8_t>(c)]; }
+  bool Lexer::IsIdent(const char c) noexcept { return IDENTIFIER[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsBinary(const char c) noexcept { return c == '0'|| c == '1'; }
+  bool Lexer::IsIdentStart(const char c) noexcept { return IDENTIFIER_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsOperandStart(const char c) noexcept { return OPERAND_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsStatementStart(const char c) noexcept { return STATEMENT_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsUnaryPrefixStart(const char c) noexcept { return UNARY_PREFIX_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsUnaryPostfixStart(const char c) noexcept { return UNARY_POSTFIX_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsBinaryStart(const char c) noexcept { return BINARY_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsModifierStart(const char c) noexcept { return MODIFIER_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsNumberStart(const char c) noexcept { return NUMBER_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsPossibleSpaceStart(const char c) noexcept { return POSSIBLE_SPACE_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsPossibleIdentifierStart(const char c) noexcept { return POSSIBLE_IDENTIFIER_START[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsURLScheme(const char c) noexcept { return URL_SCHEME[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsURLHost(const char c) noexcept { return URL_HOST[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsURLSegment(const char c) noexcept { return URL_SEGMENT[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsURLSegmentNC(const char c) noexcept { return URL_SEGMENT_NC[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsURLPath(const char c) noexcept { return URL_PATH[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsURLSearch(const char c) noexcept { return URL_SEARCH[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsURLFragment(const char c) noexcept { return URL_FRAGMENT[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsURLAuthority(const char c) noexcept { return URL_AUTHORITY[static_cast<uint8_t>(c)]; }
+  bool Lexer::IsFilePath(const char c) noexcept { return FILE_PATH[static_cast<uint8_t>(c)]; }
+
+  // TODO: Explore these alternatives for performance
+  // TODO: Also explore a byte LUT
+  // constexpr bool IsUpper(const char c) const { return static_cast<unsigned char>(c) - 'A' <= ('Z' - 'A'); }
+  // constexpr bool IsLower(const char c) const { return static_cast<unsigned char>(c) - 'a' <= ('z' - 'a'); }
+  // constexpr bool IsDigit(const char c) const { return static_cast<unsigned char>(c) - '0' <= 9; }
+  // constexpr bool IsAlpha(const char c) const {
+  //   unsigned char uc = static_cast<unsigned char>(c);
+  //   return (uc - 'A' <= ('Z' - 'A')) || (uc - 'a' <= ('z' - 'a'));
+  // }
+  // constexpr bool IsAlNum(const char c) const {
+  //   unsigned char uc = static_cast<unsigned char>(c);
+  //   return (uc - '0' <= 9) || (uc - 'A' <= ('Z' - 'A')) || (uc - 'a' <= ('z' - 'a'));
+  // }
+  // constexpr bool IsOctal(const char c) const { return static_cast<unsigned char>(c) - '0' <= 7; }
+  // constexpr bool IsNumberStart(const char c) const {
+  //   unsigned char uc = static_cast<unsigned char>(c);
+  //   return (uc - '0' <= 9) || uc == '+' || uc == '-';
+  // }
 }

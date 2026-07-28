@@ -1,22 +1,24 @@
-import compiler.input.Parser;
-import compiler.ir.Symbols;
-import compiler.ir.Error;
-import compiler.ir.Opcode;
-import compiler.ir.symbol.Kind;
-import compiler.ir.symbol.Flag;
-import compiler.ir.Token;
-import compiler.ir.Symbol;
-import compiler.text.cursor.String;
-import compiler.text.Unicode;
-import compiler.utility.Print;
-import <cstdint>;
-import <algorithm>;
-import <limits>;
-import <vector>;
-import <iterator>;
-import <utility>;
-import <cstddef>;
-import <stdexcept>;
+#include "compiler/input/Parser.hpp"
+
+#include <cstdint>
+#include <algorithm>
+#include <limits>
+#include <vector>
+#include <iterator>
+#include <utility>
+#include <cstddef>
+#include <stdexcept>
+
+#include "compiler/ir/Symbols.hpp"
+#include "compiler/ir/Error.hpp"
+#include "compiler/ir/Opcode.hpp"
+#include "compiler/ir/symbol/Kind.hpp"
+#include "compiler/ir/symbol/Flag.hpp"
+#include "compiler/ir/Token.hpp"
+#include "compiler/ir/Symbol.hpp"
+#include "compiler/text/cursor/String.hpp"
+#include "compiler/text/Unicode.hpp"
+#include "compiler/utility/Print.hpp"
 
 namespace compiler::input {
   void Parser::PushDeclarationScope(ir::Symbol scope) {
@@ -37,6 +39,24 @@ namespace compiler::input {
     if (!declaration) return;
     if (!symbols.IsScope(parent)) return;
     declarations.push_back(declaration);
+  }
+
+  void Parser::ConsumeModifiers(ir::Symbol declaration, ir::Symbol parent) {
+    while (!cursor.Done()) {
+      switch (cursor.Peek()) {
+        case ir::Token::Const:
+        case ir::Token::Mut:
+        case ir::Token::Export:
+        case ir::Token::Public:
+        case ir::Token::Private:
+        case ir::Token::Protected:
+          break;
+        default:
+          return;
+      }
+      symbols.Flag(declaration, Modifiers(parent));
+      WhiteSpace(parent);
+    }
   }
 
   int Parser::Precedence(ir::Token token) const {
@@ -83,6 +103,7 @@ namespace compiler::input {
       case ir::Token::Await: // await x
       case ir::Token::Expect: // expect x
       case ir::Token::Assume: // assume x
+      case ir::Token::Assert: // assert x
       case ir::Token::Comtime: // comtime x
       case ir::Token::Runtime: // runtime x
         return 15;
@@ -346,6 +367,8 @@ namespace compiler::input {
     switch (cursor.Peek()) {
       case ir::Token::Undefined: return UndefinedLiteral(parent);
       case ir::Token::Null: return NullLiteral(parent);
+      case ir::Token::Maximum: return MaximumLiteral(parent);
+      case ir::Token::Minimum: return MinimumLiteral(parent);
       case ir::Token::This: return ThisLiteral(parent);
       case ir::Token::That: return ThatLiteral(parent);
       case ir::Token::True:
@@ -565,6 +588,7 @@ namespace compiler::input {
       case ir::Token::SymbolOf: return ir::Opcode::SymbolOf;
       case ir::Token::CopyOf: return ir::Opcode::CopyOf;
       case ir::Token::Spread: return ir::Opcode::Spread;
+      case ir::Token::Assert: return ir::Opcode::Assert;
       default: return ir::Opcode::NoOperation;
     }
   }
@@ -859,6 +883,20 @@ namespace compiler::input {
   ir::Symbol Parser::NullLiteral(ir::Symbol parent) {
     ir::Symbol symbol = Create(ir::symbol::Kind::Null, parent);
     Expect(ir::Token::Null, symbol);
+
+    return symbol;
+  }
+
+  ir::Symbol Parser::MaximumLiteral(ir::Symbol parent) {
+    ir::Symbol symbol = Create(ir::symbol::Kind::Maximum, parent);
+    Expect(ir::Token::Maximum, symbol);
+
+    return symbol;
+  }
+
+  ir::Symbol Parser::MinimumLiteral(ir::Symbol parent) {
+    ir::Symbol symbol = Create(ir::symbol::Kind::Minimum, parent);
+    Expect(ir::Token::Minimum, symbol);
 
     return symbol;
   }
@@ -1610,7 +1648,7 @@ namespace compiler::input {
           break;
         }
 
-        Declaration(symbol);
+        PropertyModeDeclaration(symbol);
 
         if (cursor.Match(ir::Token::Comma)) {
           if (cursor.Match(ir::Token::ObjectClose)) {
@@ -1730,77 +1768,137 @@ namespace compiler::input {
     }
   }
 
-  ir::Symbol Parser::Declaration(ir::Symbol parent) {
-    // Create an `Unresolved` symbol to serve as the declaration, we'll set the kind later
-    ir::Symbol declaration = Create(ir::symbol::Kind::Unresolved, parent);
+  ir::Symbol Parser::TypeExpression(ir::Symbol parent) {
+    if (!Match(ir::Token::TypeStart, parent)) return undefined;
 
-    while (!cursor.Done() && IsModifierToken(cursor.Peek())) {
-      switch (cursor.Peek()) {
-        case ir::Token::Const:
-          cursor.Advance();
-          symbols.Flag(declaration, ir::symbol::Flag::Const);
-          break;
-        case ir::Token::Mut:
-          cursor.Advance();
-          symbols.Flag(declaration, ir::symbol::Flag::Mut);
-          break;
-        case ir::Token::Let:
-          cursor.Advance();
-          symbols.Flag(declaration, ir::symbol::Flag::Let);
-          break;
-        case ir::Token::Export:
-          cursor.Advance();
-          symbols.Flag(declaration, ir::symbol::Flag::Export);
-          break;
-        case ir::Token::Public:
-          cursor.Advance();
-          symbols.Flag(declaration, ir::symbol::Flag::None);
-          break;
-        case ir::Token::Private:
-          cursor.Advance();
-          symbols.Flag(declaration, ir::symbol::Flag::Private);
-          break;
-        case ir::Token::Protected:
-          cursor.Advance();
-          symbols.Flag(declaration, ir::symbol::Flag::Protected);
-          break;
-        default:
-          throw compiler::utility::Error("Unrecognized modifier token ", cursor.Peek(), " at declaration in ", parent, ".");
-      }
+    ir::Symbol type = Expression(parent);
+    if (!type) return ReportError(ir::Error::TypeExpectedExpression, parent);
 
-      WhiteSpace(parent); // Don't parent to the declaration, it isn't structured
+    return type;
+  }
+
+  ir::Symbol Parser::InitializerExpression(ir::Symbol parent) {
+    if (!Match(ir::Token::Initialize, parent)) return undefined;
+
+    ir::Symbol value = Expression(parent);
+    if (!value) return ReportError(ir::Error::InitializerExpectedExpression, parent);
+
+    return value;
+  }
+
+  ir::Symbol Parser::PrefixedExpression(ir::Symbol parent) {
+    switch (cursor.Peek()) {
+      case ir::Token::CopyOf:
+      case ir::Token::ReferenceOf:
+      case ir::Token::MutableReferenceOf:
+      case ir::Token::SymbolOf:
+      case ir::Token::Spread:
+        return Expression(parent);
+      default:
+        return undefined;
     }
+  }
 
-    ir::Symbol name;
-    // TODO: Handle destructuring
+  ir::Symbol Parser::StatementModeDeclaration(ir::Symbol parent) {
+    ir::Symbol declaration = Create(ir::symbol::Kind::Unresolved, parent);
+    ConsumeModifiers(declaration, parent);
+
     if (IsCharactersToken(cursor.Peek()) || IsEscapeToken(cursor.Peek())) {
-      name = Identifier(parent);
+      symbols.Name(declaration, Identifier(parent));
     } else {
       return ReportError(ir::Error::ParserDeclarationExpectedIdentifier, parent);
     }
 
-    symbols.Name(declaration, name);
-
-    ir::Symbol type = identity;
-    if (Match(ir::Token::TypeStart, parent)) {
-      type = Expression(parent);
-    }
-
-    Expect(ir::Token::Initialize, parent);
-
-    ir::Symbol value = Expression(parent);
+    ir::Symbol type = TypeExpression(parent);
+    if (!type) type = identity;
+    ir::Symbol value = InitializerExpression(parent);
+    if (!value) return ReportError(ir::Error::ParserDeclarationExpectedInitializer, parent);
 
     Instruct(ir::Opcode::Call, declaration, type, value);
-    // TODO: Set up the declaration's kind based on the type, making it a result of the call
-
     if (symbols.IsScope(parent)) {
       Instruct(ir::Opcode::Drop, declaration);
     }
 
-    if (name) {
-      PushScopeLevelDeclaration(parent, declaration);
+    PushScopeLevelDeclaration(parent, declaration);
+
+    return declaration;
+  }
+
+  ir::Symbol Parser::ParameterModeDeclaration(ir::Symbol parent) {
+    const bool is_let = Match(ir::Token::Let, parent);
+    ir::Symbol declaration = Create(ir::symbol::Kind::Unresolved, parent);
+    if (is_let) symbols.Flag(declaration, ir::symbol::Flag::Let);
+    ConsumeModifiers(declaration, parent);
+
+    if (ir::Symbol prefixed = PrefixedExpression(parent)) return prefixed;
+    if (!IsCharactersToken(cursor.Peek()) && !IsEscapeToken(cursor.Peek())) return undefined;
+
+    symbols.Name(declaration, Identifier(parent));
+    TypeExpression(parent);
+    InitializerExpression(parent);
+    return declaration;
+  }
+
+  ir::Symbol Parser::PropertyModeDeclaration(ir::Symbol parent) {
+    if (Match(ir::Token::Let, parent)) {
+      ir::Symbol declaration = StatementModeDeclaration(parent);
+      symbols.Flag(declaration, ir::symbol::Flag::Let);
+      return declaration;
     }
 
+    ir::Symbol declaration = Create(ir::symbol::Kind::Unresolved, parent);
+    ConsumeModifiers(declaration, parent);
+
+    if (IsCharactersToken(cursor.Peek()) || IsEscapeToken(cursor.Peek())) {
+      symbols.Name(declaration, Identifier(parent));
+    } else if (cursor.Peek() == ir::Token::EnumOpen) {
+      symbols.Name(declaration, EnumLiteral(parent));
+    } else {
+      return PrefixedExpression(parent);
+    }
+
+    ir::Symbol type = TypeExpression(parent);
+    if (!type) type = identity;
+    ir::Symbol value = InitializerExpression(parent);
+    if (!value) return ReportError(ir::Error::ParserDeclarationExpectedInitializer, parent);
+    Instruct(ir::Opcode::Call, declaration, type, value);
+    return declaration;
+  }
+
+  ir::Symbol Parser::CaptureModeDeclaration(ir::Symbol parent) {
+    if (Match(ir::Token::Let, parent)) {
+      ir::Symbol declaration = StatementModeDeclaration(parent);
+      symbols.Flag(declaration, ir::symbol::Flag::Let);
+      return declaration;
+    }
+
+    ir::Symbol declaration = Create(ir::symbol::Kind::Unresolved, parent);
+    ConsumeModifiers(declaration, parent);
+
+    if (cursor.Peek() == ir::Token::This) return ThisLiteral(parent);
+    if (cursor.Peek() == ir::Token::That) return ThatLiteral(parent);
+    if (IsCharactersToken(cursor.Peek()) || IsEscapeToken(cursor.Peek())) {
+      symbols.Name(declaration, Identifier(parent));
+      TypeExpression(parent);
+      return declaration;
+    }
+
+    return PrefixedExpression(parent);
+  }
+
+  ir::Symbol Parser::LoopModeDeclaration(ir::Symbol parent) {
+    const bool is_let = Match(ir::Token::Let, parent);
+    ir::Symbol declaration = Create(ir::symbol::Kind::Unresolved, parent);
+    if (is_let) symbols.Flag(declaration, ir::symbol::Flag::Let);
+    ConsumeModifiers(declaration, parent);
+
+    if (!IsCharactersToken(cursor.Peek()) && !IsEscapeToken(cursor.Peek())) {
+      return ReportError(ir::Error::ForExpectedBinding, parent);
+    }
+
+    symbols.Name(declaration, Identifier(parent));
+    TypeExpression(parent);
+    PushScopeLevelDeclaration(parent, declaration);
     return declaration;
   }
 
@@ -2014,14 +2112,20 @@ namespace compiler::input {
     ir::Symbol statement = Open(ir::symbol::Kind::Do, parent);
 
     Expect(ir::Token::Do, statement);
+    WhiteSpace(statement);
 
-    ScopeOrInlineStatement(statement);
+    if (cursor.Peek() == ir::Token::ScopeOpen) {
+      PushDeclarationScope(statement);
+      Scope(statement);
+      PopDeclarationScope(statement);
+    } else {
+      ReportError(ir::Error::DoExpectedScopeBlock, statement);
+    }
 
     return Close(statement);
   }
 
   ir::Symbol Parser::WhileStatement(ir::Symbol parent) {
-    // while (condition) { body } [;]
     ir::Symbol statement = Open(ir::symbol::Kind::While, parent);
 
     Expect(ir::Token::While, statement);
@@ -2033,12 +2137,13 @@ namespace compiler::input {
     continue_targets.push_back(condition_label);
 
     Instruct(ir::Opcode::Label, condition_label);
-    ir::Symbol cond = Condition(statement);
+    WhiteSpace(statement);
+    ir::Symbol cond = Expression(statement);
     WhiteSpace(statement);
 
     Instruct(ir::Opcode::Fork, cond, undefined, exit); // Fall through to body on true, jump to exit on false
 
-    ScopeOrInlineStatement(statement);
+    BodyStatement(statement);
 
     Instruct(ir::Opcode::Jump, condition_label);
     Instruct(ir::Opcode::Label, exit);
@@ -2069,7 +2174,7 @@ namespace compiler::input {
     PopDeclarationScope(statement);
 
     if (cursor.Match(ir::Token::While)) {
-      // repeat ... while (condition)
+      // repeat ... while condition
       symbols.Kind(statement, ir::symbol::Kind::RepeatWhile);
       WhiteSpace(statement);
 
@@ -2079,7 +2184,7 @@ namespace compiler::input {
 
       continue_label_instruction = Instruct(ir::Opcode::Label, continue_label);
 
-      ir::Symbol cond = Condition(statement);
+      ir::Symbol cond = Expression(statement);
       Instruct(ir::Opcode::Fork, cond, exit, entry);
     } else {
       Instruct(ir::Opcode::Jump, entry);
@@ -2093,7 +2198,6 @@ namespace compiler::input {
   }
 
   ir::Symbol Parser::ForStatement(ir::Symbol parent) {
-    // for (binding in iterable) { body } [;]
     ir::Symbol statement = Open(ir::symbol::Kind::For, parent);
 
     if (!cursor.Match(ir::Token::For)) {
@@ -2104,14 +2208,8 @@ namespace compiler::input {
 
     WhiteSpace(statement);
 
-    if (!cursor.Match(ir::Token::ConditionOpen)) {
-      ReportError(ir::Error::ConditionExpectedClosingParenthesis, statement);
-    } else {
-      WhiteSpace(statement);
-    }
-
-    // Best-effort: treat the binding as a declaration.
-    Declaration(statement);
+    PushDeclarationScope(statement);
+    LoopModeDeclaration(statement);
     WhiteSpace(statement);
 
     if (!cursor.Match(ir::Token::In)) {
@@ -2123,12 +2221,6 @@ namespace compiler::input {
     Expression(statement);
     WhiteSpace(statement);
 
-    if (!cursor.Match(ir::Token::ConditionClose)) {
-      ReportError(ir::Error::ConditionExpectedClosingParenthesis, statement);
-    }
-
-    WhiteSpace(statement);
-
     ir::Symbol body = Create(ir::symbol::Kind::Label, statement);
     ir::Symbol exit = Create(ir::symbol::Kind::Label, statement);
 
@@ -2137,12 +2229,8 @@ namespace compiler::input {
 
     Instruct(ir::Opcode::Label, body);
 
-    PushDeclarationScope(statement);
-
-    if (cursor.Peek() == ir::Token::ScopeOpen) {
-      Scope(statement);
-    } else {
-      Statement(statement);
+    if (!BodyStatement(statement)) {
+      ReportError(ir::Error::ForExpectedScopeBlock, statement);
     }
 
     PopDeclarationScope(statement);
@@ -2169,12 +2257,17 @@ namespace compiler::input {
       symbols.Kind(statement, ir::symbol::Kind::ElseIf);
       WhiteSpace(statement);
 
-      ir::Symbol cond = Condition(statement);
+      ir::Symbol cond = Expression(statement);
       Instruct(ir::Opcode::Fork, cond, undefined, exit); // Fall through to body on true, jump to exit on false
       WhiteSpace(statement);
+      BodyStatement(statement);
+    } else if (cursor.Peek() == ir::Token::ScopeOpen) {
+      PushDeclarationScope(statement);
+      Scope(statement);
+      PopDeclarationScope(statement);
+    } else {
+      ReportError(ir::Error::ElseStatementExpectedScopeBlock, statement);
     }
-
-    ScopeOrInlineStatement(statement);
 
     uint32_t join_index = 0;
     if (has_if) {
@@ -2201,15 +2294,16 @@ namespace compiler::input {
     ir::Symbol statement = Open(ir::symbol::Kind::If, parent);
     
     Expect(ir::Token::If, statement);
-    
-    ir::Symbol cond = Condition(statement);
+    WhiteSpace(statement);
+    ir::Symbol cond = Expression(statement);
+    WhiteSpace(statement);
     
     ir::Symbol exit = Create(ir::symbol::Kind::Label, statement);
     Instruct(ir::Opcode::Fork, cond, undefined, exit); // Fall through on true, jump to exit on false
 
     // TODO: Handle patterns
 
-    ScopeOrInlineStatement(statement);
+    BodyStatement(statement);
 
     uint32_t join_index = Instruct(ir::Opcode::Jump);
     Instruct(ir::Opcode::Label, exit);
@@ -2235,21 +2329,21 @@ namespace compiler::input {
       return ReportError(ir::Error::IsPatternExpectedCondition, parent);
     }
 
-    ir::Symbol cond = Condition(parent);
+    ir::Symbol cond = Expression(parent);
     Instruct(ir::Opcode::Is, subject, cond, entry);
 
     while (!cursor.Done()) {
       if (cursor.Match(ir::Token::Is)) {
         WhiteSpace(parent);
-        ir::Symbol cond2 = Condition(parent);
+        ir::Symbol cond2 = Expression(parent);
         Instruct(ir::Opcode::Is, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::Has)) {
         WhiteSpace(parent);
-        ir::Symbol cond2 = Condition(parent);
+        ir::Symbol cond2 = Expression(parent);
         Instruct(ir::Opcode::Has, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::From)) {
         WhiteSpace(parent);
-        ir::Symbol cond2 = Condition(parent);
+        ir::Symbol cond2 = Expression(parent);
         Instruct(ir::Opcode::From, subject, cond2, entry);
       } else {
         break;
@@ -2258,7 +2352,7 @@ namespace compiler::input {
 
     Instruct(ir::Opcode::Jump, exit);
     Instruct(ir::Opcode::Label, entry);
-    Scope(parent);
+    BodyStatement(parent);
     Instruct(ir::Opcode::Jump, when_end);
     Instruct(ir::Opcode::Label, exit);
     return exit;
@@ -2274,21 +2368,21 @@ namespace compiler::input {
       return ReportError(ir::Error::HasPatternExpectedCondition, parent);
     }
 
-    ir::Symbol cond = Condition(parent);
+    ir::Symbol cond = Expression(parent);
     Instruct(ir::Opcode::Has, subject, cond, entry);
 
     while (!cursor.Done()) {
       if (cursor.Match(ir::Token::Is)) {
         WhiteSpace(parent);
-        ir::Symbol cond2 = Condition(parent);
+        ir::Symbol cond2 = Expression(parent);
         Instruct(ir::Opcode::Is, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::Has)) {
         WhiteSpace(parent);
-        ir::Symbol cond2 = Condition(parent);
+        ir::Symbol cond2 = Expression(parent);
         Instruct(ir::Opcode::Has, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::From)) {
         WhiteSpace(parent);
-        ir::Symbol cond2 = Condition(parent);
+        ir::Symbol cond2 = Expression(parent);
         Instruct(ir::Opcode::From, subject, cond2, entry);
       } else {
         break;
@@ -2297,7 +2391,7 @@ namespace compiler::input {
 
     Instruct(ir::Opcode::Jump, exit);
     Instruct(ir::Opcode::Label, entry);
-    Scope(parent);
+    BodyStatement(parent);
     Instruct(ir::Opcode::Jump, when_end);
     Instruct(ir::Opcode::Label, exit);
     return exit;
@@ -2313,21 +2407,21 @@ namespace compiler::input {
       return ReportError(ir::Error::FromPatternExpectedCondition, parent);
     }
 
-    ir::Symbol cond = Condition(parent);
+    ir::Symbol cond = Expression(parent);
     Instruct(ir::Opcode::From, subject, cond, entry);
 
     while (!cursor.Done()) {
       if (cursor.Match(ir::Token::Is)) {
         WhiteSpace(parent);
-        ir::Symbol cond2 = Condition(parent);
+        ir::Symbol cond2 = Expression(parent);
         Instruct(ir::Opcode::Is, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::Has)) {
         WhiteSpace(parent);
-        ir::Symbol cond2 = Condition(parent);
+        ir::Symbol cond2 = Expression(parent);
         Instruct(ir::Opcode::Has, subject, cond2, entry);
       } else if (cursor.Match(ir::Token::From)) {
         WhiteSpace(parent);
-        ir::Symbol cond2 = Condition(parent);
+        ir::Symbol cond2 = Expression(parent);
         Instruct(ir::Opcode::From, subject, cond2, entry);
       } else {
         break;
@@ -2336,7 +2430,7 @@ namespace compiler::input {
 
     Instruct(ir::Opcode::Jump, exit);
     Instruct(ir::Opcode::Label, entry);
-    Scope(parent);
+    BodyStatement(parent);
     Instruct(ir::Opcode::Jump, when_end);
     Instruct(ir::Opcode::Label, exit);
     return exit;
@@ -2363,7 +2457,7 @@ namespace compiler::input {
     }
 
     WhiteSpace(statement);
-    ir::Symbol subject = Condition(statement);
+    ir::Symbol subject = Expression(statement);
     WhiteSpace(statement);
 
     if (!cursor.Match(ir::Token::ScopeOpen)) {
@@ -2422,14 +2516,18 @@ namespace compiler::input {
   }
 
   ir::Symbol Parser::DeclarationStatement(ir::Symbol parent) {
-    ir::Symbol value = Declaration(parent);
+    const bool is_let = Match(ir::Token::Let, parent);
+    if (is_let) WhiteSpace(parent);
+
+    ir::Symbol declaration = StatementModeDeclaration(parent);
+    if (is_let) symbols.Flag(declaration, ir::symbol::Flag::Let);
 
     if (!cursor.Match(ir::Token::Semicolon)) {
       return ReportError(ir::Error::DeclarationStatementExpectedSemicolon, parent);
     }
 
     WhiteSpace(parent);
-    return value;
+    return declaration;
   }
 
   ir::Symbol Parser::ExpressionStatement(ir::Symbol parent) {
@@ -2443,6 +2541,18 @@ namespace compiler::input {
     Expect(ir::Token::Semicolon, parent);
 
     return value;
+  }
+
+  bool Parser::BodyStatement(ir::Symbol parent) {
+    switch (cursor.Peek()) {
+      case ir::Token::Break: BreakStatement(parent); return true;
+      case ir::Token::Continue: ContinueStatement(parent); return true;
+      case ir::Token::Do: DoStatement(parent); return true;
+      case ir::Token::Panic: PanicStatement(parent); return true;
+      case ir::Token::Return: ReturnStatement(parent); return true;
+      case ir::Token::Yield: YieldStatement(parent); return true;
+      default: return false;
+    }
   }
 
   ir::Symbol Parser::Statement(ir::Symbol parent) {
@@ -2483,25 +2593,4 @@ namespace compiler::input {
     return last;
   }
 
-  ir::Symbol Parser::Condition(ir::Symbol parent) {
-    Expect(ir::Token::ConditionOpen, parent);
-    ir::Symbol expr = Expression(parent);
-    Expect(ir::Token::ConditionClose, parent);
-
-    return expr;
-  }
-
-  ir::Symbol Parser::ScopeOrInlineStatement(ir::Symbol parent) {
-    PushDeclarationScope(parent);
-
-    if (cursor.Peek() == ir::Token::ScopeOpen) {
-      Scope(parent);
-    } else {
-      Statement(parent);
-    }
-
-    PopDeclarationScope(parent);
-
-    return ir::Symbol{};
-  }
 }

@@ -1,6 +1,6 @@
-module;
-
 #if defined(_WIN32) || defined(_WIN64)
+#  define WIN32_LEAN_AND_MEAN
+// #  define NOMINMAX // Already defined somewhere?
 #  include <windows.h>
 #elif defined(__unix__) || defined(__unix) || defined(unix) || defined(__APPLE__) || defined(__MACH__)
 #  include <pthread.h>
@@ -15,21 +15,21 @@ module;
 #  include <setjmp.h>
 #endif
 
-module compiler.utility.OS;
+#include "compiler/utility/OS.hpp"
+#include "compiler/utility/Macros.hpp"
 
-import compiler.utility.Macros;
-import <array>;
-import <cstdint>;
-import <cstring>;
-import <filesystem>;
-import <iostream>;
-import <limits>;
-import <memory>;
-import <stdexcept>;
-import <string>;
-import <thread>;
-import <utility>;
-import <vector>;
+#include <array>
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
 namespace compiler::utility::OS {
   bool SetThreadPriorityLow(std::thread::native_handle_type handle) { return SetThreadPriority(handle, Priority::LOW); }

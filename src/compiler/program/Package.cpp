@@ -1,14 +1,15 @@
-import compiler.program.Package;
-import compiler.Program;
-import compiler.fs.File;
-import compiler.fs.ID;
-import compiler.program.Module;
+#include "compiler/program/Package.hpp"
 
-import <filesystem>;
-import <memory>;
-import <shared_mutex>;
-import <stdexcept>;
-import <utility>;
+#include <filesystem>
+#include <memory>
+#include <shared_mutex>
+#include <stdexcept>
+#include <utility>
+
+#include "compiler/Program.hpp"
+#include "compiler/fs/File.hpp"
+#include "compiler/fs/ID.hpp"
+#include "compiler/program/Module.hpp"
 
 namespace compiler::program {
   Package::Package(compiler::Program& program, compiler::fs::File&& root)

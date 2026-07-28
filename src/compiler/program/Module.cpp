@@ -1,15 +1,15 @@
-import compiler.program.Module;
-import compiler.Program;
-import compiler.program.Package;
-import compiler.utility.DualBuffer;
+#include "compiler/program/Module.hpp"
+#include "compiler/Program.hpp"
+#include "compiler/program/Package.hpp"
+#include "compiler/utility/DualBuffer.hpp"
 
-import <atomic>;
-import <unordered_map>;
-import <utility>;
-import <vector>;
-import <filesystem>;
-import <cstdint>;
-import <cstddef>;
+#include <atomic>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+#include <filesystem>
+#include <cstdint>
+#include <cstddef>
 
 namespace compiler::program {
 	// ----- Helper mapping from next stage to required dependency stage -----
@@ -211,5 +211,6 @@ namespace compiler::program {
 	}
 
   compiler::program::Package& Module::Register(std::filesystem::path&& specifier) { return program.Register(std::move(specifier)); }
+	
   compiler::program::Module& Module::Import(std::filesystem::path&& specifier) { return package.Import(std::move(specifier)); }
 }

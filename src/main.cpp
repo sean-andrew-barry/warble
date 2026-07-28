@@ -1,33 +1,33 @@
-import Compiler;
-import compiler.utility.Print;
-import compiler.utility.Hash128;
-import compiler.utility.BLAKE3;
-import compiler.utility.Profiler;
-import compiler.utility.Time;
-import compiler.ir.Token;
-import compiler.fs.File;
-import compiler.input.Lexer;
-import compiler.input.Parser;
-import compiler.text.Builder;
+#include "Compiler.hpp"
+#include "compiler/utility/Print.hpp"
+#include "compiler/utility/Hash128.hpp"
+#include "compiler/utility/BLAKE3.hpp"
+#include "compiler/utility/Profiler.hpp"
+#include "compiler/utility/Time.hpp"
+#include "compiler/ir/Token.hpp"
+#include "compiler/fs/File.hpp"
+#include "compiler/input/Lexer.hpp"
+#include "compiler/input/Parser.hpp"
+#include "compiler/text/Builder.hpp"
 
-import <vector>;
-import <atomic>;
-import <string>;
-import <thread>;
-import <filesystem>;
-import <string_view>;
-import <chrono>;
-import <array>;
-import <span>;
-import <cstddef>;
-import <cstdint>;
-import <algorithm>;
-import <random>;
+#include <vector>
+#include <atomic>
+#include <string>
+#include <thread>
+#include <filesystem>
+#include <string_view>
+#include <chrono>
+#include <array>
+#include <span>
+#include <cstddef>
+#include <cstdint>
+#include <algorithm>
+#include <random>
 
 // Temporary just for fast experiments without running the whole pipeline
 void Test() {
-	// compiler::fs::File file{"E:/Users/Sean/Source/Repos/warble/local/tests/main.wbl"};
-	compiler::fs::File file{"E:/Users/Sean/Source/Repos/warble/local/tests/fail.wbl"};
+	// compiler::fs::File file{"local/tests/main.wbl"};
+	compiler::fs::File file{"local/tests/fail.wbl"};
 
 	compiler::utility::Print("Starting compiler engine loop... ", std::this_thread::get_id());
 
@@ -51,16 +51,16 @@ void Test() {
 
 	compiler::utility::Print(lexer);
 
-	if (lexer.Errors().size() == 0 && true) {
-		auto tokens = std::move(lexer).Tokens();
-		auto data = std::move(lexer).Data();
-		compiler::input::Parser parser{std::move(tokens), std::move(data)};
-		(void)parser.Parse();
+	// if (lexer.Errors().size() == 0 && true) {
+	// 	auto tokens = std::move(lexer).Tokens();
+	// 	auto data = std::move(lexer).Data();
+	// 	compiler::input::Parser parser{std::move(tokens), std::move(data)};
+	// 	(void)parser.Parse();
 
-		compiler::utility::Print("Parsing completed: ", parser.Symbols().Count(), " symbols and ", parser.Instructions().size(), " instructions.");
+	// 	compiler::utility::Print("Parsing completed: ", parser.Symbols().Count(), " symbols and ", parser.Instructions().size(), " instructions.");
 
-		compiler::utility::Print(parser);
-	}
+	// 	compiler::utility::Print(parser);
+	// }
 }
 
 void TestProfiler() {
@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
 		commands.push_back("main.wbl"); // Entry path
 	}
 
-	// Test();
+	Test();
 
 	// // Create the compiler; it owns the engine and manages programs.
 	// Compiler compiler{std::move(commands)};

@@ -25,14 +25,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
@@ -41,89 +41,90 @@
 
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\Compiler.ixx" />
+    <ClInclude Include="src\Compiler.hpp" />
 
     <ClCompile Include="src\compiler\Engine.cpp" />
-    <ClCompile Include="src\compiler\Engine.ixx" />
+    <ClInclude Include="src\compiler\Engine.hpp" />
     <ClCompile Include="src\compiler\Program.cpp" />
-    <ClCompile Include="src\compiler\Program.ixx" />
+    <ClInclude Include="src\compiler\Program.hpp" />
     <ClCompile Include="src\compiler\engine\Thread.cpp" />
-    <ClCompile Include="src\compiler\engine\Thread.ixx" />
+    <ClInclude Include="src\compiler\engine\Thread.hpp" />
     <ClCompile Include="src\compiler\engine\ThreadPool.cpp" />
-    <ClCompile Include="src\compiler\engine\ThreadPool.ixx" />
-    <ClCompile Include="src\compiler\fs\File.ixx" />
+    <ClInclude Include="src\compiler\engine\ThreadPool.hpp" />
+    <ClCompile Include="src\compiler\fs\File.cpp" />
+    <ClInclude Include="src\compiler\fs\File.hpp" />
     <ClCompile Include="src\compiler\fs\ID.cpp" />
-    <ClCompile Include="src\compiler\fs\ID.ixx" />
+    <ClInclude Include="src\compiler\fs\ID.hpp" />
 
     <ClCompile Include="src\compiler\input\Lexer.cpp" />
-    <ClCompile Include="src\compiler\input\Lexer.ixx" />
+    <ClInclude Include="src\compiler\input\Lexer.hpp" />
     <ClCompile Include="src\compiler\input\Parser.cpp" />
-    <ClCompile Include="src\compiler\input\Parser.ixx" />
-    <!-- <ClCompile Include="src\compiler\input\wbl\Lexer.ixx" /> -->
-    <!-- <ClCompile Include="src\compiler\input\wbl\Parser.ixx" /> -->
+    <ClInclude Include="src\compiler\input\Parser.hpp" />
+    <!-- <ClInclude Include="src\compiler\input\wbl\Lexer.hpp" /> -->
+    <!-- <ClInclude Include="src\compiler\input\wbl\Parser.hpp" /> -->
 
-    <ClCompile Include="src\compiler\ir\Error.ixx" />
-    <ClCompile Include="src\compiler\ir\Function.ixx" />
-    <ClCompile Include="src\compiler\ir\Symbol.ixx" />
-    <ClCompile Include="src\compiler\ir\Instruction.ixx" />
-    <ClCompile Include="src\compiler\ir\Opcode.ixx" />
-    <ClCompile Include="src\compiler\ir\Register.ixx" />
+    <ClInclude Include="src\compiler\ir\Error.hpp" />
+    <ClInclude Include="src\compiler\ir\Function.hpp" />
+    <ClInclude Include="src\compiler\ir\Symbol.hpp" />
+    <ClInclude Include="src\compiler\ir\Instruction.hpp" />
+    <ClInclude Include="src\compiler\ir\Opcode.hpp" />
+    <ClInclude Include="src\compiler\ir\Register.hpp" />
     <ClCompile Include="src\compiler\ir\Symbols.cpp" />
-    <ClCompile Include="src\compiler\ir\Symbols.ixx" />
-    <ClCompile Include="src\compiler\ir\Functions.ixx" />
-    <ClCompile Include="src\compiler\ir\Token.ixx" />
-    <ClCompile Include="src\compiler\ir\symbol\Flag.ixx" />
-    <ClCompile Include="src\compiler\ir\symbol\Registers.ixx" />
-    <ClCompile Include="src\compiler\ir\symbol\Kind.ixx" />
+    <ClInclude Include="src\compiler\ir\Symbols.hpp" />
+    <ClInclude Include="src\compiler\ir\Functions.hpp" />
+    <ClInclude Include="src\compiler\ir\Token.hpp" />
+    <ClInclude Include="src\compiler\ir\symbol\Flag.hpp" />
+    <ClInclude Include="src\compiler\ir\symbol\Registers.hpp" />
+    <ClInclude Include="src\compiler\ir\symbol\Kind.hpp" />
 
-    <ClCompile Include="src\compiler\output\Allocator.ixx" />
-    <ClCompile Include="src\compiler\output\Encoder.ixx" />
-    <ClCompile Include="src\compiler\output\Legalizer.ixx" />
-    <ClCompile Include="src\compiler\output\Optimizer.ixx" />
+    <ClInclude Include="src\compiler\output\Allocator.hpp" />
+    <ClInclude Include="src\compiler\output\Encoder.hpp" />
+    <ClInclude Include="src\compiler\output\Legalizer.hpp" />
+    <ClInclude Include="src\compiler\output\Optimizer.hpp" />
     <ClCompile Include="src\compiler\output\Interpreter.cpp" />
-    <ClCompile Include="src\compiler\output\Interpreter.ixx" />
+    <ClInclude Include="src\compiler\output\Interpreter.hpp" />
     <!-- <ClCompile Include="src\compiler\output\x64\Encoder.cpp" /> -->
-    <!-- <ClCompile Include="src\compiler\output\x64\Encoder.ixx" /> -->
+    <!-- <ClInclude Include="src\compiler\output\x64\Encoder.hpp" /> -->
 
     <ClCompile Include="src\compiler\program\Module.cpp" />
-    <ClCompile Include="src\compiler\program\Module.ixx" />
+    <ClInclude Include="src\compiler\program\Module.hpp" />
     <ClCompile Include="src\compiler\program\Package.cpp" />
-    <ClCompile Include="src\compiler\program\Package.ixx" />
-    <ClCompile Include="src\compiler\text\Convert.ixx" />
-    <ClCompile Include="src\compiler\text\Cursor.ixx" />
-    <ClCompile Include="src\compiler\text\Source.ixx" />
-    <ClCompile Include="src\compiler\text\Unicode.ixx" />
-    <ClCompile Include="src\compiler\text\UnicodeTables.ixx" />
-    <ClCompile Include="src\compiler\text\cursor\String.ixx" />
-    <ClCompile Include="src\compiler\text\cursor\Token.ixx" />
+    <ClInclude Include="src\compiler\program\Package.hpp" />
+    <ClInclude Include="src\compiler\text\Convert.hpp" />
+    <ClInclude Include="src\compiler\text\Cursor.hpp" />
+    <ClInclude Include="src\compiler\text\Source.hpp" />
+    <ClInclude Include="src\compiler\text\Unicode.hpp" />
+    <ClInclude Include="src\compiler\text\UnicodeTables.hpp" />
+    <ClInclude Include="src\compiler\text\cursor\String.hpp" />
+    <ClInclude Include="src\compiler\text\cursor\Token.hpp" />
     <ClCompile Include="src\compiler\text\Builder.cpp" />
-    <ClCompile Include="src\compiler\text\Builder.ixx" />
-    <ClCompile Include="src\compiler\utility\DualBuffer.ixx" />
-    <ClCompile Include="src\compiler\utility\Flag.ixx" />
-    <ClCompile Include="src\compiler\utility\FreeListAllocator.ixx" />
-    <ClCompile Include="src\compiler\utility\Helpers.ixx" />
-    <ClCompile Include="src\compiler\utility\Macros.ixx" />
+    <ClInclude Include="src\compiler\text\Builder.hpp" />
+    <ClInclude Include="src\compiler\utility\DualBuffer.hpp" />
+    <ClInclude Include="src\compiler\utility\Flag.hpp" />
+    <ClInclude Include="src\compiler\utility\FreeListAllocator.hpp" />
+    <ClInclude Include="src\compiler\utility\Helpers.hpp" />
+    <ClInclude Include="src\compiler\utility\Macros.hpp" />
     <ClCompile Include="src\compiler\utility\OS.cpp" />
-    <ClCompile Include="src\compiler\utility\OS.ixx" />
+    <ClInclude Include="src\compiler\utility\OS.hpp" />
 
-    <ClCompile Include="src\compiler\utility\Buffer.ixx" />
-    <ClCompile Include="src\compiler\utility\ToBytes.ixx" />
-    <ClCompile Include="src\compiler\utility\SuffixAutomaton.ixx" />
-    <ClCompile Include="src\compiler\utility\Hash128.ixx" />
-    <ClCompile Include="src\compiler\utility\BLAKE3.ixx" />
-    <!-- <ClCompile Include="src\compiler\engine\AtomicBlock.ixx" /> -->
-    <!-- <ClCompile Include="src\compiler\engine\AtomicDeque.ixx" /> -->
-    <!-- <ClCompile Include="src\compiler\engine\CircularBuffer.ixx" /> -->
-    <!-- <ClCompile Include="src\compiler\engine\RawArray.ixx" /> -->
-    <!-- <ClCompile Include="src\compiler\engine\thread\Block.ixx" /> -->
-    <!-- <ClCompile Include="src\compiler\output\TokenViewer.ixx" /> -->
-    <!-- <ClCompile Include="src\compiler\utility\FreeListAllocatorSample.ixx" /> -->
+    <ClInclude Include="src\compiler\utility\Buffer.hpp" />
+    <ClInclude Include="src\compiler\utility\ToBytes.hpp" />
+    <ClInclude Include="src\compiler\utility\SuffixAutomaton.hpp" />
+    <ClInclude Include="src\compiler\utility\Hash128.hpp" />
+    <ClInclude Include="src\compiler\utility\BLAKE3.hpp" />
+    <!-- <ClInclude Include="src\compiler\engine\AtomicBlock.hpp" /> -->
+    <!-- <ClInclude Include="src\compiler\engine\AtomicDeque.hpp" /> -->
+    <!-- <ClInclude Include="src\compiler\engine\CircularBuffer.hpp" /> -->
+    <!-- <ClInclude Include="src\compiler\engine\RawArray.hpp" /> -->
+    <!-- <ClInclude Include="src\compiler\engine\thread\Block.hpp" /> -->
+    <!-- <ClInclude Include="src\compiler\output\TokenViewer.hpp" /> -->
+    <!-- <ClInclude Include="src\compiler\utility\FreeListAllocatorSample.hpp" /> -->
     <ClCompile Include="src\compiler\utility\Print.cpp" />
-    <ClCompile Include="src\compiler\utility\Print.ixx" />
-    <ClCompile Include="src\compiler\utility\Profiler.ixx" />
-    <ClCompile Include="src\compiler\utility\Random.ixx" />
-    <ClCompile Include="src\compiler\utility\Time.ixx" />
-    <ClCompile Include="src\compiler\utility\Units.ixx" />
+    <ClInclude Include="src\compiler\utility\Print.hpp" />
+    <ClInclude Include="src\compiler\utility\Profiler.hpp" />
+    <ClInclude Include="src\compiler\utility\Random.hpp" />
+    <ClInclude Include="src\compiler\utility\Time.hpp" />
+    <ClInclude Include="src\compiler\utility\Units.hpp" />
   </ItemGroup>
 
   <ItemGroup>
@@ -137,20 +138,13 @@
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-
-      <!-- C++ modules -->
-      <EnableModules>true</EnableModules>
-      <!-- Build STL header units so import &lt;...&gt; works even in minimal builds -->
-      <BuildStlModules>true</BuildStlModules>
-      <ScanSourceForModuleDependencies>true</ScanSourceForModuleDependencies>
-      <ModuleOutputFile>$(IntDir)%(RelativeDir)</ModuleOutputFile>
-      <ModuleDependenciesFile>$(IntDir)%(RelativeDir)</ModuleDependenciesFile>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <XMLDocumentationFileName></XMLDocumentationFileName>
       <SourceDependenciesFile></SourceDependenciesFile>
 
-      <AdditionalOptions>/permissive- /Zc:__cplusplus /Zc:preprocessor %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/permissive- /Zc:__cplusplus /Zc:preprocessor /FS %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>_CONSOLE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <!-- Add include dirs here if needed:
       <AdditionalIncludeDirectories>include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       -->
