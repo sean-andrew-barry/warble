@@ -26,8 +26,8 @@
 
 // Temporary just for fast experiments without running the whole pipeline
 void Test() {
-	// compiler::fs::File file{"E:/Users/Sean/Source/Repos/warble/local/tests/main.wbl"};
-	compiler::fs::File file{"E:/Users/Sean/Source/Repos/warble/local/tests/fail.wbl"};
+	// compiler::fs::File file{"local/tests/main.wbl"};
+	compiler::fs::File file{"local/tests/fail.wbl"};
 
 	compiler::utility::Print("Starting compiler engine loop... ", std::this_thread::get_id());
 
@@ -51,16 +51,16 @@ void Test() {
 
 	compiler::utility::Print(lexer);
 
-	if (lexer.Errors().size() == 0 && true) {
-		auto tokens = std::move(lexer).Tokens();
-		auto data = std::move(lexer).Data();
-		compiler::input::Parser parser{std::move(tokens), std::move(data)};
-		(void)parser.Parse();
+	// if (lexer.Errors().size() == 0 && true) {
+	// 	auto tokens = std::move(lexer).Tokens();
+	// 	auto data = std::move(lexer).Data();
+	// 	compiler::input::Parser parser{std::move(tokens), std::move(data)};
+	// 	(void)parser.Parse();
 
-		compiler::utility::Print("Parsing completed: ", parser.Symbols().Count(), " symbols and ", parser.Instructions().size(), " instructions.");
+	// 	compiler::utility::Print("Parsing completed: ", parser.Symbols().Count(), " symbols and ", parser.Instructions().size(), " instructions.");
 
-		compiler::utility::Print(parser);
-	}
+	// 	compiler::utility::Print(parser);
+	// }
 }
 
 void TestProfiler() {
@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
 		commands.push_back("main.wbl"); // Entry path
 	}
 
-	// Test();
+	Test();
 
 	// // Create the compiler; it owns the engine and manages programs.
 	// Compiler compiler{std::move(commands)};
