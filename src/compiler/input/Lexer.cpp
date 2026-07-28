@@ -129,7 +129,7 @@ namespace compiler::input {
       bs.set('!');
       bs.set('.');
       bs.set('~');
-      bs.set('a'); // `await` or `assume`
+      bs.set('a'); // `assert`, `await`, or `assume`
       bs.set('e'); // `expect`
       bs.set('r'); // `runtime`
       bs.set('c'); // `comtime`
@@ -589,6 +589,7 @@ namespace compiler::input {
   bool Lexer::Runtime() { return Keyword("runtime", ir::Token::Runtime); }
   bool Lexer::Await() { return Keyword("await", ir::Token::Await); }
   bool Lexer::Assume() { return Keyword("assume", ir::Token::Assume); }
+  bool Lexer::Assert() { return Keyword("assert", ir::Token::Assert); }
   bool Lexer::Expect() { return Keyword("expect", ir::Token::Expect); }
   bool Lexer::Async() { return Keyword("async", ir::Token::Async); }
   bool Lexer::Compiler() { return Keyword("compiler", ir::Token::Compiler); }
@@ -673,7 +674,7 @@ namespace compiler::input {
       case '!': return Not();
       case '.': return Spread();
       case '~': return BitwiseNot();
-      case 'a': return Await() || Assume();
+      case 'a': return Assert() || Await() || Assume();
       case 'e': return Expect();
       case 'r': return Runtime();
       case 'c': return Comtime();

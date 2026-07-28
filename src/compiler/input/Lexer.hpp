@@ -207,6 +207,7 @@ namespace compiler::input {
     bool Comtime();
     bool Await();
     bool Assume();
+    bool Assert();
     bool Expect();
     bool Async();
     bool Compiler();

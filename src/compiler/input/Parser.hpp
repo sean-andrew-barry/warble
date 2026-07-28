@@ -227,6 +227,7 @@ namespace compiler::input {
       switch (token) {
         case ir::Token::Await:
         case ir::Token::Expect:
+        case ir::Token::Assert:
         case ir::Token::CopyOf:
         case ir::Token::LengthOf:
         case ir::Token::SymbolOf:

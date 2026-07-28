@@ -103,6 +103,7 @@ namespace compiler::input {
       case ir::Token::Await: // await x
       case ir::Token::Expect: // expect x
       case ir::Token::Assume: // assume x
+      case ir::Token::Assert: // assert x
       case ir::Token::Comtime: // comtime x
       case ir::Token::Runtime: // runtime x
         return 15;
@@ -587,6 +588,7 @@ namespace compiler::input {
       case ir::Token::SymbolOf: return ir::Opcode::SymbolOf;
       case ir::Token::CopyOf: return ir::Opcode::CopyOf;
       case ir::Token::Spread: return ir::Opcode::Spread;
+      case ir::Token::Assert: return ir::Opcode::Assert;
       default: return ir::Opcode::NoOperation;
     }
   }

@@ -262,7 +262,7 @@ Identifiers are case-sensitive: `Count`, `count`, and `COUNT` are distinct ident
 Warble reserves a small set of keywords that have special meanings within the language. These keywords cannot be used as identifiers. Examples include:
 
 ```
-let, mut, const, private, protected, public, do, tick, null, undefined, maximum, minimum, readonly, true, false, return, yield, panic, await, async, pass, fail, try, if, when, else, is, from, has, as, this, that
+let, mut, const, private, protected, public, do, tick, null, undefined, maximum, minimum, readonly, true, false, return, yield, panic, assert, await, async, pass, fail, try, if, when, else, is, from, has, as, this, that
 ```
 
 A full list of reserved keywords is available in Appendix 18.2.
@@ -4283,6 +4283,8 @@ Warble's approach ensures no hidden surprises, fostering a safer and more respon
 
 ### 12.3 Assertion Facilities
 
+The `assert` keyword is a unary prefix operator. It evaluates its operand and requires the result to be true; otherwise compilation reports an assertion failure. The operator evaluates to its operand value when the assertion succeeds.
+
 ### 12.4 Union-based Error Propagation (`expect`, `assume`)
 
 Warble's primary structured error flow is an extension of the existing union system.
@@ -5064,6 +5066,7 @@ Warble emphasizes minimalism; most language functionality is implemented as iden
 * **`do`** — Introduces a scoped block.
 * **`repeat`** — Begins a loop, which can optionally end with a `while (condition)` portion.
 * **`tick`** — Begins a module-context tick loop (only legal outside function bodies). Each iteration ends with an implicit suspension point.
+* **`assert`** — Unary prefix operator that requires its operand to be true and reports an assertion failure otherwise.
 * **`await`** — Unary prefix operator that suspends the current thread while a promise is `unresolved`, repeatedly returning to the work queue between checks. Futures transparently forward `await` to their underlying promise.
 * **`expect`** — Unary prefix operator that removes a union's fail arms when passing, or propagates failure via an implicit `return fail`.
 * **`assume`** — Unary prefix operator that removes a union's fail arms when passing, or aborts via `panic` when failing.

@@ -210,6 +210,7 @@ namespace compiler::ir {
     Comtime,
     Await, // `await` - Unary prefix keyword used to wait for a promise to resolve
     Assume, // `assume` - Unary prefix keyword used for panicking on failure
+    Assert, // `assert` - Unary prefix keyword used to assert a condition
     Expect, // `expect` - Unary prefix keyword used for failure propagation
     CopyOf, // `@` - Unary prefix used to create a copy of a value. TODO: Change to mean a decorator?
     LengthOf, // `#` - Unary prefix length
@@ -471,6 +472,7 @@ namespace compiler::ir {
       case Token::Comtime: return "Comtime";
       case Token::Await: return "Await";
       case Token::Assume: return "Assume";
+      case Token::Assert: return "Assert";
       case Token::Async: return "Async";
       case Token::Expect: return "Expect";
       case Token::CopyOf: return "CopyOf";

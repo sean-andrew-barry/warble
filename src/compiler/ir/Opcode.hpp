@@ -12,6 +12,7 @@ namespace compiler::ir {
     Error,
     Assume, // Assume(expression); 
     Await, // Await(expression);
+    Assert, // Assert(expression);
     Expect, // Expect(expression);
     
     // Control flow
@@ -172,6 +173,7 @@ namespace compiler::ir {
       case Opcode::Panic: return "Panic";
       case Opcode::Assume: return "Assume";
       case Opcode::Await: return "Await";
+      case Opcode::Assert: return "Assert";
       case Opcode::Expect: return "Expect";
       case Opcode::Call: return "Call";
       case Opcode::Return: return "Return";
